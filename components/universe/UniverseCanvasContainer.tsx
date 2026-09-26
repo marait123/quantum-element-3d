@@ -15,11 +15,10 @@ import { MilkyWayScene } from './MilkyWayScene';
 import { ExtragalacticScene } from './ExtragalacticScene';
 import { CosmicWebScene } from './CosmicWebScene';
 
-// Free-Flight / First-Person Spaceship Walk-Around Controls
+// Free-Flight / First-Person Spaceship Walk-Around Controls with Dynamic Speed Scaling
 const FreeFlightControls: React.FC = () => {
   const { camera } = useThree();
   const keysPressed = useRef<Record<string, boolean>>({});
-  const moveSpeed = 22.0;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,7 +54,12 @@ const FreeFlightControls: React.FC = () => {
     if (moveVector.lengthSq() > 0) {
       moveVector.normalize();
       moveVector.applyQuaternion(camera.quaternion);
-      camera.position.addScaledVector(moveVector, moveSpeed * delta);
+
+      // Adaptive speed scaling based on distance from center
+      const currentDist = Math.max(camera.position.length(), 5);
+      const adaptiveSpeed = Math.min(Math.max(currentDist * 0.45, 2.5), 65000);
+
+      camera.position.addScaledVector(moveVector, adaptiveSpeed * delta);
     }
   });
 
@@ -68,61 +72,135 @@ const UniverseCameraManager: React.FC = () => {
   const controlsRef = useRef<OrbitControlsImpl>(null);
 
   const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
+  const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
   const navigationMode = useQuantumStore((s) => s.navigationMode);
 
-  // Transition to selected body or scale center
+  const prevScaleRef = useRef(cosmicScaleLevel);
+  const isTweeningRef = useRef(false);
+  const isInitialMountRef = useRef(true);
+
+  // Real-time continuous zoom distance tracker and HUD synchronization
+  useFrame(() => {
+    if (isTweeningRef.current || !controlsRef.current) return;
+
+    const currentDist = camera.position.distanceTo(controlsRef.current.target);
+
+    let detectedLevel: 1 | 2 | 3 | 4 | 5 = 1;
+    if (currentDist < 350) {
+      detectedLevel = 1; // Solar System
+    } else if (currentDist < 4500) {
+      detectedLevel = 2; // Stellar Neighborhood
+    } else if (currentDist < 45000) {
+      detectedLevel = 3; // Milky Way
+    } else if (currentDist < 220000) {
+      detectedLevel = 4; // Extragalactic
+    } else {
+      detectedLevel = 5; // Cosmic Web
+    }
+
+    if (detectedLevel !== prevScaleRef.current) {
+      prevScaleRef.current = detectedLevel;
+      setCosmicScaleLevel(detectedLevel);
+    }
+  });
+
+  // Smooth camera glide (or instant initial snap) to selected celestial body
   useEffect(() => {
-    if (navigationMode === 'fly') return;
+    if (navigationMode === 'fly' || !selectedCosmicBodyId) return;
 
-    gsap.killTweensOf(camera.position);
+    const body = CELESTIAL_BODIES[selectedCosmicBodyId];
+    if (!body) return;
 
-    // If a celestial body is selected, fly the camera to focus on it
-    if (selectedCosmicBodyId && CELESTIAL_BODIES[selectedCosmicBodyId]) {
-      const body = CELESTIAL_BODIES[selectedCosmicBodyId];
-      const targetPos = new THREE.Vector3(...body.position);
-      const offsetDist = Math.max(body.size * 2.8, 4.5);
-      const camPos = new THREE.Vector3(
-        body.position[0] + offsetDist * 0.7,
-        body.position[1] + offsetDist * 0.5,
-        body.position[2] + offsetDist
-      );
+    const targetPos = new THREE.Vector3(...body.position);
+    const offsetDist = Math.max(body.size * 2.8, 4.0);
+    const camPos = new THREE.Vector3(
+      body.position[0] + offsetDist * 0.7,
+      body.position[1] + offsetDist * 0.45,
+      body.position[2] + offsetDist
+    );
 
-      gsap.to(camera.position, {
-        x: camPos.x,
-        y: camPos.y,
-        z: camPos.z,
-        duration: 1.4,
-        ease: 'power3.inOut',
-        onUpdate: () => {
-          if (controlsRef.current) {
-            controlsRef.current.target.copy(targetPos);
-            controlsRef.current.update();
-          }
-        },
-      });
+    // If initial page load/refresh with body param, snap immediately to view!
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      camera.position.copy(camPos);
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(targetPos);
+        controlsRef.current.update();
+      }
       return;
     }
 
-    // Default: fly to current cosmic scale overview
+    isTweeningRef.current = true;
+    gsap.killTweensOf(camera.position);
+
+    gsap.to(camera.position, {
+      x: camPos.x,
+      y: camPos.y,
+      z: camPos.z,
+      duration: 1.5,
+      ease: 'power3.inOut',
+      onUpdate: () => {
+        if (controlsRef.current) {
+          controlsRef.current.target.lerp(targetPos, 0.15);
+          controlsRef.current.update();
+        }
+      },
+      onComplete: () => {
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(targetPos);
+          controlsRef.current.update();
+        }
+        isTweeningRef.current = false;
+      },
+    });
+  }, [selectedCosmicBodyId, navigationMode, camera]);
+
+  // Smooth camera glide (or instant initial snap) when clicking scale milestone in HUD dock
+  useEffect(() => {
+    if (navigationMode === 'fly' || selectedCosmicBodyId) return;
+
     const scaleConfig = COSMIC_SCALES.find((s) => s.level === cosmicScaleLevel);
     if (!scaleConfig) return;
+
+    const targetPos = new THREE.Vector3(...scaleConfig.cameraTarget);
+
+    // If initial page load/refresh with scale param, snap directly!
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      camera.position.set(
+        scaleConfig.cameraPosition[0],
+        scaleConfig.cameraPosition[1],
+        scaleConfig.cameraPosition[2]
+      );
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(targetPos);
+        controlsRef.current.update();
+      }
+      return;
+    }
+
+    isTweeningRef.current = true;
+    gsap.killTweensOf(camera.position);
 
     gsap.to(camera.position, {
       x: scaleConfig.cameraPosition[0],
       y: scaleConfig.cameraPosition[1],
       z: scaleConfig.cameraPosition[2],
-      duration: 1.3,
+      duration: 1.6,
       ease: 'power3.inOut',
       onUpdate: () => {
         if (controlsRef.current) {
-          controlsRef.current.target.set(
-            scaleConfig.cameraTarget[0],
-            scaleConfig.cameraTarget[1],
-            scaleConfig.cameraTarget[2]
-          );
+          controlsRef.current.target.lerp(targetPos, 0.12);
           controlsRef.current.update();
         }
+      },
+      onComplete: () => {
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(targetPos);
+          controlsRef.current.update();
+        }
+        isTweeningRef.current = false;
       },
     });
   }, [cosmicScaleLevel, selectedCosmicBodyId, navigationMode, camera]);
@@ -135,9 +213,9 @@ const UniverseCameraManager: React.FC = () => {
           enableDamping
           dampingFactor={0.06}
           rotateSpeed={0.8}
-          zoomSpeed={1.0}
-          minDistance={3.0}
-          maxDistance={180}
+          zoomSpeed={1.2}
+          minDistance={1.2}
+          maxDistance={900000}
         />
       ) : (
         <>
@@ -156,7 +234,6 @@ const UniverseCameraManager: React.FC = () => {
 };
 
 export const UniverseCanvasContainer: React.FC = () => {
-  const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
   const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
 
   return (
@@ -171,12 +248,13 @@ export const UniverseCanvasContainer: React.FC = () => {
     >
       <Canvas
         camera={{
-          position: [0, 42, 65],
+          position: [0, 50, 75],
           fov: 48,
-          near: 0.1,
-          far: 2000,
+          near: 0.05,
+          far: 2500000,
         }}
         gl={{
+          logarithmicDepthBuffer: true,
           antialias: true,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
@@ -186,20 +264,20 @@ export const UniverseCanvasContainer: React.FC = () => {
       >
         {/* Deep Space Background Stars */}
         <color attach="background" args={['#020617']} />
-        <Stars radius={180} depth={90} count={7000} factor={4} saturation={0.5} fade speed={1.2} />
+        <Stars radius={250000} depth={100000} count={9000} factor={6} saturation={0.5} fade speed={1.0} />
 
         {/* Global Space Ambient Light */}
-        <ambientLight intensity={0.25} />
+        <ambientLight intensity={0.35} />
 
         {/* Camera and Navigation Controller */}
         <UniverseCameraManager />
 
-        {/* Conditionally Render Active Cosmic Scale Scene */}
-        {cosmicScaleLevel === 1 && <SolarSystemScene />}
-        {cosmicScaleLevel === 2 && <StellarNeighborhoodScene />}
-        {cosmicScaleLevel === 3 && <MilkyWayScene />}
-        {cosmicScaleLevel === 4 && <ExtragalacticScene />}
-        {cosmicScaleLevel === 5 && <CosmicWebScene />}
+        {/* All Scales Mounted Simultaneously in Unified Continuous Coordinate Space */}
+        <SolarSystemScene />
+        <StellarNeighborhoodScene />
+        <MilkyWayScene />
+        <ExtragalacticScene />
+        <CosmicWebScene />
       </Canvas>
     </div>
   );

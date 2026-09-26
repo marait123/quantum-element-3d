@@ -44,7 +44,7 @@ const BetelgeuseStar: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#ef4444" intensity={3.5} distance={70} />
+      <pointLight color="#ef4444" intensity={4.5} distance={body.size * 10} />
 
       {/* Pulsating Core */}
       <mesh ref={coreRef}>
@@ -52,18 +52,18 @@ const BetelgeuseStar: React.FC<{
         <meshStandardMaterial
           color="#dc2626"
           emissive="#b91c1c"
-          emissiveIntensity={0.8}
-          roughness={0.8}
+          emissiveIntensity={0.9}
+          roughness={0.7}
         />
       </mesh>
 
-      {/* Convective Dust Shell */}
+      {/* Convective Outer Dust Shell */}
       <mesh ref={outerPuffRef}>
         <sphereGeometry args={[body.size * 1.18, 24, 24]} />
         <meshBasicMaterial
           color="#ea580c"
           transparent
-          opacity={0.3}
+          opacity={0.35}
           side={THREE.BackSide}
           wireframe
         />
@@ -72,7 +72,7 @@ const BetelgeuseStar: React.FC<{
       {/* Selection Ring */}
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.3, body.size * 1.45, 32]} />
+          <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
@@ -84,7 +84,7 @@ const BetelgeuseStar: React.FC<{
 
       {/* Tag */}
       {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 1.8, 0]} center distanceFactor={35}>
+        <Html position={[0, body.size + 12, 0]} center distanceFactor={body.size * 5}>
           <div className="px-3 py-1 rounded-full bg-red-950/90 border border-red-500 shadow-xl backdrop-blur-md text-xs font-bold text-red-200 whitespace-nowrap flex items-center gap-1.5">
             {isHighlighted && <span className="text-amber-400">⚡</span>}
             <span>💥 {language === 'ar' ? body.nameAr : body.nameEn} (Dying Star)</span>
@@ -114,11 +114,11 @@ const SiriusBinarySystem: React.FC<{
     if (binaryGroupRef.current) {
       binaryGroupRef.current.rotation.y = t * 0.05;
     }
-    // Sirius B mutual orbit
+    // Sirius B mutual orbit around A
     if (siriusBRef.current) {
-      const orbitR = 4.8;
-      const angle = t * 0.6;
-      siriusBRef.current.position.set(Math.cos(angle) * orbitR, Math.sin(angle) * 0.6, Math.sin(angle) * orbitR);
+      const orbitR = 45.0;
+      const angle = t * 0.4;
+      siriusBRef.current.position.set(Math.cos(angle) * orbitR, Math.sin(angle) * 8.0, Math.sin(angle) * orbitR);
     }
   });
 
@@ -136,7 +136,7 @@ const SiriusBinarySystem: React.FC<{
         onPointerOver={() => setHoveredA(true)}
         onPointerOut={() => setHoveredA(false)}
       >
-        <pointLight color="#bae6fd" intensity={4.0} distance={80} />
+        <pointLight color="#bae6fd" intensity={5.0} distance={siriusA.size * 12} />
         <mesh>
           <sphereGeometry args={[siriusA.size, 32, 32]} />
           <meshBasicMaterial color="#e0f2fe" />
@@ -146,9 +146,9 @@ const SiriusBinarySystem: React.FC<{
           <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} />
         </mesh>
         {(hoveredA || isASelected) && (
-          <Html position={[0, siriusA.size + 1.2, 0]} center distanceFactor={35}>
+          <Html position={[0, siriusA.size + 8, 0]} center distanceFactor={siriusA.size * 6}>
             <div className="px-2.5 py-0.5 rounded-full bg-blue-950/90 border border-blue-400 text-xs font-semibold text-blue-200 whitespace-nowrap shadow-lg">
-              ✨ {language === 'ar' ? siriusA.nameAr : siriusA.nameEn} (A0V)
+              ✨ {language === 'ar' ? siriusA.nameAr : siriusA.nameEn} (A0V 8.6 ly)
             </div>
           </Html>
         )}
@@ -164,17 +164,17 @@ const SiriusBinarySystem: React.FC<{
         onPointerOver={() => setHoveredB(true)}
         onPointerOut={() => setHoveredB(false)}
       >
-        <pointLight color="#38bdf8" intensity={2.0} distance={30} />
+        <pointLight color="#38bdf8" intensity={2.5} distance={siriusB.size * 8} />
         <mesh>
           <sphereGeometry args={[siriusB.size, 24, 24]} />
           <meshBasicMaterial color="#38bdf8" />
         </mesh>
         <mesh>
-          <sphereGeometry args={[siriusB.size * 1.5, 16, 16]} />
+          <sphereGeometry args={[siriusB.size * 1.4, 16, 16]} />
           <meshBasicMaterial color="#93c5fd" transparent opacity={0.4} wireframe />
         </mesh>
         {(hoveredB || isBSelected) && (
-          <Html position={[0, siriusB.size + 1.0, 0]} center distanceFactor={30}>
+          <Html position={[0, siriusB.size + 4, 0]} center distanceFactor={siriusB.size * 8}>
             <div className="px-2 py-0.5 rounded-full bg-slate-900/90 border border-sky-400 text-[10px] font-bold text-sky-200 whitespace-nowrap shadow-md">
               💎 {language === 'ar' ? siriusB.nameAr : siriusB.nameEn} (White Dwarf)
             </div>
@@ -198,10 +198,12 @@ const CrabPulsarRelic: React.FC<{
 
   useFrame((_, delta) => {
     if (beamGroupRef.current) {
-      // Rapid spin resembling relativistic pulsar frequency
-      beamGroupRef.current.rotation.y += delta * 12.0;
+      beamGroupRef.current.rotation.y += delta * 14.0;
     }
   });
+
+  const beamHeight = body.size * 5.0;
+  const beamRadius = body.size * 0.7;
 
   return (
     <group
@@ -213,7 +215,7 @@ const CrabPulsarRelic: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#38bdf8" intensity={3.0} distance={50} />
+      <pointLight color="#38bdf8" intensity={4.0} distance={body.size * 12} />
 
       {/* Compact Neutron Star Core */}
       <mesh>
@@ -228,22 +230,22 @@ const CrabPulsarRelic: React.FC<{
       {/* Relativistic Synchrotron Beams (Top and Bottom Cones) */}
       <group ref={beamGroupRef} rotation={[0, 0, Math.PI / 6]}>
         {/* North Jet */}
-        <mesh position={[0, 4.5, 0]}>
-          <coneGeometry args={[1.2, 8.5, 24, 1, true]} />
+        <mesh position={[0, beamHeight * 0.5, 0]}>
+          <coneGeometry args={[beamRadius, beamHeight, 24, 1, true]} />
           <meshBasicMaterial
             color="#38bdf8"
             transparent
-            opacity={0.6}
+            opacity={0.65}
             side={THREE.DoubleSide}
           />
         </mesh>
         {/* South Jet */}
-        <mesh position={[0, -4.5, 0]} rotation={[Math.PI, 0, 0]}>
-          <coneGeometry args={[1.2, 8.5, 24, 1, true]} />
+        <mesh position={[0, -beamHeight * 0.5, 0]} rotation={[Math.PI, 0, 0]}>
+          <coneGeometry args={[beamRadius, beamHeight, 24, 1, true]} />
           <meshBasicMaterial
             color="#38bdf8"
             transparent
-            opacity={0.6}
+            opacity={0.65}
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -251,7 +253,7 @@ const CrabPulsarRelic: React.FC<{
 
       {/* Tag */}
       {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 1.8, 0]} center distanceFactor={35}>
+        <Html position={[0, body.size + 8, 0]} center distanceFactor={body.size * 5}>
           <div className="px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
             ⚡ {language === 'ar' ? body.nameAr : body.nameEn} (30 Hz Neutron Star)
           </div>
@@ -274,7 +276,7 @@ const CygnusX1BlackHole: React.FC<{
 
   useFrame((_, delta) => {
     if (diskRef.current) {
-      diskRef.current.rotation.z += delta * 1.8;
+      diskRef.current.rotation.z += delta * 2.0;
     }
   });
 
@@ -288,6 +290,8 @@ const CygnusX1BlackHole: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
+      <pointLight color="#3b82f6" intensity={4.0} distance={body.size * 10} />
+
       {/* Event Horizon Shadow (Pure Black) */}
       <mesh>
         <sphereGeometry args={[body.size, 36, 36]} />
@@ -296,14 +300,14 @@ const CygnusX1BlackHole: React.FC<{
 
       {/* Swirling Relativistic Accretion Disk */}
       <mesh ref={diskRef} rotation={[-Math.PI / 3, 0, 0]}>
-        <ringGeometry args={[body.size * 1.2, body.size * 3.6, 64]} />
+        <ringGeometry args={[body.size * 1.25, body.size * 3.6, 64]} />
         <meshStandardMaterial
           color="#3b82f6"
           emissive="#60a5fa"
-          emissiveIntensity={1.2}
+          emissiveIntensity={1.4}
           side={THREE.DoubleSide}
           transparent
-          opacity={0.88}
+          opacity={0.9}
           roughness={0.2}
         />
       </mesh>
@@ -316,7 +320,7 @@ const CygnusX1BlackHole: React.FC<{
 
       {/* Tag */}
       {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 1.8, 0]} center distanceFactor={35}>
+        <Html position={[0, body.size + 8, 0]} center distanceFactor={body.size * 5}>
           <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-purple-500 shadow-2xl text-xs font-bold text-purple-200 whitespace-nowrap">
             🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (Stellar Black Hole)
           </div>
@@ -351,7 +355,7 @@ const ProximaCentauriStar: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#f87171" intensity={2.0} distance={40} />
+      <pointLight color="#f87171" intensity={3.0} distance={body.size * 10} />
       <mesh ref={starRef}>
         <sphereGeometry args={[body.size, 28, 28]} />
         <meshBasicMaterial color="#ef4444" />
@@ -362,7 +366,7 @@ const ProximaCentauriStar: React.FC<{
       </mesh>
 
       {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 1.0, 0]} center distanceFactor={35}>
+        <Html position={[0, body.size + 6, 0]} center distanceFactor={body.size * 5}>
           <div className="px-2.5 py-0.5 rounded-full bg-rose-950/90 border border-rose-500 text-xs font-semibold text-rose-200 whitespace-nowrap shadow-md">
             🔴 {language === 'ar' ? body.nameAr : body.nameEn} (M-Dwarf 4.24 ly)
           </div>
@@ -384,9 +388,6 @@ export const StellarNeighborhoodScene: React.FC = () => {
 
   return (
     <group>
-      {/* Ambient background light */}
-      <ambientLight intensity={0.4} />
-
       {/* Betelgeuse Dying Red Supergiant */}
       <BetelgeuseStar
         body={CELESTIAL_BODIES.betelgeuse}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { X, Sparkles, Orbit, Cpu, Waves, BookOpen } from 'lucide-react';
 import { useQuantumStore, DossierTab } from '@/stores/useQuantumStore';
 import { ELEMENT_MAP, CATEGORY_COLORS } from '@/data/elementsData';
@@ -19,6 +19,18 @@ export const ResearchDrawer: React.FC = () => {
   const setActiveTab = useQuantumStore((s) => s.setActiveDossierTab);
   const activeElementNum = useQuantumStore((s) => s.activeElementNum);
   const language = useQuantumStore((s) => s.language);
+
+  // Handle Escape key to close drawer
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, setOpen]);
 
   const t = TRANSLATIONS[language];
   const element = useMemo(() => {

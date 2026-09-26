@@ -10,6 +10,8 @@ import {
   LayoutGrid,
   Atom,
   Film,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { TRANSLATIONS } from '@/data/translations';
@@ -32,6 +34,14 @@ export const Header: React.FC = () => {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    if (typeof window === 'undefined') return;
+    navigator.clipboard.writeText(window.location.href);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2600);
+  };
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -153,6 +163,35 @@ export const Header: React.FC = () => {
           <Globe className="w-3.5 h-3.5 text-amber-400" />
           <span>{language === 'en' ? 'العربية' : 'English'}</span>
         </button>
+
+        {/* Share / Copy Direct View Link */}
+        <div className="relative">
+          <button
+            onClick={handleCopyLink}
+            className={`glass-button px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-semibold transition-all ${
+              isCopied
+                ? 'bg-emerald-600/40 border-emerald-400 text-emerald-200'
+                : 'text-sky-300 hover:text-white'
+            }`}
+            title={language === 'ar' ? 'نسخ رابط العرض المباشر' : 'Copy Direct View Link'}
+          >
+            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">
+              {isCopied
+                ? language === 'ar' ? 'تم النسخ!' : 'Copied!'
+                : language === 'ar' ? 'مشاركة' : 'Share'}
+            </span>
+          </button>
+
+          {/* Toast Notification */}
+          {isCopied && (
+            <div className="absolute top-full mt-2 end-0 px-3 py-1.5 rounded-xl bg-emerald-950/95 border border-emerald-500 text-[11px] font-bold text-emerald-200 shadow-2xl backdrop-blur-xl whitespace-nowrap animate-fadeIn z-50">
+              {language === 'ar'
+                ? '🔗 تم نسخ رابط العرض! يمكنك مشاركته أو تحديث الصفحة.'
+                : '🔗 View link copied! Share or refresh anytime.'}
+            </div>
+          )}
+        </div>
 
         {/* Quantum Cinema Video Masterclasses Trigger (Subatomic mode) */}
         {activeWorld === 'subatomic' && (

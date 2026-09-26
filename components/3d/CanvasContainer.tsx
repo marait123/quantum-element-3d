@@ -31,10 +31,27 @@ const CameraAndSceneManager: React.FC = () => {
   const zoomIn = useQuantumStore((s) => s.zoomIn);
   const zoomOut = useQuantumStore((s) => s.zoomOut);
 
+  const isInitialMountRef = useRef(true);
+
   // Transition camera smoothly whenever scaleLevel changes
   useEffect(() => {
     const config = SCALE_CAMERA_CONFIGS[scaleLevel];
     if (!config) return;
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      camera.position.set(config.position[0], config.position[1], config.position[2]);
+      camera.lookAt(0, 0, 0);
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = config.fov;
+        camera.updateProjectionMatrix();
+      }
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.update();
+      }
+      return;
+    }
 
     gsap.killTweensOf(camera.position);
 

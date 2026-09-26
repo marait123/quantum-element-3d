@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { audioSynth } from '@/lib/audioSynth';
+import { UrlStateSynchronizer } from '@/components/navigation/UrlStateSynchronizer';
 
 import { Header } from '@/components/hud/Header';
 import { ElementBadge } from '@/components/hud/ElementBadge';
@@ -66,6 +67,11 @@ export default function QuantumElementApp() {
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-[#020617]">
+      {/* Universal Deep Linking & View Refresh Synchronizer */}
+      <Suspense fallback={null}>
+        <UrlStateSynchronizer />
+      </Suspense>
+
       {/* 3D WebGL Canvas Viewport (Subatomic or Universe) */}
       {activeWorld === 'subatomic' ? (
         <CanvasContainer />
