@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
@@ -38,7 +38,7 @@ const RealisticEarth: React.FC<{
   const surfaceRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const moonOrbitRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   // Register with global runtime celestial registry for live camera follow
   useEffect(() => {
@@ -105,7 +105,8 @@ const RealisticEarth: React.FC<{
       {/* Earth System Root */}
       <group
         rotation={[0.41, 0, 0]} // 23.4° axial tilt
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onClick();
         }}
@@ -213,7 +214,7 @@ const RealisticMars: React.FC<{
   const marsGroupRef = useRef<THREE.Group>(null);
   const marsMeshRef = useRef<THREE.Mesh>(null);
   const phobosOrbitRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   const [marsTexture, setMarsTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -251,7 +252,8 @@ const RealisticMars: React.FC<{
     <group ref={marsGroupRef} position={body.position}>
       <group
         rotation={[0.44, 0, 0]} // 25.2° axial tilt
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onClick();
         }}
@@ -332,7 +334,7 @@ const RealisticJupiter: React.FC<{
   const jupiterMeshRef = useRef<THREE.Mesh>(null);
   const europaOrbitRef = useRef<THREE.Group>(null);
   const europaGroupRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   const [jupTexture, setJupTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -379,7 +381,8 @@ const RealisticJupiter: React.FC<{
   return (
     <group ref={jupiterGroupRef} position={body.position}>
       <group
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onClick();
         }}
@@ -456,7 +459,7 @@ const RealisticSaturn: React.FC<{
   const saturnMeshRef = useRef<THREE.Mesh>(null);
   const titanOrbitRef = useRef<THREE.Group>(null);
   const titanGroupRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   const [ringTexture, setRingTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -504,7 +507,8 @@ const RealisticSaturn: React.FC<{
     <group ref={saturnGroupRef} position={body.position}>
       <group
         rotation={[0.47, 0, 0.1]} // 26.7° axial tilt
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onClick();
         }}
@@ -597,7 +601,7 @@ const StandardPlanet: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
   const meshRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   // Register with global runtime celestial registry for live camera follow
   useEffect(() => {
@@ -627,7 +631,8 @@ const StandardPlanet: React.FC<{
     <group
       ref={meshRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onClick();
       }}
@@ -787,7 +792,8 @@ export const SolarSystemScene: React.FC = () => {
       <group
         ref={sunGroupRef}
         position={[0, 0, 0]}
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           setSelectedCosmicBodyId('sun');
         }}

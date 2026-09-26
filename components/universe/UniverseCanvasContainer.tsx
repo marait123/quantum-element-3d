@@ -12,6 +12,7 @@ import { COSMIC_SCALES, CELESTIAL_BODIES } from '@/data/universeData';
 import {
   getCelestialWorldPosition,
   calculateFramingCameraPosition,
+  calculateFramingDistance,
 } from '@/lib/celestialRegistry';
 import { SolarSystemScene } from './SolarSystemScene';
 import { StellarNeighborhoodScene } from './StellarNeighborhoodScene';
@@ -99,6 +100,9 @@ const UniverseCameraManager: React.FC = () => {
   const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
   const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
+  const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
+  const scaleNavigationRequest = useQuantumStore((s) => s.scaleNavigationRequest);
+  const continuousZoomRequest = useQuantumStore((s) => s.continuousZoomRequest);
 
   const prevScaleRef = useRef(cosmicScaleLevel);
   const isTweeningRef = useRef(false);
@@ -110,51 +114,61 @@ const UniverseCameraManager: React.FC = () => {
   useFrame(() => {
     if (!controlsRef.current) return;
 
-    // 1. DYNAMIC CELESTIAL FOLLOW:
-    // If a celestial body is selected and tracking is active, continuously follow it!
+    // 1. DYNAMIC CELESTIAL FOLLOW & SEAMLESS BREAKAWAY:
     if (isTrackingRef.current && !isTweeningRef.current && selectedCosmicBodyId) {
       const currentLivePos = new THREE.Vector3();
       if (getCelestialWorldPosition(selectedCosmicBodyId, currentLivePos)) {
-        // Delta movement of the body during this frame
-        const deltaMove = currentLivePos.clone().sub(lastTargetPosRef.current);
+        const distToBody = camera.position.distanceTo(currentLivePos);
+        const framingDist = calculateFramingDistance(selectedCosmicBodyId);
 
-        // Add delta to camera so camera stays locked in orbit with the body
-        camera.position.add(deltaMove);
-        controlsRef.current.target.copy(currentLivePos);
-        lastTargetPosRef.current.copy(currentLivePos);
+        // If the user zooms out far enough away from the body, gently break away into free cosmic exploration!
+        if (distToBody > framingDist * 2.2) {
+          isTrackingRef.current = false;
+          setSelectedCosmicBodyId(null);
+        } else {
+          const deltaMove = currentLivePos.clone().sub(lastTargetPosRef.current);
+          camera.position.add(deltaMove);
+          controlsRef.current.target.copy(currentLivePos);
+          lastTargetPosRef.current.copy(currentLivePos);
+        }
       }
     }
 
     // 2. Real-time continuous zoom distance tracker and HUD synchronization
-    // Only auto-detect scale when freely exploring space (NOT inspecting a specific celestial body and NOT tweening)
     if (isTweeningRef.current || selectedCosmicBodyId) return;
 
-    // Measure macro distance from cosmos origin
     const currentDist = camera.position.length();
 
     let detectedLevel: 1 | 2 | 3 | 4 | 5 = 1;
     if (currentDist < 350) {
-      detectedLevel = 1; // Solar System
+      detectedLevel = 1;
     } else if (currentDist < 4500) {
-      detectedLevel = 2; // Stellar Neighborhood
+      detectedLevel = 2;
     } else if (currentDist < 45000) {
-      detectedLevel = 3; // Milky Way
+      detectedLevel = 3;
     } else if (currentDist < 220000) {
-      detectedLevel = 4; // Extragalactic
+      detectedLevel = 4;
     } else {
-      detectedLevel = 5; // Cosmic Web
+      detectedLevel = 5;
     }
 
     if (detectedLevel !== prevScaleRef.current) {
       prevScaleRef.current = detectedLevel;
       setCosmicScaleLevel(detectedLevel);
     }
+
+    // 3. Dynamic adaptive zoom sensitivity:
+    // Fluidly traverses across 5 orders of magnitude (from 1 unit at Earth to 500,000 at Cosmic Web)
+    const dist = camera.position.distanceTo(controlsRef.current.target);
+    const adaptiveZoom = Math.min(2.4, Math.max(1.2, 1.1 + Math.log10(Math.max(1, dist)) * 0.22));
+    controlsRef.current.zoomSpeed = adaptiveZoom;
   });
 
   // Smooth camera glide (or instant initial snap) to selected celestial body with Sun-glare avoidance
   useEffect(() => {
     if (!selectedCosmicBodyId) {
       isTrackingRef.current = false;
+      // CRITICAL: When deselected, NEVER snap the camera away! User stays exactly where they are!
       return;
     }
 
@@ -224,31 +238,35 @@ const UniverseCameraManager: React.FC = () => {
     });
   }, [selectedCosmicBodyId, camera]);
 
-  // Smooth camera glide (or instant initial snap) when clicking scale milestone in HUD dock
+  // Initial mount camera placement if not focusing a celestial body
   useEffect(() => {
-    if (selectedCosmicBodyId) return;
+    if (isInitialMountRef.current && !selectedCosmicBodyId) {
+      isInitialMountRef.current = false;
+      const scaleConfig = COSMIC_SCALES.find((s) => s.level === cosmicScaleLevel);
+      if (scaleConfig) {
+        camera.position.set(
+          scaleConfig.cameraPosition[0],
+          scaleConfig.cameraPosition[1],
+          scaleConfig.cameraPosition[2]
+        );
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(new THREE.Vector3(...scaleConfig.cameraTarget));
+          controlsRef.current.update();
+        }
+      }
+    }
+  }, [cosmicScaleLevel, selectedCosmicBodyId, camera]);
+
+  // Smooth camera glide ONLY when user explicitly clicks a scale milestone in HUD dock
+  useEffect(() => {
+    if (!scaleNavigationRequest) return;
 
     isTrackingRef.current = false;
-
-    const scaleConfig = COSMIC_SCALES.find((s) => s.level === cosmicScaleLevel);
+    const { level } = scaleNavigationRequest;
+    const scaleConfig = COSMIC_SCALES.find((s) => s.level === level);
     if (!scaleConfig) return;
 
     const targetPos = new THREE.Vector3(...scaleConfig.cameraTarget);
-
-    // If initial page load/refresh with scale param, snap directly!
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      camera.position.set(
-        scaleConfig.cameraPosition[0],
-        scaleConfig.cameraPosition[1],
-        scaleConfig.cameraPosition[2]
-      );
-      if (controlsRef.current) {
-        controlsRef.current.target.copy(targetPos);
-        controlsRef.current.update();
-      }
-      return;
-    }
 
     isTweeningRef.current = true;
     gsap.killTweensOf(camera.position);
@@ -273,9 +291,41 @@ const UniverseCameraManager: React.FC = () => {
         isTweeningRef.current = false;
       },
     });
-  }, [cosmicScaleLevel, selectedCosmicBodyId, camera]);
+  }, [scaleNavigationRequest, camera]);
 
-  const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
+  // Continuous Smooth Dolly Zoom (dock buttons +/- and continuous zoom triggers)
+  useEffect(() => {
+    if (!continuousZoomRequest || !controlsRef.current) return;
+
+    const { factor } = continuousZoomRequest;
+    const target = controlsRef.current.target;
+    const toCam = camera.position.clone().sub(target);
+    const currentDist = toCam.length();
+
+    // Scale distance continuously along current camera view ray
+    const newDist = Math.max(1.5, Math.min(1000000, currentDist * factor));
+    if (Math.abs(newDist - currentDist) < 0.1) return;
+
+    const targetPos = target.clone().add(toCam.normalize().multiplyScalar(newDist));
+
+    isTweeningRef.current = true;
+    gsap.killTweensOf(camera.position);
+
+    gsap.to(camera.position, {
+      x: targetPos.x,
+      y: targetPos.y,
+      z: targetPos.z,
+      duration: 0.45,
+      ease: 'power2.out',
+      onUpdate: () => {
+        controlsRef.current?.update();
+      },
+      onComplete: () => {
+        controlsRef.current?.update();
+        isTweeningRef.current = false;
+      },
+    });
+  }, [continuousZoomRequest, camera]);
 
   const handleUserFlight = () => {
     if (isTrackingRef.current || selectedCosmicBodyId) {
@@ -308,18 +358,8 @@ const UniverseCameraManager: React.FC = () => {
 };
 
 export const UniverseCanvasContainer: React.FC = () => {
-  const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
-
   return (
-    <div
-      className="w-full h-full relative select-none overflow-hidden bg-[#020617]"
-      onPointerDown={(e) => {
-        // Deselect if clicking on empty space
-        if (e.target === e.currentTarget) {
-          setSelectedCosmicBodyId(null);
-        }
-      }}
-    >
+    <div className="w-full h-full relative select-none overflow-hidden bg-[#020617]">
       <Canvas
         camera={{
           position: [0, 50, 75],

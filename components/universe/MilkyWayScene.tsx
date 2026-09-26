@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
+import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
 // 3D Barred Spiral Galaxy Particle Generator (Milky Way spanning 18,000 units)
 const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTexture?: THREE.CanvasTexture }> = ({
@@ -108,8 +109,16 @@ const SagittariusABlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const diskRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('sagittarius_a', rootRef.current);
+    }
+    return () => unregisterCelestialObject('sagittarius_a');
+  }, []);
 
   useFrame((_, delta) => {
     if (diskRef.current) {
@@ -119,8 +128,10 @@ const SagittariusABlackHole: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -178,6 +189,13 @@ const NebulaCloudNode: React.FC<{
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
+  useEffect(() => {
+    if (groupRef.current) {
+      registerCelestialObject(body.id, groupRef.current);
+    }
+    return () => unregisterCelestialObject(body.id);
+  }, [body.id]);
+
   useFrame((_, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * 0.02;
@@ -188,7 +206,8 @@ const NebulaCloudNode: React.FC<{
     <group
       ref={groupRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}

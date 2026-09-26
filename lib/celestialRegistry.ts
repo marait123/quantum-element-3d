@@ -52,12 +52,22 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   cygnus_x1: { elevation: 0.4, lateralAngle: Math.PI * 0.25 },
   betelgeuse: { elevation: 0.3, lateralAngle: 0 },
   sirius: { elevation: 0.3, lateralAngle: 0 },
+  sirius_a: { elevation: 0.3, lateralAngle: 0 },
+  sirius_b: { elevation: 0.32, lateralAngle: Math.PI * 0.2 },
+  proxima_centauri: { elevation: 0.28, lateralAngle: Math.PI * 0.15 },
 
   // Galactic & Extragalactic
   sagittarius_a: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
+  crab_nebula: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
+  pillars_of_creation: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  kilonova_factory: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
   andromeda_galaxy: { elevation: 0.45, lateralAngle: Math.PI * 0.2 },
+  triangulum_galaxy: { elevation: 0.45, lateralAngle: Math.PI * 0.2 },
+  large_magellanic_cloud: { elevation: 0.4, lateralAngle: Math.PI * 0.25 },
   m87_black_hole: { elevation: 0.4, lateralAngle: Math.PI * 0.3 },
   laniakea_supercluster: { elevation: 0.4, lateralAngle: 0 },
+  bootes_void: { elevation: 0.4, lateralAngle: 0 },
+  cmb_sphere: { elevation: 0.35, lateralAngle: 0 },
 };
 
 /**

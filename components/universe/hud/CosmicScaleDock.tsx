@@ -7,7 +7,7 @@ import { ZoomIn, ZoomOut, Rocket, Target, Sparkles, Video, HelpCircle } from 'lu
 
 export const CosmicScaleDock: React.FC = () => {
   const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
-  const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
+  const requestScaleNavigation = useQuantumStore((s) => s.requestScaleNavigation);
   const cosmicZoomIn = useQuantumStore((s) => s.cosmicZoomIn);
   const cosmicZoomOut = useQuantumStore((s) => s.cosmicZoomOut);
   const navigationMode = useQuantumStore((s) => s.navigationMode);
@@ -38,13 +38,12 @@ export const CosmicScaleDock: React.FC = () => {
         id="cosmic-scale-dock"
         className="flex items-center gap-1.5 p-2 rounded-2xl bg-slate-900/85 border border-slate-700/60 backdrop-blur-xl shadow-2xl"
       >
-        {/* Zoom Out Button */}
+        {/* Continuous Smooth Zoom Out Button */}
         <button
           type="button"
           onClick={cosmicZoomOut}
-          disabled={cosmicScaleLevel <= 1}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-          title={language === 'ar' ? 'تصغير' : 'Zoom Out'}
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          title={language === 'ar' ? 'تصغير مستمر للخلف' : 'Continuous Zoom Out'}
         >
           <ZoomOut className="w-4 h-4" />
         </button>
@@ -59,7 +58,7 @@ export const CosmicScaleDock: React.FC = () => {
               <button
                 key={scale.level}
                 type="button"
-                onClick={() => setCosmicScaleLevel(scale.level as CosmicScaleLevel)}
+                onClick={() => requestScaleNavigation(scale.level as CosmicScaleLevel)}
                 className={`relative px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-semibold transition-all duration-200 select-none ${
                   isActive
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30 ring-1 ring-purple-400 scale-105'
@@ -76,13 +75,12 @@ export const CosmicScaleDock: React.FC = () => {
           })}
         </div>
 
-        {/* Zoom In Button */}
+        {/* Continuous Smooth Zoom In Button */}
         <button
           type="button"
           onClick={cosmicZoomIn}
-          disabled={cosmicScaleLevel >= 5}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-          title={language === 'ar' ? 'تكبير' : 'Zoom In'}
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          title={language === 'ar' ? 'تكبير مستمر للأمام' : 'Continuous Zoom In'}
         >
           <ZoomIn className="w-4 h-4" />
         </button>

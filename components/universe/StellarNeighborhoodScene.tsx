@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useRef, useState, useEffect } from 'react';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
+import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
 // Betelgeuse Red Supergiant with pulsating convective envelope
 const BetelgeuseStar: React.FC<{
@@ -15,9 +16,17 @@ const BetelgeuseStar: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const outerPuffRef = useRef<THREE.Mesh>(null);
   const coreRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('betelgeuse', rootRef.current);
+    }
+    return () => unregisterCelestialObject('betelgeuse');
+  }, []);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -36,8 +45,10 @@ const BetelgeuseStar: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -105,9 +116,19 @@ const SiriusBinarySystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ siriusA, siriusB, selectedId, highlightedElement, onSelect, language }) => {
   const binaryGroupRef = useRef<THREE.Group>(null);
+  const siriusARootRef = useRef<THREE.Group>(null);
   const siriusBRef = useRef<THREE.Group>(null);
   const [hoveredA, setHoveredA] = useState(false);
   const [hoveredB, setHoveredB] = useState(false);
+
+  useEffect(() => {
+    if (siriusARootRef.current) registerCelestialObject('sirius_a', siriusARootRef.current);
+    if (siriusBRef.current) registerCelestialObject('sirius_b', siriusBRef.current);
+    return () => {
+      unregisterCelestialObject('sirius_a');
+      unregisterCelestialObject('sirius_b');
+    };
+  }, []);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -129,7 +150,9 @@ const SiriusBinarySystem: React.FC<{
     <group ref={binaryGroupRef} position={siriusA.position}>
       {/* Sirius A: Luminous Blue-White Star */}
       <group
-        onClick={(e) => {
+        ref={siriusARootRef}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onSelect(siriusA.id);
         }}
@@ -157,7 +180,8 @@ const SiriusBinarySystem: React.FC<{
       {/* Sirius B: Orbiting White Dwarf ("The Pup") */}
       <group
         ref={siriusBRef}
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
           e.stopPropagation();
           onSelect(siriusB.id);
         }}
@@ -193,8 +217,14 @@ const CrabPulsarRelic: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const beamGroupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject('crab_pulsar', rootRef.current);
+    return () => unregisterCelestialObject('crab_pulsar');
+  }, []);
 
   useFrame((_, delta) => {
     if (beamGroupRef.current) {
@@ -207,8 +237,10 @@ const CrabPulsarRelic: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -271,8 +303,14 @@ const CygnusX1BlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const diskRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject('cygnus_x1', rootRef.current);
+    return () => unregisterCelestialObject('cygnus_x1');
+  }, []);
 
   useFrame((_, delta) => {
     if (diskRef.current) {
@@ -282,8 +320,10 @@ const CygnusX1BlackHole: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -338,8 +378,14 @@ const ProximaCentauriStar: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const starRef = useRef<THREE.Mesh>(null);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject('proxima_centauri', rootRef.current);
+    return () => unregisterCelestialObject('proxima_centauri');
+  }, []);
 
   useFrame((_, delta) => {
     if (starRef.current) starRef.current.rotation.y += delta * 0.1;
@@ -347,8 +393,10 @@ const ProximaCentauriStar: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}

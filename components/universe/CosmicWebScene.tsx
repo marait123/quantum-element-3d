@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
+import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
 // Large Scale Cosmic Web Filaments (Dark matter & galaxy scaffolding spanning 100,000 -> 600,000 units)
 const FilamentaryWeb: React.FC<{ glowTexture?: THREE.CanvasTexture }> = ({ glowTexture }) => {
@@ -113,9 +114,17 @@ const CMBSphereBoundary: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const sphereRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const body = CELESTIAL_BODIES.cmb_sphere;
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('cmb_sphere', rootRef.current);
+    }
+    return () => unregisterCelestialObject('cmb_sphere');
+  }, []);
 
   useFrame((_, delta) => {
     if (sphereRef.current) {
@@ -125,7 +134,9 @@ const CMBSphereBoundary: React.FC<{
 
   return (
     <group
-      onClick={(e) => {
+      ref={rootRef}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -161,13 +172,23 @@ const BootesVoidStructure: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const body = CELESTIAL_BODIES.bootes_void;
 
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('bootes_void', rootRef.current);
+    }
+    return () => unregisterCelestialObject('bootes_void');
+  }, []);
+
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -211,9 +232,17 @@ const LaniakeaFlowModel: React.FC<{
   language: 'en' | 'ar';
   glowTexture?: THREE.CanvasTexture;
 }> = ({ isSelected, onSelect, language, glowTexture }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const body = CELESTIAL_BODIES.laniakea_supercluster;
   const flowRef = useRef<THREE.Points>(null);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('laniakea_supercluster', rootRef.current);
+    }
+    return () => unregisterCelestialObject('laniakea_supercluster');
+  }, []);
 
   const [streamPositions, streamColors] = useMemo(() => {
     const count = 3000;
@@ -246,8 +275,10 @@ const LaniakeaFlowModel: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -297,7 +328,12 @@ export const CosmicWebScene: React.FC = () => {
   // Distance-based Level of Detail (LOD): Only render the macro filaments when zoomed out far enough!
   useFrame(() => {
     const dist = camera.position.length();
-    const shouldBeVisible = dist > 25000;
+    const isCosmicWebSelected = !!selectedCosmicBodyId && [
+      'laniakea_supercluster',
+      'bootes_void',
+      'cmb_sphere',
+    ].includes(selectedCosmicBodyId);
+    const shouldBeVisible = dist > 25000 || isCosmicWebSelected;
     if (shouldBeVisible !== visible) {
       setVisible(shouldBeVisible);
     }

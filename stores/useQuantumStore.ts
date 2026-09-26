@@ -9,6 +9,12 @@ export type DossierTab = 'overview' | 'shells' | 'qcd' | 'strings' | 'papers';
 export type ActiveWorld = 'subatomic' | 'universe';
 export type NavigationMode = 'orbit' | 'fly';
 
+export interface ContinuousZoomRequest {
+  direction: 'in' | 'out';
+  factor: number;
+  timestamp: number;
+}
+
 interface QuantumState {
   // World Selection
   activeWorld: ActiveWorld;
@@ -22,6 +28,8 @@ interface QuantumState {
   cosmicScaleLevel: CosmicScaleLevel;
   previousCosmicScaleLevel: CosmicScaleLevel;
   selectedCosmicBodyId: string | null;
+  scaleNavigationRequest: { level: CosmicScaleLevel; timestamp: number } | null;
+  continuousZoomRequest: ContinuousZoomRequest | null;
   navigationMode: NavigationMode;
   highlightedCosmicElementNum: number | null;
   isCosmicElementDrawerOpen: boolean;
@@ -77,6 +85,8 @@ interface QuantumState {
 
   // Cosmic Universe Actions
   setCosmicScaleLevel: (scale: CosmicScaleLevel) => void;
+  requestScaleNavigation: (scale: CosmicScaleLevel) => void;
+  requestContinuousZoom: (direction: 'in' | 'out', factor?: number) => void;
   cosmicZoomIn: () => void;
   cosmicZoomOut: () => void;
   setSelectedCosmicBodyId: (id: string | null) => void;
@@ -105,6 +115,8 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   cosmicScaleLevel: 1, // Start at Solar System (Cosmic Scale 1)
   previousCosmicScaleLevel: 1,
   selectedCosmicBodyId: null,
+  scaleNavigationRequest: null,
+  continuousZoomRequest: null,
   navigationMode: 'orbit',
   highlightedCosmicElementNum: null,
   isCosmicElementDrawerOpen: false,
@@ -269,32 +281,41 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
     const current = get().cosmicScaleLevel;
     if (current === newScale) return;
 
+    // Passive update from continuous distance tracker (HUD synchronization)
+    // NEVER deselect the active body or trigger a forced camera jump
+    set({
+      previousCosmicScaleLevel: current,
+      cosmicScaleLevel: newScale,
+    });
+  },
+
+  requestScaleNavigation: (newScale: CosmicScaleLevel) => {
+    const current = get().cosmicScaleLevel;
     const direction = newScale > current ? 'in' : 'out';
     audioSynth.playScaleWarpSweep(direction);
-
-    const currentBodyId = get().selectedCosmicBodyId;
-    const body = currentBodyId ? CELESTIAL_BODIES[currentBodyId] : null;
-    const shouldKeepBody = body && body.scaleLevel === newScale;
 
     set({
       previousCosmicScaleLevel: current,
       cosmicScaleLevel: newScale,
-      selectedCosmicBodyId: shouldKeepBody ? currentBodyId : null,
+      selectedCosmicBodyId: null,
+      scaleNavigationRequest: { level: newScale, timestamp: Date.now() },
+    });
+  },
+
+  requestContinuousZoom: (direction: 'in' | 'out', factor?: number) => {
+    audioSynth.playClick(direction === 'in' ? 1400 : 900);
+    const zoomFactor = factor !== undefined ? factor : (direction === 'in' ? 0.45 : 2.2);
+    set({
+      continuousZoomRequest: { direction, factor: zoomFactor, timestamp: Date.now() },
     });
   },
 
   cosmicZoomIn: () => {
-    const current = get().cosmicScaleLevel;
-    if (current < 5) {
-      get().setCosmicScaleLevel((current + 1) as CosmicScaleLevel);
-    }
+    get().requestContinuousZoom('in', 0.45);
   },
 
   cosmicZoomOut: () => {
-    const current = get().cosmicScaleLevel;
-    if (current > 1) {
-      get().setCosmicScaleLevel((current - 1) as CosmicScaleLevel);
-    }
+    get().requestContinuousZoom('out', 2.2);
   },
 
   setSelectedCosmicBodyId: (id: string | null) => {

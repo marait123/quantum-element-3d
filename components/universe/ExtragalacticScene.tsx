@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
+import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
 // Andromeda Galaxy 3D Spiral Disc (Size 12,000)
 const AndromedaGalaxyModel: React.FC<{
@@ -52,12 +53,20 @@ const AndromedaGalaxyModel: React.FC<{
     }
   });
 
+  useEffect(() => {
+    if (groupRef.current) {
+      registerCelestialObject('andromeda_galaxy', groupRef.current);
+    }
+    return () => unregisterCelestialObject('andromeda_galaxy');
+  }, []);
+
   return (
     <group
       ref={groupRef}
       position={body.position}
       rotation={[Math.PI / 4, 0, Math.PI / 6]}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -112,6 +121,13 @@ const TriangulumGalaxyModel: React.FC<{
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
+  useEffect(() => {
+    if (groupRef.current) {
+      registerCelestialObject('triangulum_galaxy', groupRef.current);
+    }
+    return () => unregisterCelestialObject('triangulum_galaxy');
+  }, []);
+
   const [pointsPositions, pointsColors] = useMemo(() => {
     const count = 4500;
     const pos = new Float32Array(count * 3);
@@ -149,7 +165,8 @@ const TriangulumGalaxyModel: React.FC<{
       ref={groupRef}
       position={body.position}
       rotation={[-Math.PI / 5, 0, Math.PI / 4]}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -191,7 +208,15 @@ const LMCGalaxyModel: React.FC<{
   language: 'en' | 'ar';
   glowTexture?: THREE.CanvasTexture;
 }> = ({ body, isSelected, onSelect, language, glowTexture }) => {
+  const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (groupRef.current) {
+      registerCelestialObject('large_magellanic_cloud', groupRef.current);
+    }
+    return () => unregisterCelestialObject('large_magellanic_cloud');
+  }, []);
 
   const [pointsPositions, pointsColors] = useMemo(() => {
     const count = 3500;
@@ -217,8 +242,10 @@ const LMCGalaxyModel: React.FC<{
 
   return (
     <group
+      ref={groupRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -259,8 +286,16 @@ const M87SupermassiveBlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const jetRef = useRef<THREE.Mesh>(null);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('m87_black_hole', rootRef.current);
+    }
+    return () => unregisterCelestialObject('m87_black_hole');
+  }, []);
 
   useFrame((_, delta) => {
     if (jetRef.current) {
@@ -273,8 +308,10 @@ const M87SupermassiveBlackHole: React.FC<{
 
   return (
     <group
+      ref={rootRef}
       position={body.position}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -343,7 +380,13 @@ export const ExtragalacticScene: React.FC = () => {
 
   useFrame(() => {
     const dist = camera.position.length();
-    const shouldShow = dist > 3000;
+    const isExtragalacticSelected = !!selectedCosmicBodyId && [
+      'andromeda_galaxy',
+      'triangulum_galaxy',
+      'large_magellanic_cloud',
+      'm87_black_hole',
+    ].includes(selectedCosmicBodyId);
+    const shouldShow = dist > 3000 || isExtragalacticSelected;
     if (shouldShow !== visible) {
       setVisible(shouldShow);
     }
