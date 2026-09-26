@@ -393,3 +393,87 @@ export function getElementVideo(num: number, sym: string, nameEn: string, nameAr
     ],
   };
 }
+
+export interface SubtopicVideoItem extends VideoItem {
+  scale: 1 | 2 | 3 | 4 | 5;
+  topicKey: string;
+}
+
+export const SUBTOPIC_VIDEOS: Record<string, SubtopicVideoItem> = {
+  // Scale 1: Periodic Table & Mendeleev
+  mendeleev_table: {
+    scale: 1,
+    topicKey: 'mendeleev_table',
+    id: 'fPnwBITSmgU',
+    titleEn: 'The Genius of Mendeleev’s Periodic Table',
+    titleAr: 'عبقرية جدول مندلييف الدوري',
+    channel: 'TED-Ed (Lou Serico)',
+    duration: '4:24',
+    reputation: '6.8M+ Views • 99% Likes • Renowned Animation',
+    descriptionEn: 'How Dmitri Mendeleev organized all known elements and predicted the exact chemical properties of undiscovered ones.',
+    descriptionAr: 'كيف نظم دميتري مندلييف جميع العناصر المعروفة وتنبأ بالخواص الكيميائية الدقيقة للعناصر غير المكتشفة.',
+    highlightsEn: ['Periodic law and atomic mass gaps', 'Prediction of Gallium and Germanium', 'Ordering by chemical valence'],
+    highlightsAr: ['القانون الدوري وفجوات الكتل الذرية', 'التنبؤ بعنصري الغاليوم والجرمانيوم', 'الترتيب وفق التكافؤ الكيميائي'],
+  },
+  // Scale 2: Atom & Orbitals
+  atom_orbitals: {
+    scale: 2,
+    topicKey: 'atom_orbitals',
+    id: 'W2Xb2GFK2yc',
+    titleEn: 'What Does An Atom Really Look Like? Orbitals & Quantum States',
+    titleAr: 'كيف تبدو الذرة حقاً؟ المدارات وحالات الكم',
+    channel: 'Veritasium',
+    duration: '11:58',
+    reputation: '15M+ Views • 99% Likes • Groundbreaking Science Visualizer',
+    descriptionEn: 'Derek Muller explores why electrons are not little planets orbiting a sun, but 3D probability standing wave harmonics.',
+    descriptionAr: 'يستكشف ديريك مولر لماذا الإلكترونات ليست كواكب تدور حول شمس، بل موجات احتمالية واقفة ثلاثية الأبعاد.',
+    highlightsEn: ['Probability wave density clouds', 'Quantum mechanical energy levels', 'Electron spin and Pauli exclusion'],
+    highlightsAr: ['سحب كثافة الموجة الاحتمالية', 'مستويات طاقة ميكانيكا الكم', 'لف الإلكترون ومبدأ باولي للاستبعاد'],
+  },
+  // Scale 3: Protons & Neutrons
+  proton_structure: {
+    scale: 3,
+    topicKey: 'proton_structure',
+    id: 'ZihywtixVU8',
+    titleEn: "What is a Proton, Really? The Nucleon's Quantum Interior",
+    titleAr: 'ما هو البروتون حقاً؟ العالم الكمي الداخلي للنيوكليون',
+    channel: 'MinutePhysics',
+    duration: '4:36',
+    reputation: '4.8M+ Views • 99% Likes • Exceptional Animation',
+    descriptionEn: 'Inside a proton: not just 3 stationary balls, but a chaotic quantum soup of valence quarks, virtual sea quarks, and relativistic gluons.',
+    descriptionAr: 'داخل البروتون: ليس مجرد 3 كرات ثابتة، بل حساء كمي هائج من كواركات التكافؤ وبحر الكواركات الافتراضية والغلوونات النسبية.',
+    highlightsEn: ['Valence uud vs virtual sea quarks', 'Gluon field binding energy', 'Proton spin crisis and charge radius'],
+    highlightsAr: ['كواركات التكافؤ uud مقابل بحر الكواركات', 'طاقة ترابط مجال الغلوون', 'أزمة لف البروتون ونصف قطر الشحنة'],
+  },
+  // Scale 4: Beta Decay & Weak Force
+  beta_decay_weak_force: {
+    scale: 4,
+    topicKey: 'beta_decay_weak_force',
+    id: '80r5w5vX0o0',
+    titleEn: 'The Weak Nuclear Force & Radioactive Beta Decay',
+    titleAr: 'القوة النووية الضعيفة وتحلل بيتا الإشعاعي',
+    channel: 'Fermilab (Dr. Don Lincoln)',
+    duration: '9:15',
+    reputation: '3.1M+ Views • 99% Likes • Senior CERN Physicist',
+    descriptionEn: 'How the Weak Force transforms quark flavors (Down into Up) via the heavy W⁻ vector boson, driving radioactive decay and solar nucleosynthesis.',
+    descriptionAr: 'كيف تحول القوة الضعيفة نكهات الكواركات (السفلي إلى علوي) عبر بوزون W⁻ الناقل للقوة، محركة النشاط الإشعاعي والاندماج الشمسي.',
+    highlightsEn: ['Down quark inverting to Up quark', 'W⁻ and W⁺ heavy gauge bosons', 'Neutrino emission and energy conservation'],
+    highlightsAr: ['انقلاب الكوارك السفلي إلى علوي', 'بوزونات W⁻ و W⁺ الثقيلة الحاملة للقوة', 'انبعاث النيوترينو وحفظ الطاقة'],
+  },
+  // Scale 5: Graviton & Extra Dimensions (Calabi-Yau)
+  graviton_extra_dimensions: {
+    scale: 5,
+    topicKey: 'graviton_extra_dimensions',
+    id: 'rL5V53P6f1E',
+    titleEn: 'Why Gravity Is So Weak: Gravitons & Hidden Extra Dimensions',
+    titleAr: 'لماذا الجاذبية ضعيفة جداً؟ الغرافيتونات والأبعاد الخفية الإضافية',
+    channel: 'PBS Space Time (Matt O’Dowd)',
+    duration: '14:22',
+    reputation: '4.2M+ Views • 99% Likes • Leading Astrophysics Educator',
+    descriptionEn: 'Dr. Matt O’Dowd examines why gravity is 10³⁶ times weaker than the other fundamental forces: closed string gravitons leaking into the Calabi-Yau higher-dimensional bulk.',
+    descriptionAr: 'يستكشف الدكتور مات أوداود لماذا الجاذبية أضعف بـ 10³⁶ مرة من باقي القوى: تسرب غرافيتونات الأوتار المغلقة إلى فضاء كالانبي-ياو متعدد الأبعاد.',
+    highlightsEn: ['Hierarchy problem of quantum forces', 'Closed string loops unconstrained by D-branes', 'Compactified 6D Calabi-Yau manifold geometry'],
+    highlightsAr: ['معضلة التراتبية للقوى الفيزيائية', 'حلقات الأوتار المغلقة غير المقيدة بالأغشية', 'هندسة فضاء كالابي-ياو المضغوط سداسي الأبعاد'],
+  },
+};
+

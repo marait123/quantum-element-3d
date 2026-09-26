@@ -67,34 +67,63 @@ async function testVideoUX() {
     await page.screenshot({ path: path.join(screenshotsDir, '16_video_cinema_scale_modal.png') });
     console.log('   ✓ Screenshot saved: 16_video_cinema_scale_modal.png');
 
-    // 3. Test Scale Navigation inside Cinema Modal
-    console.log('3. Testing Scale Navigation tabs inside Cinema Modal...');
-    // Click "Quarks" tab in cinema modal
-    const quarksTab = cinemaModal.getByRole('button', { name: /Quarks|كواركات/i });
-    if (await quarksTab.count() > 0) {
-      await quarksTab.first().click();
-      await page.waitForTimeout(500);
+    // 3. Test Scale Navigation inside Cinema Modal across ALL 5 scales
+    console.log('3. Testing Scale Navigation across all 5 zoom levels...');
+    
+    // Scale 3: Nucleus & Proton
+    const scale3Btn = cinemaModal.getByRole('button', { name: /3\./ });
+    if (await scale3Btn.count() > 0) {
+      await scale3Btn.first().click();
+      await page.waitForTimeout(400);
+      const subProtonBtn = cinemaModal.getByRole('button', { name: /Inside a Proton|داخل البروتون/i });
+      if (await subProtonBtn.count() > 0) {
+        await subProtonBtn.first().click();
+        await page.waitForTimeout(400);
+        console.log('   ✓ Tested Scale 3 Subtopic: Inside a Proton');
+      }
+    }
+
+    // Scale 4: Quarks & Beta Decay
+    const scale4Btn = cinemaModal.getByRole('button', { name: /4\./ });
+    if (await scale4Btn.count() > 0) {
+      await scale4Btn.first().click();
+      await page.waitForTimeout(400);
       const quarkIframeSrc = await iframe.getAttribute('src');
-      console.log(`   ✓ Quarks masterclass iframe src: ${quarkIframeSrc}`);
+      console.log(`   ✓ Scale 4 Quarks iframe src: ${quarkIframeSrc}`);
       await page.screenshot({ path: path.join(screenshotsDir, '17_video_cinema_quarks_explainer.png') });
     }
 
-    // Click "Strings" tab in cinema modal
-    const stringsTab = cinemaModal.getByRole('button', { name: /Strings|أوتار/i });
-    if (await stringsTab.count() > 0) {
-      await stringsTab.first().click();
-      await page.waitForTimeout(500);
+    // Scale 5: Strings & Graviton
+    const scale5Btn = cinemaModal.getByRole('button', { name: /5\./ });
+    if (await scale5Btn.count() > 0) {
+      await scale5Btn.first().click();
+      await page.waitForTimeout(400);
+      const subGravitonBtn = cinemaModal.getByRole('button', { name: /Graviton|الغرافيتون/i });
+      if (await subGravitonBtn.count() > 0) {
+        await subGravitonBtn.first().click();
+        await page.waitForTimeout(400);
+        console.log('   ✓ Tested Scale 5 Subtopic: Graviton & Extra Dimensions');
+      }
       const stringsIframeSrc = await iframe.getAttribute('src');
-      console.log(`   ✓ String Theory masterclass iframe src: ${stringsIframeSrc}`);
+      console.log(`   ✓ Scale 5 String Theory iframe src: ${stringsIframeSrc}`);
       await page.screenshot({ path: path.join(screenshotsDir, '18_video_cinema_strings_explainer.png') });
     }
 
     // 4. Test Switching to Element Masterclass tab in Cinema Modal
     console.log('4. Switching to Element Masterclass view...');
-    const elementModeBtn = cinemaModal.getByRole('button', { name: /Element:|عنصر/i });
+    const elementModeBtn = cinemaModal.getByRole('button', { name: /All 118 Elements|مختبر الـ 118/i });
     if (await elementModeBtn.count() > 0) {
       await elementModeBtn.first().click();
       await page.waitForTimeout(500);
+
+      // Click on Gold (Au #79)
+      const goldChip = cinemaModal.getByRole('button', { name: /Au #79/ });
+      if (await goldChip.count() > 0) {
+        await goldChip.first().click();
+        await page.waitForTimeout(400);
+        console.log('   ✓ Selected Gold Au #79');
+      }
+
       const elementIframeSrc = await iframe.getAttribute('src');
       console.log(`   ✓ Element masterclass iframe src: ${elementIframeSrc}`);
       await page.screenshot({ path: path.join(screenshotsDir, '19_video_cinema_element_masterclass.png') });

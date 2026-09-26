@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ExternalLink, Video, FileText, Award, Sparkles, Orbit, CheckCircle2 } from 'lucide-react';
 import { TRANSLATIONS } from '@/data/translations';
 import { useQuantumStore } from '@/stores/useQuantumStore';
@@ -84,12 +84,17 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
   const activeElementNum = useQuantumStore((s) => s.activeElementNum);
 
   const [videoMode, setVideoMode] = useState<'scale' | 'element'>('scale');
+  const [selectedScale, setSelectedScale] = useState<number>(scaleLevel);
+
+  useEffect(() => {
+    setSelectedScale(scaleLevel);
+  }, [scaleLevel]);
 
   const element = useMemo(() => {
     return ELEMENT_MAP[activeElementNum] || ELEMENT_MAP[6];
   }, [activeElementNum]);
 
-  const scaleVideo = SCALE_VIDEOS[scaleLevel] || SCALE_VIDEOS[1];
+  const scaleVideo = SCALE_VIDEOS[selectedScale as keyof typeof SCALE_VIDEOS] || SCALE_VIDEOS[1];
   const elementVideo = useMemo(() => {
     return getElementVideo(element.num, element.sym, element.nameEn, element.nameAr);
   }, [element]);
@@ -100,7 +105,7 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
     <div className="space-y-6 animate-fade-in text-slate-200">
       {/* Educational Video Masterclass Player */}
       <div className="glass-panel p-5 rounded-2xl border border-sky-500/20">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 text-sky-400 font-bold">
             <Video className="w-5 h-5 text-sky-400" />
             <h3 className="text-base text-white">{t.dossier.papers.videoTitle}</h3>
@@ -132,6 +137,25 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
             </button>
           </div>
         </div>
+
+        {/* Powers of Ten Quick Scale Buttons */}
+        {videoMode === 'scale' && (
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1.5 mb-3 border-b border-slate-800">
+            {([1, 2, 3, 4, 5] as const).map((lvl) => (
+              <button
+                key={lvl}
+                onClick={() => setSelectedScale(lvl)}
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition ${
+                  selectedScale === lvl
+                    ? 'bg-sky-500 text-slate-950 font-bold shadow'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {lvl}. {t.scales[lvl].name} ({t.scales[lvl].power})
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* 16:9 Player */}
         <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-700 bg-slate-950 shadow-2xl">
