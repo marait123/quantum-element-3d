@@ -14,6 +14,7 @@ import {
   Compass,
   Layers,
   ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 import { useQuantumStore, ScaleLevel } from '@/stores/useQuantumStore';
 import { ELEMENTS, ELEMENT_MAP } from '@/data/elementsData';
@@ -170,14 +171,29 @@ export const QuantumCinemaModal: React.FC = () => {
             </div>
           </div>
 
-          <button
-            id="quantum-cinema-close"
-            onClick={() => setOpen(false)}
-            aria-label="Close Cinema"
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              id="quantum-youtube-direct-link"
+              href={currentVideo.id.startsWith('search_') ? currentVideo.embedUrl : `https://www.youtube.com/watch?v=${currentVideo.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition"
+              title={language === 'ar' ? 'مشاهدة مباشرة على يوتيوب' : 'Watch directly on YouTube'}
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">
+                {language === 'ar' ? 'مشاهدة على YouTube ↗' : 'Watch on YouTube ↗'}
+              </span>
+            </a>
+            <button
+              id="quantum-cinema-close"
+              onClick={() => setOpen(false)}
+              aria-label="Close Cinema"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Primary View Mode Switcher */}

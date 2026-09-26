@@ -8,7 +8,7 @@ import {
   CosmicVideoItem,
   CosmicScaleVideoMap,
 } from '@/data/universeVideosData';
-import { X, Play, Clock, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, Play, Clock, Sparkles, CheckCircle2, ExternalLink } from 'lucide-react';
 
 export const UniverseCinemaModal: React.FC = () => {
   const isUniverseVideoModalOpen = useQuantumStore((s) => s.isUniverseVideoModalOpen);
@@ -46,14 +46,29 @@ export const UniverseCinemaModal: React.FC = () => {
               <h2 className="text-sm font-bold text-white truncate max-w-lg">{title}</h2>
             </div>
           </div>
-          <button
-            id="close-universe-cinema-btn"
-            type="button"
-            onClick={() => setUniverseVideoModalOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              id="universe-youtube-direct-link"
+              href={`https://www.youtube.com/watch?v=${video.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 transition-colors"
+              title={language === 'ar' ? 'مشاهدة مباشرة على يوتيوب' : 'Watch directly on YouTube'}
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">
+                {language === 'ar' ? 'مشاهدة على YouTube ↗' : 'Watch on YouTube ↗'}
+              </span>
+            </a>
+            <button
+              id="close-universe-cinema-btn"
+              type="button"
+              onClick={() => setUniverseVideoModalOpen(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Video Player */}

@@ -175,10 +175,22 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
             <h4 className="text-sm font-bold text-white">
               {language === 'ar' ? activeVideo.titleAr : activeVideo.titleEn}
             </h4>
-            <span className="text-[11px] font-mono text-cyan-400 flex items-center gap-1">
-              <Award className="w-3.5 h-3.5 text-cyan-400" />
-              {activeVideo.channel}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-cyan-400 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-cyan-400" />
+                {activeVideo.channel}
+              </span>
+              <a
+                href={activeVideo.id.startsWith('search_') ? activeVideo.embedUrl : `https://www.youtube.com/watch?v=${activeVideo.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition"
+                title={language === 'ar' ? 'مشاهدة مباشرة على يوتيوب' : 'Watch directly on YouTube'}
+              >
+                <ExternalLink className="w-3 h-3 text-red-400" />
+                <span>YouTube ↗</span>
+              </a>
+            </div>
           </div>
 
           <p className="text-xs text-slate-300 leading-relaxed">

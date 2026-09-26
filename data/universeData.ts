@@ -545,7 +545,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 13, symbol: 'Al', nameEn: 'Aluminium', nameAr: 'ألومنيوم', percentage: 55.0, roleEn: 'Bus chassis & antenna dish', roleAr: 'هيكل المركبة وهوائي الاتصال' },
       { atomicNumber: 22, symbol: 'Ti', nameEn: 'Titanium', nameAr: 'تيتانيوم', percentage: 18.0, roleEn: 'Structural struts & propellant tanks', roleAr: 'الدعامات الهيكلية وخزانات الدفع' },
     ],
-    videoId: 'LiaWyQ0Fm70',
+    videoId: 'MGPM58S5Njg',
   },
 
   jwst: {
@@ -590,7 +590,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 18.0, roleEn: 'Primary mirror substrate & photovoltaic solar cells', roleAr: 'مرآة زجاجية سيليكاتية وخلايا شمسية' },
       { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 0.02, roleEn: 'Scientific instrumentation sensors', roleAr: 'مستشعرات الأجهزة العلمية الدقيقة' },
     ],
-    videoId: '0mHjG1B4F48',
+    videoId: 'M40Gln1FV6c',
   },
 
   // ----------------------------------------------------
@@ -770,7 +770,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 1, symbol: 'H', nameEn: 'Superheated Proton Plasma', nameAr: 'بلازما بروتونات فائقة الحرارة', percentage: 80.0, roleEn: 'Accretion flow', roleAr: 'تدفق التزويد' },
       { atomicNumber: 2, symbol: 'He', nameEn: 'Alpha Particles', nameAr: 'جسيمات ألفا (هيليوم)', percentage: 19.0, roleEn: 'Magnetic frame dragging', roleAr: 'سحب الإطار المغناطيسي' },
     ],
-    videoId: '0t-w-4L6Z8Q',
+    videoId: 'S_GVbuddri8',
   },
 
   crab_nebula: {
@@ -844,7 +844,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
     nucleosynthesisRoleEn: 'The primary cosmic birthplace of elements heavier than iron, including gold, platinum, and radioactive actinides.',
     nucleosynthesisRoleAr: 'المسقط الكوني الأساسي لمعظم العناصر الأثقل من الحديد كالذهب والبلاتين واليورانيوم.',
-    videoId: 'T5j1w5uN3_4',
+    videoId: 'o9_TArqcZ74',
   },
 
   // ----------------------------------------------------
@@ -871,7 +871,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 26.0, roleEn: 'Stellar core ash', roleAr: 'رماد النجوم' },
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron & Heavy Metals', nameAr: 'حديد وفلزات ثقيلة', percentage: 1.5, roleEn: 'Enriched population I stars', roleAr: 'نجوم الجيل الأول الغنية' },
     ],
-    videoId: 'qn3-N8_6Y4Y',
+    videoId: '2xhaHWl_q6I',
   },
 
   triangulum_galaxy: {
@@ -936,7 +936,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 1, symbol: 'H', nameEn: 'Relativistic Proton Jet', nameAr: 'نفاث بروتونات نسبوي', percentage: 85.0, roleEn: 'Synchrotron radiation beam', roleAr: 'حزمة إشعاع سنكروترون' },
       { atomicNumber: 0, symbol: 'e⁻', nameEn: 'Positrons / Electrons', nameAr: 'إلكترونات وبوزيترونات', percentage: 12.0, roleEn: 'Relativistic plasma sheath', roleAr: 'غلاف البلازما النسبوي' },
     ],
-    videoId: '0t-w-4L6Z8Q',
+    videoId: 'S_GVbuddri8',
   },
 
   // ----------------------------------------------------
