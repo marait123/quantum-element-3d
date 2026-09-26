@@ -13,6 +13,7 @@ import {
   Share2,
   Check,
   X,
+  HelpCircle,
 } from 'lucide-react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { TRANSLATIONS } from '@/data/translations';
@@ -30,6 +31,7 @@ export const Header: React.FC = () => {
   const setVideoModalOpen = useQuantumStore((s) => s.setVideoModalOpen);
   const setActiveElement = useQuantumStore((s) => s.setActiveElement);
   const activeWorld = useQuantumStore((s) => s.activeWorld);
+  const setTutorialOpen = useQuantumStore((s) => s.setTutorialOpen);
 
   const t = TRANSLATIONS[language];
 
@@ -180,6 +182,20 @@ export const Header: React.FC = () => {
           >
             <Globe className="w-3.5 h-3.5 text-amber-400" />
             <span>{language === 'en' ? 'العربية' : 'English'}</span>
+          </button>
+
+          {/* Interactive Platform Onboarding Tour Trigger */}
+          <button
+            id="platform-tour-btn"
+            type="button"
+            onClick={() => setTutorialOpen(true, 0)}
+            className="glass-button px-2.5 py-1.5 rounded-xl bg-purple-600/25 border-purple-400/50 flex items-center gap-1.5 text-xs text-purple-200 font-semibold hover:bg-purple-600/40 hover:text-white transition shadow-lg shadow-purple-500/20 cursor-pointer"
+            title={language === 'ar' ? 'دليل المنصة والتحكم (جولة تعريفية)' : 'Platform Guide & Controls Tour'}
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">
+              {language === 'ar' ? 'دليل المنصة' : 'Tour'}
+            </span>
           </button>
 
           {/* Share / Copy Direct View Link */}

@@ -41,6 +41,11 @@ interface QuantumState {
   isVideoModalOpen: boolean;
   activeVideoType: 'scale' | 'element';
 
+  // Platform Tutorial & Speed Multiplier
+  isTutorialOpen: boolean;
+  tutorialStep: number;
+  movementSpeedMultiplier: number; // 0.5, 1.0, 3.0, 10.0, 25.0 (WARP)
+
   // Interactive Subatomic Scene States
   selectedNucleonIndex: number | null;
   selectedNucleonType: 'proton' | 'neutron' | null;
@@ -80,6 +85,11 @@ interface QuantumState {
   setHighlightedCosmicElementNum: (num: number | null) => void;
   setCosmicElementDrawerOpen: (open: boolean) => void;
   setUniverseVideoModalOpen: (open: boolean, videoKey?: string) => void;
+
+  // Tutorial & Speed Actions
+  setTutorialOpen: (open: boolean, step?: number) => void;
+  setTutorialStep: (step: number) => void;
+  setMovementSpeedMultiplier: (mult: number) => void;
 }
 
 export const useQuantumStore = create<QuantumState>((set, get) => ({
@@ -100,6 +110,11 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   isCosmicElementDrawerOpen: false,
   isUniverseVideoModalOpen: false,
   activeUniverseVideoKey: null,
+
+  // Platform Tutorial & Speed Multiplier defaults
+  isTutorialOpen: false,
+  tutorialStep: 0,
+  movementSpeedMultiplier: 1.0,
 
   language: 'en',
   isAudioMuted: false,
@@ -326,5 +341,23 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
       isUniverseVideoModalOpen: open,
       activeUniverseVideoKey: videoKey !== undefined ? videoKey : state.activeUniverseVideoKey,
     }));
+  },
+
+  setTutorialOpen: (open: boolean, step?: number) => {
+    audioSynth.playClick(1100);
+    set({
+      isTutorialOpen: open,
+      tutorialStep: step !== undefined ? step : 0,
+    });
+  },
+
+  setTutorialStep: (step: number) => {
+    audioSynth.playClick(1200);
+    set({ tutorialStep: step });
+  },
+
+  setMovementSpeedMultiplier: (mult: number) => {
+    audioSynth.playClick(1300);
+    set({ movementSpeedMultiplier: mult });
   },
 }));

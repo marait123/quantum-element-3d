@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES } from '@/data/universeData';
 import {
@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   Move,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useDraggableCard } from '@/lib/useDraggableCard';
 
@@ -27,6 +29,13 @@ export const CelestialInspectorTooltip: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+  }, [selectedCosmicBodyId]);
 
   const { pos, isDragging, handlePointerDown } = useDraggableCard({
     initialX: 20,
@@ -122,6 +131,63 @@ export const CelestialInspectorTooltip: React.FC = () => {
           </div>
 
           <div className="p-4 space-y-3.5 max-h-[65vh] md:max-h-[72vh] overflow-y-auto">
+            {/* Authentic Telescopic / Mission Image */}
+            {body.imageUrl && (
+              <div className="relative w-full h-44 rounded-xl overflow-hidden border border-slate-800/80 bg-slate-950/70 group shadow-lg">
+                {!imageLoaded && !imageError && (
+                  <div className="absolute inset-0 bg-slate-900/80 animate-pulse flex flex-col items-center justify-center gap-2 text-slate-500">
+                    <ImageIcon className="w-6 h-6 animate-spin text-purple-400" />
+                    <span className="text-[10px] font-mono">
+                      {language === 'ar' ? 'جارٍ تحميل الصورة الأرشيفية...' : 'Loading NASA Archive...'}
+                    </span>
+                  </div>
+                )}
+                {!imageError ? (
+                  <img
+                    key={body.imageUrl}
+                    src={body.imageUrl}
+                    alt={displayName}
+                    onLoad={() => setImageLoaded(true)}
+                    onError={() => setImageError(true)}
+                    className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+                      imageLoaded ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 gap-1 bg-slate-900/60">
+                    <ImageIcon className="w-6 h-6 text-slate-600" />
+                    <span className="text-[10px]">
+                      {language === 'ar' ? 'صورة تلسكوبية غير متاحة حالياً' : 'Telescopic Image Unavailable'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Bottom Shadow Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/20 to-transparent pointer-events-none" />
+
+                {/* Authentic Attribution Badge */}
+                {body.imageSource && (
+                  <div className="absolute bottom-2 start-2 end-2 flex items-center justify-between text-[10px] text-slate-300 pointer-events-none">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md border border-slate-700/60 truncate font-mono text-[9px] flex items-center gap-1.5 shadow-md">
+                      <Camera className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                      <span className="truncate text-slate-200">{body.imageSource}</span>
+                    </span>
+                    <a
+                      href={body.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="pointer-events-auto px-2 py-0.5 rounded-md bg-slate-950/80 hover:bg-purple-950/90 backdrop-blur-md border border-slate-700/60 text-purple-300 hover:text-white transition flex items-center gap-1 text-[9px] shadow-md cursor-pointer"
+                      title={language === 'ar' ? 'عرض الصورة الأصلية عالية الدقة ↗' : 'View Full-Resolution Image ↗'}
+                    >
+                      <span>HD</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quick Facts Grid */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800">

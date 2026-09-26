@@ -19,13 +19,22 @@ import { MilkyWayScene } from './MilkyWayScene';
 import { ExtragalacticScene } from './ExtragalacticScene';
 import { CosmicWebScene } from './CosmicWebScene';
 
-// Free-Flight / First-Person Spaceship Walk-Around Controls with Dynamic Speed Scaling
-const FreeFlightControls: React.FC = () => {
+import { SpeedMultiplierWidget } from './hud/SpeedMultiplierWidget';
+
+// Unified Free-Flight Spaceship Controls with Concurrent OrbitControls Integration
+interface FreeFlightProps {
+  controlsRef: React.RefObject<OrbitControlsImpl>;
+  onUserFlight: () => void;
+}
+
+const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, onUserFlight }) => {
   const { camera } = useThree();
   const keysPressed = useRef<Record<string, boolean>>({});
+  const movementSpeedMultiplier = useQuantumStore((s) => s.movementSpeedMultiplier);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
       keysPressed.current[e.key.toLowerCase()] = true;
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -43,27 +52,39 @@ const FreeFlightControls: React.FC = () => {
   useFrame((_, delta) => {
     const moveVector = new THREE.Vector3();
 
-    // W/S: Forward / Backward
-    if (keysPressed.current['w']) moveVector.z -= 1;
-    if (keysPressed.current['s']) moveVector.z += 1;
+    // W/S or ArrowUp/ArrowDown: Forward / Backward in camera look direction
+    if (keysPressed.current['w'] || keysPressed.current['arrowup']) moveVector.z -= 1;
+    if (keysPressed.current['s'] || keysPressed.current['arrowdown']) moveVector.z += 1;
 
-    // A/D: Left / Right
-    if (keysPressed.current['a']) moveVector.x -= 1;
-    if (keysPressed.current['d']) moveVector.x += 1;
+    // A/D or ArrowLeft/ArrowRight: Left / Right strafe
+    if (keysPressed.current['a'] || keysPressed.current['arrowleft']) moveVector.x -= 1;
+    if (keysPressed.current['d'] || keysPressed.current['arrowright']) moveVector.x += 1;
 
-    // Q/E or Space/Shift: Down / Up
-    if (keysPressed.current['e'] || keysPressed.current[' ']) moveVector.y += 1;
-    if (keysPressed.current['q'] || keysPressed.current['shift']) moveVector.y -= 1;
+    // E / R / PageUp: Ascend
+    if (keysPressed.current['e'] || keysPressed.current['r'] || keysPressed.current['pageup']) moveVector.y += 1;
+    // Q / F / PageDown / Space: Descend / Hover
+    if (keysPressed.current['q'] || keysPressed.current['f'] || keysPressed.current['pagedown']) moveVector.y -= 1;
 
     if (moveVector.lengthSq() > 0) {
+      onUserFlight();
+
       moveVector.normalize();
       moveVector.applyQuaternion(camera.quaternion);
 
+      const isShift = keysPressed.current['shift'];
+      const sprintFactor = isShift ? 3.5 : 1.0;
+
       // Adaptive speed scaling based on distance from center
       const currentDist = Math.max(camera.position.length(), 5);
-      const adaptiveSpeed = Math.min(Math.max(currentDist * 0.45, 2.5), 65000);
+      const adaptiveBaseSpeed = Math.min(Math.max(currentDist * 0.45, 3.5), 85000);
+      const finalSpeed = adaptiveBaseSpeed * movementSpeedMultiplier * sprintFactor;
 
-      camera.position.addScaledVector(moveVector, adaptiveSpeed * delta);
+      const translation = moveVector.clone().multiplyScalar(finalSpeed * delta);
+      camera.position.add(translation);
+
+      if (controlsRef.current) {
+        controlsRef.current.target.add(translation);
+      }
     }
   });
 
@@ -78,7 +99,6 @@ const UniverseCameraManager: React.FC = () => {
   const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
   const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
-  const navigationMode = useQuantumStore((s) => s.navigationMode);
 
   const prevScaleRef = useRef(cosmicScaleLevel);
   const isTweeningRef = useRef(false);
@@ -133,8 +153,6 @@ const UniverseCameraManager: React.FC = () => {
 
   // Smooth camera glide (or instant initial snap) to selected celestial body with Sun-glare avoidance
   useEffect(() => {
-    if (navigationMode === 'fly') return;
-
     if (!selectedCosmicBodyId) {
       isTrackingRef.current = false;
       return;
@@ -204,11 +222,11 @@ const UniverseCameraManager: React.FC = () => {
         isTrackingRef.current = true;
       },
     });
-  }, [selectedCosmicBodyId, navigationMode, camera]);
+  }, [selectedCosmicBodyId, camera]);
 
   // Smooth camera glide (or instant initial snap) when clicking scale milestone in HUD dock
   useEffect(() => {
-    if (navigationMode === 'fly' || selectedCosmicBodyId) return;
+    if (selectedCosmicBodyId) return;
 
     isTrackingRef.current = false;
 
@@ -255,32 +273,36 @@ const UniverseCameraManager: React.FC = () => {
         isTweeningRef.current = false;
       },
     });
-  }, [cosmicScaleLevel, selectedCosmicBodyId, navigationMode, camera]);
+  }, [cosmicScaleLevel, selectedCosmicBodyId, camera]);
+
+  const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
+
+  const handleUserFlight = () => {
+    if (isTrackingRef.current || selectedCosmicBodyId) {
+      isTrackingRef.current = false;
+      setSelectedCosmicBodyId(null);
+    }
+  };
 
   return (
     <>
-      {navigationMode === 'orbit' ? (
-        <OrbitControls
-          ref={controlsRef}
-          enableDamping
-          dampingFactor={0.06}
-          rotateSpeed={0.8}
-          zoomSpeed={1.2}
-          minDistance={1.2}
-          maxDistance={900000}
-        />
-      ) : (
-        <>
-          <OrbitControls
-            ref={controlsRef}
-            enableDamping
-            dampingFactor={0.08}
-            enableZoom={false}
-            enablePan={false}
-          />
-          <FreeFlightControls />
-        </>
-      )}
+      <OrbitControls
+        ref={controlsRef}
+        enableDamping
+        dampingFactor={0.05}
+        rotateSpeed={0.85}
+        zoomSpeed={1.3}
+        panSpeed={1.1}
+        minDistance={0.8}
+        maxDistance={1200000}
+        enablePan={true}
+        enableZoom={true}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN,
+        }}
+      />
+      <FreeFlightControls controlsRef={controlsRef} onUserFlight={handleUserFlight} />
     </>
   );
 };
@@ -331,6 +353,9 @@ export const UniverseCanvasContainer: React.FC = () => {
         <ExtragalacticScene />
         <CosmicWebScene />
       </Canvas>
+
+      {/* On-Screen Speed Multiplier Controller */}
+      <SpeedMultiplierWidget />
     </div>
   );
 };

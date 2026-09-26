@@ -71,6 +71,8 @@ export interface CelestialBody {
   nucleosynthesisRoleEn?: string;
   nucleosynthesisRoleAr?: string;
   videoId?: string;
+  imageUrl?: string;
+  imageSource?: string;
 }
 
 export interface CosmicScaleInfo {
@@ -169,6 +171,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     nucleosynthesisRoleEn: 'Synthesizing helium via proton-proton chain; will synthesize carbon and oxygen during future red giant phase.',
     nucleosynthesisRoleAr: 'تخليق الهيليوم عبر سلسلة بروتون-بروتون؛ وستقوم بتخليق الكربون والأكسجين في مرحلة العملاق الأحمر المستقبلية.',
     videoId: 'b22HKFMIfWo',
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001435/GSFC_20171208_Archive_e001435~orig.jpg',
+    imageSource: 'NASA / SDO AIA 171',
   },
 
   mercury: {
@@ -194,6 +198,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 13.5, roleEn: 'Mantle minerals', roleAr: 'معادن الوشاح' },
       { atomicNumber: 28, symbol: 'Ni', nameEn: 'Nickel', nameAr: 'نيكل', percentage: 5.0, roleEn: 'Core alloy', roleAr: 'سبيكة القلب' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA15190/PIA15190~orig.jpg',
+    imageSource: 'NASA / JHUAPL / Carnegie / MESSENGER',
   },
 
   venus: {
@@ -220,6 +226,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 16.0, roleEn: '96.5% CO2 atmosphere', roleAr: 'غلاف جوي 96.5% CO2' },
       { atomicNumber: 16, symbol: 'S', nameEn: 'Sulfur', nameAr: 'كبريت', percentage: 4.5, roleEn: 'Sulfuric acid clouds', roleAr: 'غيوم حمض الكبريتيك' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA00104/PIA00104~orig.jpg',
+    imageSource: 'NASA / JPL / Magellan Radar',
   },
 
   earth: {
@@ -248,6 +256,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 13.9, roleEn: 'Mantle silicates', roleAr: 'وشاح الأرض' },
       { atomicNumber: 28, symbol: 'Ni', nameEn: 'Nickel', nameAr: 'نيكل', percentage: 1.8, roleEn: 'Core geodynamo', roleAr: 'مولد المجال المغناطيسي بالقلب' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/as17-148-22727/as17-148-22727~orig.jpg',
+    imageSource: 'NASA / Apollo 17 (Blue Marble)',
   },
 
   moon: {
@@ -276,6 +286,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 7.0, roleEn: 'Lunar maria basalts', roleAr: 'بازلت بحار القمر' },
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium-3', nameAr: 'هيليوم-3', percentage: 0.001, roleEn: 'Solar wind isotope deposit', roleAr: 'ترسيب الرياح الشمسية' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/as11-44-6552/as11-44-6552~orig.jpg',
+    imageSource: 'NASA / Apollo 11 / LRO',
   },
 
   mars: {
@@ -301,6 +313,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 19.0, roleEn: 'Basaltic crust', roleAr: 'قشرة بازلتية' },
       { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 9.0, roleEn: 'Olivine/Pyroxene', roleAr: 'معادن الأوليفين' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA04304/PIA04304~orig.jpg',
+    imageSource: 'NASA / JPL / Malin Space Science Systems',
   },
 
   phobos: {
@@ -325,6 +339,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 24.0, roleEn: 'Silicates', roleAr: 'سيليكات' },
       { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 22.0, roleEn: 'Oxides', roleAr: 'أكاسيد' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA10368/PIA10368~orig.jpg',
+    imageSource: 'NASA / JPL / Univ. of Arizona (HiRISE)',
   },
 
   asteroid_belt: {
@@ -349,6 +365,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 0.005, roleEn: 'Precious metal repository', roleAr: 'مستودع فلزات نفيسة' },
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 25.0, roleEn: 'S-type silicate stony asteroids', roleAr: 'كويكبات صخرية سيليكاتية' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA14421/PIA14421~orig.jpg',
+    imageSource: 'NASA / JPL-Caltech / Dawn',
   },
 
   ceres: {
@@ -373,6 +391,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 11, symbol: 'Na', nameEn: 'Sodium', nameAr: 'صوديوم', percentage: 6.0, roleEn: 'Sodium carbonate salt faculae', roleAr: 'رواسب كربونات الصوديوم' },
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 18.0, roleEn: 'Clay silicates', roleAr: 'سيليكات طينية' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA19547/PIA19547~orig.jpg',
+    imageSource: 'NASA / JPL-Caltech / UCLA / MPS / DLR / IDA',
   },
 
   jupiter: {
@@ -400,6 +420,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 0.3, roleEn: 'Trace hydrocarbons', roleAr: 'هيدروكربونات جوية' },
       { atomicNumber: 7, symbol: 'N', nameEn: 'Nitrogen (NH3)', nameAr: 'نيتروجين (أمونيا)', percentage: 0.026, roleEn: 'White cloud bands', roleAr: 'أحزمة سحب الأمونيا البيضاء' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA02873/PIA02873~orig.jpg',
+    imageSource: 'NASA / JPL / University of Arizona (Cassini)',
   },
 
   europa: {
@@ -425,6 +447,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 11, symbol: 'Na', nameEn: 'Sodium', nameAr: 'صوديوم', percentage: 5.0, roleEn: 'Oceanic salts (NaCl)', roleAr: 'أملاح المحيط' },
       { atomicNumber: 17, symbol: 'Cl', nameEn: 'Chlorine', nameAr: 'كلور', percentage: 6.0, roleEn: 'Subsurface sea salinity', roleAr: 'ملوحة البحر الجوفي' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA00502/PIA00502~orig.jpg',
+    imageSource: 'NASA / JPL / DLR (Galileo)',
   },
 
   saturn: {
@@ -449,6 +473,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 3.25, roleEn: 'Helium rain inside interior', roleAr: 'أمطار الهيليوم الباطنية' },
       { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen (H2O)', nameAr: 'أكسجين (جليد)', percentage: 0.4, roleEn: 'Ring system mass (99% ice)', roleAr: 'كتلة الحلقات (99% جليد)' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA08329/PIA08329~orig.jpg',
+    imageSource: 'NASA / JPL / Space Science Institute (Cassini)',
   },
 
   titan: {
@@ -473,6 +499,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 4.8, roleEn: 'Liquid methane (CH4) & tholins', roleAr: 'ميثان سائل ومركبات ثولين' },
       { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 1.0, roleEn: 'Hydrocarbon rains & rivers', roleAr: 'أمطار وأنهار هيدروكربونية' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA19658/PIA19658~medium.jpg',
+    imageSource: 'NASA / JPL-Caltech / Space Science Institute (Cassini)',
   },
 
   uranus: {
@@ -498,6 +526,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 2.3, roleEn: 'Red light absorption (cyan hue)', roleAr: 'امتصاص الضوء الأحمر (اللون الفيروزي)' },
       { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 8.0, roleEn: 'Mantle water-ammonia slush', roleAr: 'مزيج الجليد والماء بالوشاح' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA18182/PIA18182~orig.jpg',
+    imageSource: 'NASA / JPL / Voyager 2',
   },
 
   neptune: {
@@ -522,6 +552,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 19.0, roleEn: 'Atmospheric gas', roleAr: 'غاز جوي' },
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 1.5, roleEn: 'Deep azure coloration', roleAr: 'الزرقة اللازوردية المميزة' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA01492/PIA01492~orig.jpg',
+    imageSource: 'NASA / JPL / Voyager 2',
   },
 
   voyager_1: {
@@ -546,6 +578,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 22, symbol: 'Ti', nameEn: 'Titanium', nameAr: 'تيتانيوم', percentage: 18.0, roleEn: 'Structural struts & propellant tanks', roleAr: 'الدعامات الهيكلية وخزانات الدفع' },
     ],
     videoId: 'MGPM58S5Njg',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA21773/PIA21773~orig.jpg',
+    imageSource: 'NASA / JPL-Caltech',
   },
 
   jwst: {
@@ -568,6 +602,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 79, symbol: 'Au', nameEn: 'Gold', nameAr: 'ذهب', percentage: 0.05, roleEn: '100 nm vapor-deposited infrared reflective coating (48.25 g total)', roleAr: 'طلاء ذهبي عاكس للأشعة تحت الحمراء بسماكة 100 نانومتر' },
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 20.0, roleEn: 'Silicone-doped Kapton sunshield layers', roleAr: 'طبقات كابتون الواقية من الشمس' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000412/GSFC_20171208_Archive_e000412~orig.jpg',
+    imageSource: 'NASA / Chris Gunn / JWST Flight Mirror',
   },
 
   hubble: {
@@ -591,6 +627,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 0.02, roleEn: 'Scientific instrumentation sensors', roleAr: 'مستشعرات الأجهزة العلمية الدقيقة' },
     ],
     videoId: 'M40Gln1FV6c',
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e002151/GSFC_20171208_Archive_e002151~medium.jpg',
+    imageSource: 'NASA / STS-125 Servicing Mission',
   },
 
   // ----------------------------------------------------
@@ -619,6 +657,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.5, roleEn: 'Accumulating fusion ash', roleAr: 'رماد الاندماج المتراكم' },
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 0.12, roleEn: 'Stellar flare magnetic seed', roleAr: 'بذرة النشاط المغناطيسي للتوهجات' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001377/GSFC_20171208_Archive_e001377~orig.jpg',
+    imageSource: 'NASA / ESA / Hubble',
   },
 
   sirius_a: {
@@ -644,6 +684,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 27.0, roleEn: 'Fusion byproduct', roleAr: 'ناتج الاندماج' },
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 0.5, roleEn: 'Enhanced surface metallicity (Am star)', roleAr: 'معدنية سطحية فائقة' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001719/GSFC_20171208_Archive_e001719~orig.jpg',
+    imageSource: 'NASA / ESA / Hubble / H. Bond',
   },
 
   sirius_b: {
@@ -668,6 +710,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 49.0, roleEn: 'Degenerate core alloy', roleAr: 'سبيكة الأكسجين المنفطرة' },
       { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 1.0, roleEn: 'Thin pure surface atmosphere', roleAr: 'غلاف جوي سطحي رقيق' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000577/GSFC_20171208_Archive_e000577~small.jpg',
+    imageSource: 'NASA / ESA / Chandra & Hubble',
   },
 
   betelgeuse: {
@@ -697,6 +741,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     nucleosynthesisRoleEn: 'Cosmic nucleosynthesis engine: will forge heavy elements up to lead via core collapse and shockwave explosivity.',
     nucleosynthesisRoleAr: 'مصنع كوني للعناصر: سينتج ويقذف عناصر أثقل مثل الحديد والرصاص عند انهيار قلبه وانفجاره كمستعر أعظم.',
     videoId: '3mnSDifDSxQ',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA16680/PIA16680~orig.jpg',
+    imageSource: 'ESA / Herschel / NASA / Decin et al.',
   },
 
   crab_pulsar: {
@@ -722,6 +768,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 4.5, roleEn: 'Crystalline outer crust', roleAr: 'قشرة بلورية حديدية فائقة الصلابة' },
     ],
     videoId: 'udFxKZRyQt4',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA19824/PIA19824~orig.jpg',
+    imageSource: 'NASA / CXC / SAO / Chandra X-ray Observatory',
   },
 
   cygnus_x1: {
@@ -745,6 +793,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Ionized Helium', nameAr: 'هيليوم متأين', percentage: 28.0, roleEn: 'Relativistic jet feed', roleAr: 'تغذية النفاثات النسبوية' },
     ],
     videoId: 'e-P5IFTqB98',
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000984/GSFC_20171208_Archive_e000984~medium.jpg',
+    imageSource: 'NASA / ESA / STScI / CXC',
   },
 
   // ----------------------------------------------------
@@ -771,6 +821,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Alpha Particles', nameAr: 'جسيمات ألفا (هيليوم)', percentage: 19.0, roleEn: 'Magnetic frame dragging', roleAr: 'سحب الإطار المغناطيسي' },
     ],
     videoId: 'S_GVbuddri8',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA25064/PIA25064~orig.jpg',
+    imageSource: 'Event Horizon Telescope (EHT) / NSF',
   },
 
   crab_nebula: {
@@ -796,6 +848,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
     nucleosynthesisRoleEn: 'Dispersing explosive core-collapse elements to seed future generations of solar systems and rocky planets.',
     nucleosynthesisRoleAr: 'نشر نواتج المستعر الأعظم لتخصيب سحب الغاز وبناء أجيال قادمة من الكواكب الصخرية والحياة.',
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001389/GSFC_20171208_Archive_e001389~orig.jpg',
+    imageSource: 'NASA / ESA / J. Hester and A. Loll',
   },
 
   pillars_of_creation: {
@@ -819,6 +873,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (Graphite/PAHs)', nameAr: 'كربون (غبار كوني)', percentage: 1.2, roleEn: 'Cosmic dust grains', roleAr: 'حبيبات الغبار الكوني' },
       { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon (Silicate dust)', nameAr: 'سيليكون (سيليكات)', percentage: 0.7, roleEn: 'Rocky planet seeds', roleAr: 'بذور تكوين الكواكب' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000842/GSFC_20171208_Archive_e000842~medium.jpg',
+    imageSource: 'NASA / ESA / STScI / Hubble',
   },
 
   kilonova_factory: {
@@ -845,6 +901,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     nucleosynthesisRoleEn: 'The primary cosmic birthplace of elements heavier than iron, including gold, platinum, and radioactive actinides.',
     nucleosynthesisRoleAr: 'المسقط الكوني الأساسي لمعظم العناصر الأثقل من الحديد كالذهب والبلاتين واليورانيوم.',
     videoId: 'o9_TArqcZ74',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA22087/PIA22087~orig.jpg',
+    imageSource: 'NASA / CXC / Trinity College / D. Haggard',
   },
 
   // ----------------------------------------------------
@@ -872,6 +930,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron & Heavy Metals', nameAr: 'حديد وفلزات ثقيلة', percentage: 1.5, roleEn: 'Enriched population I stars', roleAr: 'نجوم الجيل الأول الغنية' },
     ],
     videoId: '2xhaHWl_q6I',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA15416/PIA15416~medium.jpg',
+    imageSource: 'NASA / JPL-Caltech (GALEX) & Herschel',
   },
 
   triangulum_galaxy: {
@@ -894,6 +954,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 1, symbol: 'H', nameEn: 'Neutral Hydrogen (H I)', nameAr: 'هيدروجين متعادل', percentage: 74.0, roleEn: 'Massive starburst nebulae', roleAr: 'سدم تفجر ولادة النجوم' },
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 25.0, roleEn: 'Interstellar medium', roleAr: 'الوسط بين النجمي' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA12344/PIA12344~orig.jpg',
+    imageSource: 'NASA / JPL-Caltech (GALEX)',
   },
 
   large_magellanic_cloud: {
@@ -914,6 +976,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen Gas', nameAr: 'غاز هيدروجين', percentage: 75.0, roleEn: 'Tarantula starburst fuel', roleAr: 'وقود سديم الرتيلاء' },
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.2, roleEn: 'Cosmic background', roleAr: 'الوسط الكوني' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA14440/PIA14440~orig.jpg',
+    imageSource: 'ESA / NASA / JPL-Caltech / STScI',
   },
 
   m87_black_hole: {
@@ -937,6 +1001,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 0, symbol: 'e⁻', nameEn: 'Positrons / Electrons', nameAr: 'إلكترونات وبوزيترونات', percentage: 12.0, roleEn: 'Relativistic plasma sheath', roleAr: 'غلاف البلازما النسبوي' },
     ],
     videoId: 'S_GVbuddri8',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA23122/PIA23122~orig.jpg',
+    imageSource: 'Event Horizon Telescope (EHT) / NSF',
   },
 
   // ----------------------------------------------------
@@ -962,6 +1028,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.0, roleEn: 'Primordial matter', roleAr: 'مادة بدائية من الانفجار العظيم' },
     ],
     videoId: 'Z_1Q0XB4X0Y',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA17563/PIA17563~medium.jpg',
+    imageSource: 'Nature / R. Brent Tully / SDSS',
   },
 
   bootes_void: {
@@ -982,6 +1050,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     primaryElements: [
       { atomicNumber: 1, symbol: 'H', nameEn: 'Sparse Intergalactic Hydrogen', nameAr: 'هيدروجين بين مجري مخلخل', percentage: 98.0, roleEn: 'Ultra-low density gas (< 1 atom / m³)', roleAr: 'غاز فائق التخلخل (< 1 ذرة / م³)' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA15822/PIA15822~orig.jpg',
+    imageSource: 'NASA / ESA / Hubble 3D Cosmic Survey',
   },
 
   cmb_sphere: {
@@ -1005,6 +1075,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
       { atomicNumber: 2, symbol: 'He', nameEn: 'Primordial Helium-4', nameAr: 'هيليوم-4 بدائي', percentage: 24.9, roleEn: 'Big Bang nucleosynthesis', roleAr: 'تخليق الانفجار العظيم' },
       { atomicNumber: 3, symbol: 'Li', nameEn: 'Lithium-7', nameAr: 'ليثيوم-7', percentage: 0.0001, roleEn: 'Cosmological lithium problem', roleAr: 'لغز الليثيوم الكوني' },
     ],
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA16873/PIA16873~orig.jpg',
+    imageSource: 'ESA and the Planck Collaboration',
   },
 };
 

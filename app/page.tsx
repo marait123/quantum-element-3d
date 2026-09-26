@@ -19,6 +19,7 @@ import { CosmicScaleDock } from '@/components/universe/hud/CosmicScaleDock';
 import { CelestialInspectorTooltip } from '@/components/universe/hud/CelestialInspectorTooltip';
 import { CosmicElementDrawer } from '@/components/universe/hud/CosmicElementDrawer';
 import { UniverseCinemaModal } from '@/components/universe/hud/UniverseCinemaModal';
+import { PlatformTutorialModal } from '@/components/tutorial/PlatformTutorialModal';
 
 // Dynamically import Subatomic 3D Canvas with SSR disabled
 const CanvasContainer = dynamic(
@@ -105,6 +106,9 @@ export default function QuantumElementApp() {
           <UniverseCinemaModal />
         </>
       )}
+
+      {/* Global Interactive Onboarding Tutorial Modal */}
+      <PlatformTutorialModal />
     </main>
   );
 }
