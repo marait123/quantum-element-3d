@@ -1,15 +1,32 @@
 import { create } from 'zustand';
 import { audioSynth } from '@/lib/audioSynth';
+import { CosmicScaleLevel } from '@/data/universeData';
 
 export type ScaleLevel = 1 | 2 | 3 | 4 | 5;
 export type ParticleFilter = 'all' | 'protons' | 'neutrons' | 'electrons';
 export type DossierTab = 'overview' | 'shells' | 'qcd' | 'strings' | 'papers';
 
+export type ActiveWorld = 'subatomic' | 'universe';
+export type NavigationMode = 'orbit' | 'fly';
+
 interface QuantumState {
-  // Navigation & Scale
+  // World Selection
+  activeWorld: ActiveWorld;
+
+  // Subatomic Navigation & Scale
   activeElementNum: number;
   scaleLevel: ScaleLevel;
   previousScaleLevel: ScaleLevel;
+
+  // Cosmic Universe Navigation & Scale
+  cosmicScaleLevel: CosmicScaleLevel;
+  previousCosmicScaleLevel: CosmicScaleLevel;
+  selectedCosmicBodyId: string | null;
+  navigationMode: NavigationMode;
+  highlightedCosmicElementNum: number | null;
+  isCosmicElementDrawerOpen: boolean;
+  isUniverseVideoModalOpen: boolean;
+  activeUniverseVideoKey: string | null;
 
   // Language & Audio
   language: 'en' | 'ar';
@@ -24,7 +41,7 @@ interface QuantumState {
   isVideoModalOpen: boolean;
   activeVideoType: 'scale' | 'element';
 
-  // Interactive Scene States
+  // Interactive Subatomic Scene States
   selectedNucleonIndex: number | null;
   selectedNucleonType: 'proton' | 'neutron' | null;
   isSeaQuarksActive: boolean;
@@ -32,7 +49,8 @@ interface QuantumState {
   stringHarmonicMode: number; // 1: electron, 2: quark, 3: photon, 4: graviton
   isExcitedState: boolean;
 
-  // Actions
+  // Subatomic Actions
+  setActiveWorld: (world: ActiveWorld) => void;
   setActiveElement: (num: number) => void;
   setScaleLevel: (scale: ScaleLevel) => void;
   zoomIn: () => void;
@@ -51,12 +69,37 @@ interface QuantumState {
   triggerBetaDecay: () => void;
   setStringHarmonicMode: (mode: number) => void;
   triggerQuantumLeap: () => void;
+
+  // Cosmic Universe Actions
+  setCosmicScaleLevel: (scale: CosmicScaleLevel) => void;
+  cosmicZoomIn: () => void;
+  cosmicZoomOut: () => void;
+  setSelectedCosmicBodyId: (id: string | null) => void;
+  setNavigationMode: (mode: NavigationMode) => void;
+  toggleNavigationMode: () => void;
+  setHighlightedCosmicElementNum: (num: number | null) => void;
+  setCosmicElementDrawerOpen: (open: boolean) => void;
+  setUniverseVideoModalOpen: (open: boolean, videoKey?: string) => void;
 }
 
 export const useQuantumStore = create<QuantumState>((set, get) => ({
+  // World Selection
+  activeWorld: 'subatomic',
+
+  // Subatomic defaults
   activeElementNum: 6, // Carbon (C, Z=6) by default
   scaleLevel: 1, // Start at Periodic Table (Scale 1)
   previousScaleLevel: 1,
+
+  // Cosmic Universe defaults
+  cosmicScaleLevel: 1, // Start at Solar System (Cosmic Scale 1)
+  previousCosmicScaleLevel: 1,
+  selectedCosmicBodyId: null,
+  navigationMode: 'orbit',
+  highlightedCosmicElementNum: null,
+  isCosmicElementDrawerOpen: false,
+  isUniverseVideoModalOpen: false,
+  activeUniverseVideoKey: null,
 
   language: 'en',
   isAudioMuted: false,
@@ -75,6 +118,12 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   isBetaDecaying: false,
   stringHarmonicMode: 1,
   isExcitedState: false,
+
+  // World Action
+  setActiveWorld: (world) => {
+    audioSynth.playScaleWarpSweep('in');
+    set({ activeWorld: world });
+  },
 
   setActiveElement: (num: number) => {
     audioSynth.playClick(1400);
@@ -198,5 +247,72 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
       audioSynth.playClick(1760);
       set({ isExcitedState: false });
     }, 2400);
+  },
+
+  // Cosmic Universe Actions
+  setCosmicScaleLevel: (newScale: CosmicScaleLevel) => {
+    const current = get().cosmicScaleLevel;
+    if (current === newScale) return;
+
+    const direction = newScale > current ? 'in' : 'out';
+    audioSynth.playScaleWarpSweep(direction);
+
+    set({
+      previousCosmicScaleLevel: current,
+      cosmicScaleLevel: newScale,
+      selectedCosmicBodyId: null, // Reset selection on scale jump
+    });
+  },
+
+  cosmicZoomIn: () => {
+    const current = get().cosmicScaleLevel;
+    if (current < 5) {
+      get().setCosmicScaleLevel((current + 1) as CosmicScaleLevel);
+    }
+  },
+
+  cosmicZoomOut: () => {
+    const current = get().cosmicScaleLevel;
+    if (current > 1) {
+      get().setCosmicScaleLevel((current - 1) as CosmicScaleLevel);
+    }
+  },
+
+  setSelectedCosmicBodyId: (id: string | null) => {
+    if (id) {
+      audioSynth.playClick(1200);
+    }
+    set({ selectedCosmicBodyId: id });
+  },
+
+  setNavigationMode: (mode: NavigationMode) => {
+    audioSynth.playClick(1000);
+    set({ navigationMode: mode });
+  },
+
+  toggleNavigationMode: () => {
+    const nextMode = get().navigationMode === 'orbit' ? 'fly' : 'orbit';
+    audioSynth.playClick(1000);
+    set({ navigationMode: nextMode });
+  },
+
+  setHighlightedCosmicElementNum: (num: number | null) => {
+    if (num) {
+      audioSynth.playClick(1500);
+    }
+    set({ highlightedCosmicElementNum: num });
+  },
+
+  setCosmicElementDrawerOpen: (open: boolean) => {
+    audioSynth.playClick(850);
+    set({ isCosmicElementDrawerOpen: open });
+  },
+
+  setUniverseVideoModalOpen: (open: boolean, videoKey?: string) => {
+    audioSynth.playClick(1000);
+    set((state) => ({
+      isUniverseVideoModalOpen: open,
+      activeUniverseVideoKey: videoKey !== undefined ? videoKey : state.activeUniverseVideoKey,
+    }));
   },
 }));

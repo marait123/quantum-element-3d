@@ -162,7 +162,7 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
           <iframe
             key={activeVideo.id}
             className="w-full h-full"
-            src={`https://www.youtube-nocookie.com/embed/${activeVideo.id}?rel=0`}
+            src={activeVideo.embedUrl || `https://www.youtube-nocookie.com/embed/${activeVideo.id}?rel=0`}
             title={activeVideo.titleEn}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen

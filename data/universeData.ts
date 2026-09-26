@@ -1,0 +1,1221 @@
+export type CosmicScaleLevel = 1 | 2 | 3 | 4 | 5;
+
+export type CelestialType =
+  | 'star'
+  | 'planet'
+  | 'moon'
+  | 'dwarf_planet'
+  | 'asteroid'
+  | 'spacecraft'
+  | 'black_hole'
+  | 'pulsar'
+  | 'supernova_remnant'
+  | 'nebula'
+  | 'galaxy'
+  | 'supercluster'
+  | 'cosmic_structure';
+
+export type SpectralType =
+  | 'O'
+  | 'B'
+  | 'A'
+  | 'F'
+  | 'G'
+  | 'K'
+  | 'M'
+  | 'WhiteDwarf'
+  | 'Neutron'
+  | 'Singularity';
+
+export type NucleosynthesisSource =
+  | 'big_bang'
+  | 'cosmic_rays'
+  | 'dying_low_mass_stars'
+  | 'exploding_massive_stars'
+  | 'exploding_white_dwarfs'
+  | 'merging_neutron_stars'
+  | 'synthetic';
+
+export interface ElementAbundance {
+  atomicNumber: number;
+  symbol: string;
+  nameEn: string;
+  nameAr: string;
+  percentage: number;
+  roleEn?: string;
+  roleAr?: string;
+}
+
+export interface CelestialBody {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  type: CelestialType;
+  scaleLevel: CosmicScaleLevel;
+  position: [number, number, number];
+  size: number; // visual radius in relative 3D scene units
+  color: string;
+  emissiveColor?: string;
+  spectralType?: SpectralType;
+  orbitalRadius?: number;
+  orbitalSpeed?: number;
+  rotationSpeed?: number;
+  parentBodyId?: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  distanceFromEarth: string;
+  mass: string;
+  radius: string;
+  temperature?: string;
+  primaryElements: ElementAbundance[];
+  nucleosynthesisRoleEn?: string;
+  nucleosynthesisRoleAr?: string;
+  videoId?: string;
+}
+
+export interface CosmicScaleInfo {
+  level: CosmicScaleLevel;
+  rangeMetric: string;
+  nameEn: string;
+  nameAr: string;
+  subtitleEn: string;
+  subtitleAr: string;
+  cameraPosition: [number, number, number];
+  cameraTarget: [number, number, number];
+}
+
+export const COSMIC_SCALES: CosmicScaleInfo[] = [
+  {
+    level: 1,
+    rangeMetric: '10⁷ - 10¹³ m',
+    nameEn: 'Solar System & Explorers',
+    nameAr: 'النظام الشمسي والمسابير',
+    subtitleEn: 'Planets, Moons, Asteroids & Voyagers',
+    subtitleAr: 'الكواكب، الأقمار، الكويكبات ومسبارات فوياجر',
+    cameraPosition: [0, 42, 65],
+    cameraTarget: [0, 0, 0],
+  },
+  {
+    level: 2,
+    rangeMetric: '10¹⁴ - 10¹⁸ m',
+    nameEn: 'Stellar Neighborhood & Relics',
+    nameAr: 'الجوار النجمي والمخلفات الكونية',
+    subtitleEn: 'Dwarf Stars, Giants, Pulsars & Black Holes',
+    subtitleAr: 'النجوم القزمة، العمالقة، النوابض والثقوب السوداء',
+    cameraPosition: [0, 35, 75],
+    cameraTarget: [0, 0, 0],
+  },
+  {
+    level: 3,
+    rangeMetric: '10¹⁹ - 10²¹ m',
+    nameEn: 'Milky Way Galaxy',
+    nameAr: 'مجرة درب التبانة',
+    subtitleEn: 'Spiral Arms, Sagittarius A* & Supernova Remnants',
+    subtitleAr: 'الأذرع اللولبية، الرامي أ* ومخلفات المستعر الأعظم',
+    cameraPosition: [0, 60, 85],
+    cameraTarget: [0, 0, 0],
+  },
+  {
+    level: 4,
+    rangeMetric: '10²² - 10²⁴ m',
+    nameEn: 'Extragalactic Realm',
+    nameAr: 'العالم خارج المجرة',
+    subtitleEn: 'Andromeda, Local Group & M87* Jet',
+    subtitleAr: 'مجرة المرأة المسلسلة، المجموعة المحلية ونفاث M87*',
+    cameraPosition: [0, 50, 95],
+    cameraTarget: [0, 0, 0],
+  },
+  {
+    level: 5,
+    rangeMetric: '10²⁵ - 10²⁶ m',
+    nameEn: 'Cosmic Web & Observable Universe',
+    nameAr: 'النسيج الكوني والكون المرصود',
+    subtitleEn: 'Filaments, Superclusters & CMB Recombination Sphere',
+    subtitleAr: 'الخيوط الكونية، العناقيد الفائقة وإشعاع الخلفية الكونية',
+    cameraPosition: [0, 70, 110],
+    cameraTarget: [0, 0, 0],
+  },
+];
+
+export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
+  // ----------------------------------------------------
+  // SCALE 1: SOLAR SYSTEM, MOONS, ASTEROIDS & PROBES
+  // ----------------------------------------------------
+  sun: {
+    id: 'sun',
+    nameEn: 'The Sun (Sol)',
+    nameAr: 'الشمس',
+    type: 'star',
+    scaleLevel: 1,
+    position: [0, 0, 0],
+    size: 4.8,
+    color: '#fbbf24',
+    emissiveColor: '#f59e0b',
+    spectralType: 'G',
+    temperature: '5,778 K (Surface) / 15,000,000 K (Core)',
+    distanceFromEarth: '1.0 AU (149.6 million km)',
+    mass: '1.989 × 10³⁰ kg (333,000 M_Earth)',
+    radius: '696,340 km (109 R_Earth)',
+    rotationSpeed: 0.003,
+    descriptionEn: 'The central G-type main-sequence yellow dwarf of our solar system, fusing 600 million tons of hydrogen into helium every second in its core.',
+    descriptionAr: 'النجم المركزي لنظامنا الشمسي من النوع G، يدمج 600 مليون طن من الهيدروجين إلى هيليوم كل ثانية في قلبه تحت ضغط وحرارة هائلة.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 73.46, roleEn: 'Nuclear fusion fuel', roleAr: 'وقود الاندماج النووي' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.85, roleEn: 'Fusion byproduct', roleAr: 'ناتج الاندماج' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 0.77, roleEn: 'Core metallicity', roleAr: 'معدنية القلب' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 0.29, roleEn: 'CNO cycle catalyst', roleAr: 'محفز دورة الكربون' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 0.16, roleEn: 'Cosmic seed metal', roleAr: 'معدن بذري كوني' },
+    ],
+    nucleosynthesisRoleEn: 'Synthesizing helium via proton-proton chain; will synthesize carbon and oxygen during future red giant phase.',
+    nucleosynthesisRoleAr: 'تخليق الهيليوم عبر سلسلة بروتون-بروتون؛ وستقوم بتخليق الكربون والأكسجين في مرحلة العملاق الأحمر المستقبلية.',
+    videoId: 'b22HKFMIfWo',
+  },
+
+  mercury: {
+    id: 'mercury',
+    nameEn: 'Mercury',
+    nameAr: 'عطارد',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [7.5, 0, 0],
+    size: 0.7,
+    color: '#a3a3a3',
+    orbitalRadius: 7.5,
+    orbitalSpeed: 0.038,
+    rotationSpeed: 0.005,
+    distanceFromEarth: '0.61 - 1.45 AU',
+    mass: '3.301 × 10²³ kg (0.055 M_Earth)',
+    radius: '2,439.7 km',
+    descriptionEn: 'The innermost planet with a disproportionately massive metallic iron core occupying 85% of its radius and an extreme day/night thermal swing.',
+    descriptionAr: 'أقرب الكواكب إلى الشمس، يمتلك قلباً حديدياً هائلاً يشغل 85% من نصف قطره، مع تباين حراري قياسي بين ليله ونهاره.',
+    primaryElements: [
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 65.0, roleEn: 'Massive metallic core', roleAr: 'قلب فلزي ضخم' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 14.5, roleEn: 'Silicate mantle', roleAr: 'وشاح سيليكاتي' },
+      { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 13.5, roleEn: 'Mantle minerals', roleAr: 'معادن الوشاح' },
+      { atomicNumber: 28, symbol: 'Ni', nameEn: 'Nickel', nameAr: 'نيكل', percentage: 5.0, roleEn: 'Core alloy', roleAr: 'سبيكة القلب' },
+    ],
+  },
+
+  venus: {
+    id: 'venus',
+    nameEn: 'Venus',
+    nameAr: 'الزهرة',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [11.0, 0, 0],
+    size: 1.1,
+    color: '#eab308',
+    orbitalRadius: 11.0,
+    orbitalSpeed: 0.028,
+    rotationSpeed: -0.002,
+    distanceFromEarth: '0.26 - 1.74 AU',
+    mass: '4.867 × 10²⁴ kg (0.815 M_Earth)',
+    radius: '6,051.8 km',
+    temperature: '737 K (464 °C surface average)',
+    descriptionEn: 'Earth twin engulfed in runaway greenhouse effect, featuring a dense carbon dioxide atmosphere and sulfuric acid cloud decks.',
+    descriptionAr: 'توأم الأرض الغارق في ظاهرة الاحتباس الحراري الجامح، مع غلاف جوي كثيف من ثاني أكسيد الكربون وسحب من حمض الكبريتيك.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 48.0, roleEn: 'Silicate crust & CO2', roleAr: 'قشرة سيليكاتية وثاني أكسيد الكربون' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 22.0, roleEn: 'Basaltic crust', roleAr: 'قشرة بازلتية' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 16.0, roleEn: '96.5% CO2 atmosphere', roleAr: 'غلاف جوي 96.5% CO2' },
+      { atomicNumber: 16, symbol: 'S', nameEn: 'Sulfur', nameAr: 'كبريت', percentage: 4.5, roleEn: 'Sulfuric acid clouds', roleAr: 'غيوم حمض الكبريتيك' },
+    ],
+  },
+
+  earth: {
+    id: 'earth',
+    nameEn: 'Earth',
+    nameAr: 'الأرض',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [15.5, 0, 0],
+    size: 1.2,
+    color: '#38bdf8',
+    emissiveColor: '#0284c7',
+    orbitalRadius: 15.5,
+    orbitalSpeed: 0.022,
+    rotationSpeed: 0.015,
+    distanceFromEarth: '0 km (You are here)',
+    mass: '5.972 × 10²⁴ kg',
+    radius: '6,371 km',
+    temperature: '288 K (15 °C global mean)',
+    descriptionEn: 'The only known harbor of life in the cosmos, blessed with liquid water oceans, active plate tectonics, and a protective magnetic geodynamo.',
+    descriptionAr: 'الملاذ الوحيد للحياة المعروف في الكون، يتميز بمحيطات المياه السائلة، وتكتونيات الصفائح النشطة، ومجال مغناطيسي واقٍ.',
+    primaryElements: [
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 32.1, roleEn: 'Molten liquid outer core', roleAr: 'القلب الخارجي المنصهر' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 30.1, roleEn: 'Crust & ocean water', roleAr: 'القشرة ومياه المحيطات' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 15.1, roleEn: 'Silicate rocks', roleAr: 'صخور السيليكات' },
+      { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 13.9, roleEn: 'Mantle silicates', roleAr: 'وشاح الأرض' },
+      { atomicNumber: 28, symbol: 'Ni', nameEn: 'Nickel', nameAr: 'نيكل', percentage: 1.8, roleEn: 'Core geodynamo', roleAr: 'مولد المجال المغناطيسي بالقلب' },
+    ],
+  },
+
+  moon: {
+    id: 'moon',
+    nameEn: 'The Moon (Luna)',
+    nameAr: 'القمر',
+    type: 'moon',
+    scaleLevel: 1,
+    position: [17.5, 0.4, 0],
+    size: 0.45,
+    color: '#cbd5e1',
+    parentBodyId: 'earth',
+    orbitalRadius: 2.2,
+    orbitalSpeed: 0.08,
+    rotationSpeed: 0.01,
+    distanceFromEarth: '384,400 km (1.28 light-seconds)',
+    mass: '7.342 × 10²² kg (0.0123 M_Earth)',
+    radius: '1,737.4 km',
+    descriptionEn: 'Earth tidally locked natural satellite, born 4.5 billion years ago from the giant impact of protoplanet Theia. Rich in anorthosite regolith and helium-3.',
+    descriptionAr: 'التابع الطبيعي المقفل مدياً للأرض، نشأ قبل 4.5 مليار سنة إثر اصطدام الكوكب الأولي ثيا. غني بالأنورثوسيت والريغوليث وهيليوم-3.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 43.0, roleEn: 'Silicate regolith', roleAr: 'ريغوليث سيليكاتي' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 21.0, roleEn: 'Lunar minerals', roleAr: 'معادن القمر' },
+      { atomicNumber: 13, symbol: 'Al', nameEn: 'Aluminium', nameAr: 'ألومنيوم', percentage: 10.0, roleEn: 'Anorthosite highlands', roleAr: 'مرتفعات الأنورثوسيت' },
+      { atomicNumber: 20, symbol: 'Ca', nameEn: 'Calcium', nameAr: 'كالسيوم', percentage: 8.5, roleEn: 'Plagioclase feldspar', roleAr: 'فلسبار بلاجيوكلاز' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 7.0, roleEn: 'Lunar maria basalts', roleAr: 'بازلت بحار القمر' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium-3', nameAr: 'هيليوم-3', percentage: 0.001, roleEn: 'Solar wind isotope deposit', roleAr: 'ترسيب الرياح الشمسية' },
+    ],
+  },
+
+  mars: {
+    id: 'mars',
+    nameEn: 'Mars',
+    nameAr: 'المريخ',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [21.0, 0, 0],
+    size: 0.85,
+    color: '#ef4444',
+    orbitalRadius: 21.0,
+    orbitalSpeed: 0.017,
+    rotationSpeed: 0.014,
+    distanceFromEarth: '0.37 - 2.68 AU',
+    mass: '6.417 × 10²³ kg (0.107 M_Earth)',
+    radius: '3,389.5 km',
+    descriptionEn: 'The Red Planet, sculpted by ancient rivers and home to Olympus Mons (the solar system largest volcano) and rusty iron oxide dust.',
+    descriptionAr: 'الكوكب الأحمر، نحتته أنهار قديمة ويحتضن جبل أوليمبوس (أضخم بركان في النظام الشمسي) وسطحاً مكسواً بأكسيد الحديد الصدئ.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 41.0, roleEn: 'Oxides & CO2 polar caps', roleAr: 'أكاسيد وقمم قطبية' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 22.0, roleEn: 'Fe2O3 rust giving red hue', roleAr: 'صدأ Fe2O3 يمنحه لونه الأحمر' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 19.0, roleEn: 'Basaltic crust', roleAr: 'قشرة بازلتية' },
+      { atomicNumber: 12, symbol: 'Mg', nameEn: 'Magnesium', nameAr: 'مغنيسيوم', percentage: 9.0, roleEn: 'Olivine/Pyroxene', roleAr: 'معادن الأوليفين' },
+    ],
+  },
+
+  phobos: {
+    id: 'phobos',
+    nameEn: 'Phobos',
+    nameAr: 'فوبوس',
+    type: 'moon',
+    scaleLevel: 1,
+    position: [22.2, 0.2, 0],
+    size: 0.25,
+    color: '#78716c',
+    parentBodyId: 'mars',
+    orbitalRadius: 1.2,
+    orbitalSpeed: 0.12,
+    distanceFromEarth: '0.37 - 2.68 AU',
+    mass: '1.065 × 10¹⁶ kg',
+    radius: '11.2 km',
+    descriptionEn: 'Inner moon of Mars orbiting closer than any other moon in the solar system, destined to be ripped apart into a planetary ring in 50 million years.',
+    descriptionAr: 'قمر المريخ الداخلي الأقرب لسطح كوكبه في النظام الشمسي، مصيره التمزق بفعل قوى المد والجزر وتشكيل حلقة بعد 50 مليون عام.',
+    primaryElements: [
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 38.0, roleEn: 'Carbonaceous chondrite', roleAr: 'كوندريت كربوني' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 24.0, roleEn: 'Silicates', roleAr: 'سيليكات' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 22.0, roleEn: 'Oxides', roleAr: 'أكاسيد' },
+    ],
+  },
+
+  asteroid_belt: {
+    id: 'asteroid_belt',
+    nameEn: 'Main Asteroid Belt',
+    nameAr: 'حزام الكويكبات الرئيسي',
+    type: 'asteroid',
+    scaleLevel: 1,
+    position: [26.0, 0, 0],
+    size: 1.5,
+    color: '#a8a29e',
+    orbitalRadius: 26.0,
+    orbitalSpeed: 0.013,
+    distanceFromEarth: '1.2 - 2.2 AU',
+    mass: '2.39 × 10²¹ kg (3% of the Moon)',
+    radius: 'Toroidal belt (2.2 - 3.2 AU)',
+    descriptionEn: 'A primordial circumstellar disc of planetesimals prevented from coagulating into a planet by Jupiter gravitational perturbations. Rich in raw metals and rare earths.',
+    descriptionAr: 'قرص بدائي من الكويكبات أحبطت جاذبية المشتري اندماجها لتكوين كوكب. كنز من الفلزات الثمينة والعناصر الأرضية النادرة.',
+    primaryElements: [
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 40.0, roleEn: 'Metallic asteroids (M-type)', roleAr: 'كويكبات فلزية M-type' },
+      { atomicNumber: 28, symbol: 'Ni', nameEn: 'Nickel', nameAr: 'نيكل', percentage: 12.0, roleEn: 'Kamacite/Taenite alloys', roleAr: 'سبائك الكاماسيت' },
+      { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 0.005, roleEn: 'Precious metal repository', roleAr: 'مستودع فلزات نفيسة' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 25.0, roleEn: 'S-type silicate stony asteroids', roleAr: 'كويكبات صخرية سيليكاتية' },
+    ],
+  },
+
+  ceres: {
+    id: 'ceres',
+    nameEn: 'Ceres',
+    nameAr: 'سيريس',
+    type: 'dwarf_planet',
+    scaleLevel: 1,
+    position: [26.5, 0.4, 0],
+    size: 0.42,
+    color: '#d6d3d1',
+    orbitalRadius: 26.5,
+    orbitalSpeed: 0.013,
+    distanceFromEarth: '1.6 - 2.8 AU',
+    mass: '9.38 × 10²⁰ kg (1/3 of belt mass)',
+    radius: '473 km',
+    descriptionEn: 'The largest object in the asteroid belt and only dwarf planet in the inner Solar System. Harboring bright sodium carbonate salt deposits in Occator Crater.',
+    descriptionAr: 'أكبر جرم في حزام الكويكبات والكوكب القزم الوحيد في النظام الشمسي الداخلي. يضم بقعاً براقة من أملاح كربونات الصوديوم في فوهة أوكاتور.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 48.0, roleEn: 'Water ice & clay hydrates', roleAr: 'جليد مائي وهيدرات طينية' },
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 12.0, roleEn: 'Voluminous water ice mantle', roleAr: 'وشاح ضخم من الجليد المائي' },
+      { atomicNumber: 11, symbol: 'Na', nameEn: 'Sodium', nameAr: 'صوديوم', percentage: 6.0, roleEn: 'Sodium carbonate salt faculae', roleAr: 'رواسب كربونات الصوديوم' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 18.0, roleEn: 'Clay silicates', roleAr: 'سيليكات طينية' },
+    ],
+  },
+
+  jupiter: {
+    id: 'jupiter',
+    nameEn: 'Jupiter',
+    nameAr: 'المشتري',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [33.0, 0, 0],
+    size: 2.8,
+    color: '#d97706',
+    emissiveColor: '#92400e',
+    orbitalRadius: 33.0,
+    orbitalSpeed: 0.009,
+    rotationSpeed: 0.035,
+    distanceFromEarth: '3.93 - 6.47 AU',
+    mass: '1.898 × 10²⁷ kg (317.8 M_Earth)',
+    radius: '69,911 km (11 R_Earth)',
+    temperature: '165 K (Cloud tops) / 24,000 K (Core)',
+    descriptionEn: 'King of the planets, holding 2.5 times the mass of all other planets combined. Featuring the 350-year-old Great Red Spot anticyclone and an ocean of liquid metallic hydrogen.',
+    descriptionAr: 'ملك الكواكب وكتلته تعادل 2.5 ضعف سائر الكواكب مجتمعة. يتميز بالبقعة الحمراء العظيمة ومحيط داخلي من الهيدروجين الفلزي السائل.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 89.8, roleEn: 'Atmosphere & metallic conductor', roleAr: 'غلاف جوي وهيدروجين فلزي ناقل' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 10.2, roleEn: 'Atmosphere buffer', roleAr: 'غاز جوي رئيسي' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 0.3, roleEn: 'Trace hydrocarbons', roleAr: 'هيدروكربونات جوية' },
+      { atomicNumber: 7, symbol: 'N', nameEn: 'Nitrogen (NH3)', nameAr: 'نيتروجين (أمونيا)', percentage: 0.026, roleEn: 'White cloud bands', roleAr: 'أحزمة سحب الأمونيا البيضاء' },
+    ],
+  },
+
+  europa: {
+    id: 'europa',
+    nameEn: 'Europa',
+    nameAr: 'أوروبا',
+    type: 'moon',
+    scaleLevel: 1,
+    position: [36.2, 0.5, 0],
+    size: 0.5,
+    color: '#f8fafc',
+    parentBodyId: 'jupiter',
+    orbitalRadius: 3.2,
+    orbitalSpeed: 0.07,
+    distanceFromEarth: '3.93 - 6.47 AU',
+    mass: '4.80 × 10²² kg (0.008 M_Earth)',
+    radius: '1,560.8 km',
+    descriptionEn: 'Icy Galilean moon concealing a global saline liquid ocean with twice the volume of all Earth oceans combined beneath a 20 km ice crust. Prime candidate for extraterrestrial life.',
+    descriptionAr: 'قمر جاليلي جليدي يخفي محيطاً عالمياً من المياه المالحة السائلة يبلغ ضعف حجم جميع محيطات الأرض مجتمعة تحت قشرة جليدية بسماكة 20 كم.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 53.0, roleEn: 'H2O ice crust & liquid ocean', roleAr: 'قشرة جليد H2O ومحيط سائل' },
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 15.0, roleEn: 'Water molecules', roleAr: 'جزيئات الماء' },
+      { atomicNumber: 11, symbol: 'Na', nameEn: 'Sodium', nameAr: 'صوديوم', percentage: 5.0, roleEn: 'Oceanic salts (NaCl)', roleAr: 'أملاح المحيط' },
+      { atomicNumber: 17, symbol: 'Cl', nameEn: 'Chlorine', nameAr: 'كلور', percentage: 6.0, roleEn: 'Subsurface sea salinity', roleAr: 'ملوحة البحر الجوفي' },
+    ],
+  },
+
+  saturn: {
+    id: 'saturn',
+    nameEn: 'Saturn',
+    nameAr: 'زحل',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [42.0, 0, 0],
+    size: 2.3,
+    color: '#fde047',
+    orbitalRadius: 42.0,
+    orbitalSpeed: 0.006,
+    rotationSpeed: 0.03,
+    distanceFromEarth: '8.0 - 11.0 AU',
+    mass: '5.683 × 10²⁶ kg (95.2 M_Earth)',
+    radius: '58,232 km (9.1 R_Earth)',
+    descriptionEn: 'The ringed jewel of the solar system, low enough in mean density (0.687 g/cm³) to float in water. Adorned with a magnificent 282,000 km ring system made of pure water ice particles.',
+    descriptionAr: 'جوهرة الكواكب ذات الحلقات المذهلة، تقل كثافته المتوسطة عن كثافة الماء (يستطيع الطفو فوق محيط). تمتد حلقاته لأكثر من 282,000 كم متكونة من حبيبات الجليد.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 96.3, roleEn: 'Atmospheric envelope & interior', roleAr: 'الغلاف الجوي والأعماق' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 3.25, roleEn: 'Helium rain inside interior', roleAr: 'أمطار الهيليوم الباطنية' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen (H2O)', nameAr: 'أكسجين (جليد)', percentage: 0.4, roleEn: 'Ring system mass (99% ice)', roleAr: 'كتلة الحلقات (99% جليد)' },
+    ],
+  },
+
+  titan: {
+    id: 'titan',
+    nameEn: 'Titan',
+    nameAr: 'تيتان',
+    type: 'moon',
+    scaleLevel: 1,
+    position: [45.5, -0.6, 0],
+    size: 0.75,
+    color: '#f59e0b',
+    parentBodyId: 'saturn',
+    orbitalRadius: 3.5,
+    orbitalSpeed: 0.05,
+    distanceFromEarth: '8.0 - 11.0 AU',
+    mass: '1.345 × 10²³ kg (1.8x the Moon)',
+    radius: '2,574.7 km',
+    descriptionEn: 'Saturn giant moon, larger than planet Mercury and the only moon with a dense atmosphere (1.5 atm) and liquid methane/ethane seas (Kraken Mare).',
+    descriptionAr: 'قمر زحل العملاق، أكبر من كوكب عطارد والوحيد الذي يمتلك غلافاً جوياً كثيفاً (1.5 ضغط جوي) وبحاراً سائلة من الميثان والإيثان (بحر كراكن).',
+    primaryElements: [
+      { atomicNumber: 7, symbol: 'N', nameEn: 'Nitrogen', nameAr: 'نيتروجين', percentage: 94.2, roleEn: 'Dense smoggy atmosphere (N2)', roleAr: 'غلاف جوي نيتروجيني كثيف' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 4.8, roleEn: 'Liquid methane (CH4) & tholins', roleAr: 'ميثان سائل ومركبات ثولين' },
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 1.0, roleEn: 'Hydrocarbon rains & rivers', roleAr: 'أمطار وأنهار هيدروكربونية' },
+    ],
+  },
+
+  uranus: {
+    id: 'uranus',
+    nameEn: 'Uranus',
+    nameAr: 'أورانوس',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [51.0, 0, 0],
+    size: 1.6,
+    color: '#67e8f9',
+    orbitalRadius: 51.0,
+    orbitalSpeed: 0.004,
+    rotationSpeed: -0.02,
+    distanceFromEarth: '18.2 - 20.4 AU',
+    mass: '8.681 × 10²⁵ kg (14.5 M_Earth)',
+    radius: '25,362 km (4.0 R_Earth)',
+    descriptionEn: 'The tilted ice giant orbiting on its side with a 97.8° axial tilt, enveloped in an icy cyan atmosphere of hydrogen, helium, and methane.',
+    descriptionAr: 'العملاق الجليدي المائل الذي يدور على جنبه بزاوية ميلان محوري تبلغ 97.8 درجة، محاط بغلاف جوي فيروزي من الهيدروجين والهيليوم والميثان.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 82.5, roleEn: 'Atmosphere gas', roleAr: 'غاز الغلاف الجوي' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 15.2, roleEn: 'Atmosphere', roleAr: 'الغلاف الجوي' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 2.3, roleEn: 'Red light absorption (cyan hue)', roleAr: 'امتصاص الضوء الأحمر (اللون الفيروزي)' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 8.0, roleEn: 'Mantle water-ammonia slush', roleAr: 'مزيج الجليد والماء بالوشاح' },
+    ],
+  },
+
+  neptune: {
+    id: 'neptune',
+    nameEn: 'Neptune',
+    nameAr: 'نبتون',
+    type: 'planet',
+    scaleLevel: 1,
+    position: [58.0, 0, 0],
+    size: 1.55,
+    color: '#3b82f6',
+    orbitalRadius: 58.0,
+    orbitalSpeed: 0.003,
+    rotationSpeed: 0.025,
+    distanceFromEarth: '29.8 - 31.3 AU',
+    mass: '1.024 × 10²⁶ kg (17.1 M_Earth)',
+    radius: '24,622 km (3.86 R_Earth)',
+    descriptionEn: 'The windiest world in the Solar System with supersonic winds reaching 2,100 km/h, deep azure methane clouds, and a supercritical water-ammonia mantle.',
+    descriptionAr: 'أشد عوالم النظام الشمسي عصفاً برياح تفوق سرعة الصوت تصل إلى 2,100 كم/ساعة، مع سحب ميثان زرقاء داكنة ووشاح من الماء والأمونيا الفائقة.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 80.0, roleEn: 'Deep atmosphere', roleAr: 'أعماق الغلاف الجوي' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 19.0, roleEn: 'Atmospheric gas', roleAr: 'غاز جوي' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (CH4)', nameAr: 'كربون (ميثان)', percentage: 1.5, roleEn: 'Deep azure coloration', roleAr: 'الزرقة اللازوردية المميزة' },
+    ],
+  },
+
+  voyager_1: {
+    id: 'voyager_1',
+    nameEn: 'Voyager 1',
+    nameAr: 'فوياجر 1',
+    type: 'spacecraft',
+    scaleLevel: 1,
+    position: [68.0, 12.0, 8.0],
+    size: 0.35,
+    color: '#e2e8f0',
+    emissiveColor: '#38bdf8',
+    distanceFromEarth: '> 162.5 AU (24.3 billion km / 22.5 light-hours)',
+    mass: '825.5 kg',
+    radius: '3.7 m (High-gain antenna dish)',
+    descriptionEn: 'Humanity furthest robotic explorer. Launched in 1977, it entered interstellar space in August 2012. Powered by a Plutonium-238 RTG and carrying the Golden Record.',
+    descriptionAr: 'أبعد سفير آلي للبشرية في أعماق الفضاء السحيق. أُطلق عام 1977 ودخل الفضاء بين النجمي في أغسطس 2012، يعمل بمولد بلوتونيوم-238 ويحمل الأسطوانة الذهبية.',
+    primaryElements: [
+      { atomicNumber: 94, symbol: 'Pu', nameEn: 'Plutonium-238', nameAr: 'بلوتونيوم-238', percentage: 15.0, roleEn: 'Radioisotope Thermoelectric Generator (RTG)', roleAr: 'مولد كهروحراري بالنظائر المشعة' },
+      { atomicNumber: 79, symbol: 'Au', nameEn: 'Gold', nameAr: 'ذهب', percentage: 0.1, roleEn: 'Golden Record & thermal shielding', roleAr: 'الأسطوانة الذهبية والدرع الحراري' },
+      { atomicNumber: 13, symbol: 'Al', nameEn: 'Aluminium', nameAr: 'ألومنيوم', percentage: 55.0, roleEn: 'Bus chassis & antenna dish', roleAr: 'هيكل المركبة وهوائي الاتصال' },
+      { atomicNumber: 22, symbol: 'Ti', nameEn: 'Titanium', nameAr: 'تيتانيوم', percentage: 18.0, roleEn: 'Structural struts & propellant tanks', roleAr: 'الدعامات الهيكلية وخزانات الدفع' },
+    ],
+    videoId: 'LiaWyQ0Fm70',
+  },
+
+  jwst: {
+    id: 'jwst',
+    nameEn: 'James Webb Space Telescope (JWST)',
+    nameAr: 'تلسكوب جيمس ويب الفضائي',
+    type: 'spacecraft',
+    scaleLevel: 1,
+    position: [18.0, 2.0, 1.0],
+    size: 0.4,
+    color: '#fbbf24',
+    emissiveColor: '#f59e0b',
+    distanceFromEarth: '1.5 million km (Sun-Earth Lagrange L2 Point)',
+    mass: '6,161 kg',
+    radius: '20.2 m × 14.2 m (Sunshield)',
+    descriptionEn: 'The premier infrared space observatory peering back 13.5 billion years to witness the first stars and galaxies. Features 18 gold-coated beryllium hexagonal mirror segments.',
+    descriptionAr: 'المرصد الفضائي الرائد بالأشعة تحت الحمراء الذي يرصد أولى نجوم ومجرات الكون بعد الانفجار العظيم بـ 13.5 مليار سنة، بـ 18 مرآة سداسية من البيريليوم المطلي بالذهب.',
+    primaryElements: [
+      { atomicNumber: 4, symbol: 'Be', nameEn: 'Beryllium', nameAr: 'بيريليوم', percentage: 45.0, roleEn: 'Ultra-light, cryogenic mirror substrates', roleAr: 'مرايا بيريليوم خفيفة تعمل في برودة الفضاء' },
+      { atomicNumber: 79, symbol: 'Au', nameEn: 'Gold', nameAr: 'ذهب', percentage: 0.05, roleEn: '100 nm vapor-deposited infrared reflective coating (48.25 g total)', roleAr: 'طلاء ذهبي عاكس للأشعة تحت الحمراء بسماكة 100 نانومتر' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 20.0, roleEn: 'Silicone-doped Kapton sunshield layers', roleAr: 'طبقات كابتون الواقية من الشمس' },
+    ],
+  },
+
+  // ----------------------------------------------------
+  // SCALE 2: STELLAR NEIGHBORHOOD, COMPACT RELICS & GIANTS
+  // ----------------------------------------------------
+  proxima_centauri: {
+    id: 'proxima_centauri',
+    nameEn: 'Proxima Centauri',
+    nameAr: 'قنطور الأقرب',
+    type: 'star',
+    scaleLevel: 2,
+    position: [12.0, 2.0, -8.0],
+    size: 1.2,
+    color: '#f87171',
+    emissiveColor: '#dc2626',
+    spectralType: 'M',
+    temperature: '3,042 K',
+    distanceFromEarth: '4.246 light-years (1.30 pc)',
+    mass: '0.122 M_Sun (128 M_Jupiter)',
+    radius: '0.154 R_Sun (1.07 R_Jupiter)',
+    rotationSpeed: 0.008,
+    descriptionEn: 'Our closest stellar neighbor: a flare star red dwarf whose entire volume is fully convective, meaning it will slowly burn its hydrogen fuel for over 4 trillion years.',
+    descriptionAr: 'أقرب نجم إلى كوكب الأرض: قزم أحمر حملي بالكامل، مما يجعله قادراً على حرق وقوده الهيدروجيني ببطء شديد لأكثر من 4 تريليونات سنة.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 74.0, roleEn: 'Convective core & mantle fusion', roleAr: 'وقود الاندماج الحملي' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.5, roleEn: 'Accumulating fusion ash', roleAr: 'رماد الاندماج المتراكم' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 0.12, roleEn: 'Stellar flare magnetic seed', roleAr: 'بذرة النشاط المغناطيسي للتوهجات' },
+    ],
+  },
+
+  sirius_a: {
+    id: 'sirius_a',
+    nameEn: 'Sirius A',
+    nameAr: 'الشعرى اليمانية أ',
+    type: 'star',
+    scaleLevel: 2,
+    position: [-16.0, 5.0, 10.0],
+    size: 2.8,
+    color: '#93c5fd',
+    emissiveColor: '#60a5fa',
+    spectralType: 'A',
+    temperature: '9,940 K',
+    distanceFromEarth: '8.611 light-years',
+    mass: '2.063 M_Sun',
+    radius: '1.711 R_Sun',
+    rotationSpeed: 0.02,
+    descriptionEn: 'The brightest star in Earth night sky, a luminous blue-white A-type main-sequence star blazing with 25 times the luminosity of the Sun.',
+    descriptionAr: 'ألمع نجم في سماء الليل، نجم نسق أساسي أزرق-أبيض من النوع A يشع بـ 25 ضعف ضياء الشمس.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 71.0, roleEn: 'Core CNO fusion', roleAr: 'اندماج دورة CNO بالقلب' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 27.0, roleEn: 'Fusion byproduct', roleAr: 'ناتج الاندماج' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 0.5, roleEn: 'Enhanced surface metallicity (Am star)', roleAr: 'معدنية سطحية فائقة' },
+    ],
+  },
+
+  sirius_b: {
+    id: 'sirius_b',
+    nameEn: 'Sirius B ("The Pup")',
+    nameAr: 'الشعرى اليمانية ب (الجرو)',
+    type: 'star',
+    scaleLevel: 2,
+    position: [-14.5, 4.2, 9.2],
+    size: 0.6,
+    color: '#e0f2fe',
+    emissiveColor: '#38bdf8',
+    spectralType: 'WhiteDwarf',
+    temperature: '25,200 K',
+    distanceFromEarth: '8.611 light-years',
+    mass: '1.018 M_Sun (Packed into Earth volume)',
+    radius: '5,800 km (0.92 R_Earth)',
+    descriptionEn: 'One of the most massive white dwarfs known: an entire solar mass compressed by gravitational collapse into a sphere smaller than Earth, supported solely by electron degeneracy pressure.',
+    descriptionAr: 'أحد أضخم الأقزام البيضاء المعروفة: كتلة شمسية كاملة مسحوقة بفعل الجاذبية في كرة أصغر من الأرض، محكومة بضغط انفطار الإلكترونات.',
+    primaryElements: [
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 50.0, roleEn: 'Degenerate crystallized core ("Cosmic diamond")', roleAr: 'قلب متبلور من الكربون المنفطر' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 49.0, roleEn: 'Degenerate core alloy', roleAr: 'سبيكة الأكسجين المنفطرة' },
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 1.0, roleEn: 'Thin pure surface atmosphere', roleAr: 'غلاف جوي سطحي رقيق' },
+    ],
+  },
+
+  betelgeuse: {
+    id: 'betelgeuse',
+    nameEn: 'Betelgeuse',
+    nameAr: 'منكب الجوزاء',
+    type: 'star',
+    scaleLevel: 2,
+    position: [24.0, -10.0, 15.0],
+    size: 6.5,
+    color: '#ef4444',
+    emissiveColor: '#b91c1c',
+    spectralType: 'M',
+    temperature: '3,600 K',
+    distanceFromEarth: '642.5 light-years',
+    mass: '16.5 - 19.0 M_Sun',
+    radius: '764 - 1,021 R_Sun (Would swallow Jupiter orbit)',
+    rotationSpeed: 0.004,
+    descriptionEn: 'A pulsating red supergiant in Orion on the precipice of a core-collapse supernova. Fusing successive concentric shells of helium, carbon, neon, oxygen, and silicon into an iron core.',
+    descriptionAr: 'عملاق أحمر فائق ينبض في كوكبة الجبار على شفا مستعر أعظم وشيك. يدمج طبقات بصلية متعاقبة من الهيليوم والكربون والنيون والأكسجين والسيليكون حتى يتشكل قلب من الحديد.',
+    primaryElements: [
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 22.0, roleEn: 'Pre-supernova burning shell', roleAr: 'طبقة حرق السيليكون قبل الانفجار' },
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen', nameAr: 'أكسجين', percentage: 32.0, roleEn: 'Intermediate fusion shell', roleAr: 'طبقة اندماج وسيطة' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon', nameAr: 'كربون', percentage: 20.0, roleEn: 'Carbon burning layer', roleAr: 'طبقة حرق الكربون' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 12.0, roleEn: 'Dead end iron core building up', roleAr: 'تراكم قلب الحديد الحاسم' },
+    ],
+    nucleosynthesisRoleEn: 'Cosmic nucleosynthesis engine: will forge heavy elements up to lead via core collapse and shockwave explosivity.',
+    nucleosynthesisRoleAr: 'مصنع كوني للعناصر: سينتج ويقذف عناصر أثقل مثل الحديد والرصاص عند انهيار قلبه وانفجاره كمستعر أعظم.',
+    videoId: '3mnSDifDSxQ',
+  },
+
+  crab_pulsar: {
+    id: 'crab_pulsar',
+    nameEn: 'Crab Pulsar (PSR B0531+21)',
+    nameAr: 'نابض سديم السرطان',
+    type: 'pulsar',
+    scaleLevel: 2,
+    position: [-22.0, -14.0, -18.0],
+    size: 0.8,
+    color: '#38bdf8',
+    emissiveColor: '#0ea5e9',
+    spectralType: 'Neutron',
+    temperature: '1,600,000 K',
+    distanceFromEarth: '6,500 light-years',
+    mass: '1.4 - 2.0 M_Sun',
+    radius: '10 - 12 km (City-sized atomic nucleus)',
+    rotationSpeed: 0.35, // 30.2 spins per sec
+    descriptionEn: 'Ultra-dense neutron star spinning 30.2 times per second, left behind by the supernova of 1054 CE. Emits relativistic synchrotron beams across the electromagnetic spectrum.',
+    descriptionAr: 'نجم نيوتروني فائق الكثافة يدور 30.2 مرة في الثانية، متبقٍ من مستعر أعظم سُجل عام 1054 م. يطلق حزمتين نسبويتين من إشعاع السنكروترون عبر الفضاء.',
+    primaryElements: [
+      { atomicNumber: 0, symbol: 'n', nameEn: 'Neutron Matter', nameAr: 'مادة نيوترونية', percentage: 95.0, roleEn: 'Superfluid neutron degenerate core', roleAr: 'قلب نيوتروني منفطر فائق الميوعة' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 4.5, roleEn: 'Crystalline outer crust', roleAr: 'قشرة بلورية حديدية فائقة الصلابة' },
+    ],
+    videoId: 'udFxKZRyQt4',
+  },
+
+  cygnus_x1: {
+    id: 'cygnus_x1',
+    nameEn: 'Cygnus X-1 Black Hole',
+    nameAr: 'الثقب الأسود الدجاجة X-1',
+    type: 'black_hole',
+    scaleLevel: 2,
+    position: [28.0, 15.0, -20.0],
+    size: 1.5,
+    color: '#020617',
+    emissiveColor: '#3b82f6',
+    spectralType: 'Singularity',
+    distanceFromEarth: '7,300 light-years',
+    mass: '21.2 M_Sun',
+    radius: '62.6 km (Event Horizon / Schwarzschild Radius)',
+    descriptionEn: 'The first confirmed stellar-mass black hole. Ruthlessly siphons matter from its companion blue supergiant star into a blazing multi-million-kelvin X-ray accretion disk.',
+    descriptionAr: 'أول ثقب أسود ذي كتلة نجمية جرى تأكيده في التاريخ. يسحب المادة بوحشية من رفيقه النجم الأزرق العملاق ليشكل قرصاً تزويدياً ملتهباً بالأشعة السينية.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Ionized Hydrogen', nameAr: 'هيدروجين متأين', percentage: 70.0, roleEn: 'Accretion disk plasma', roleAr: 'بلازما قرص التزويد' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Ionized Helium', nameAr: 'هيليوم متأين', percentage: 28.0, roleEn: 'Relativistic jet feed', roleAr: 'تغذية النفاثات النسبوية' },
+    ],
+    videoId: 'e-P5IFTqB98',
+  },
+
+  // ----------------------------------------------------
+  // SCALE 3: MILKY WAY GALAXY, SAGITTARIUS A* & NEBULAE
+  // ----------------------------------------------------
+  sagittarius_a: {
+    id: 'sagittarius_a',
+    nameEn: 'Sagittarius A* (Sgr A*)',
+    nameAr: 'الرامي أ* (الثقب الأسود الفائق)',
+    type: 'black_hole',
+    scaleLevel: 3,
+    position: [0, 0, 0],
+    size: 3.5,
+    color: '#000000',
+    emissiveColor: '#f97316',
+    spectralType: 'Singularity',
+    distanceFromEarth: '26,673 light-years (8.178 kpc)',
+    mass: '4.154 × 10⁶ M_Sun (4.15 million solar masses)',
+    radius: '12.7 million km (0.085 AU / 17 Solar radii)',
+    descriptionEn: 'The supermassive black hole reigning at the gravitational center of the Milky Way, imaged by the Event Horizon Telescope revealing its glowing synchrotron photon ring.',
+    descriptionAr: 'الثقب الأسود فائق الكتلة الرابض في المركز الجاذبي لمجرة درب التبانة، صوره تلسكوب أفق الحدث مبيناً حلقة الفوتونات المضيئة المتوهجة حوله.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Superheated Proton Plasma', nameAr: 'بلازما بروتونات فائقة الحرارة', percentage: 80.0, roleEn: 'Accretion flow', roleAr: 'تدفق التزويد' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Alpha Particles', nameAr: 'جسيمات ألفا (هيليوم)', percentage: 19.0, roleEn: 'Magnetic frame dragging', roleAr: 'سحب الإطار المغناطيسي' },
+    ],
+    videoId: '0t-w-4L6Z8Q',
+  },
+
+  crab_nebula: {
+    id: 'crab_nebula',
+    nameEn: 'Crab Nebula (Messier 1)',
+    nameAr: 'سديم السرطان (ميسييه 1)',
+    type: 'supernova_remnant',
+    scaleLevel: 3,
+    position: [18.0, 4.0, 12.0],
+    size: 4.2,
+    color: '#06b6d4',
+    emissiveColor: '#ec4899',
+    distanceFromEarth: '6,500 light-years',
+    mass: '4.6 - 5.0 M_Sun (Ejected gas)',
+    radius: '5.5 light-years across',
+    descriptionEn: 'An expanding cosmic debris cloud from a core-collapse supernova observed in 1054 CE. Its glowing filamentary shockwaves are enriched with newly forged oxygen, sulfur, and iron.',
+    descriptionAr: 'سحابة حطام كوني متوسعة نجمت عن مستعر أعظم شوهد عام 1054 م. خيوطه الصادمة المتوهجة محملة بالأكسجين والكبريت والحديد المصنوع حديثاً.',
+    primaryElements: [
+      { atomicNumber: 8, symbol: 'O', nameEn: 'Oxygen [O III]', nameAr: 'أكسجين متأين', percentage: 28.0, roleEn: 'Blue-green glowing filaments', roleAr: 'خيوط متوهجة بالأخضر المزرق' },
+      { atomicNumber: 16, symbol: 'S', nameEn: 'Sulfur [S II]', nameAr: 'كبريت', percentage: 18.0, roleEn: 'Deep crimson filaments', roleAr: 'خيوط حمراء قانية' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron', nameAr: 'حديد', percentage: 14.0, roleEn: 'Dispersing into interstellar medium', roleAr: 'ينتشر في الفضاء بين النجمي' },
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen', nameAr: 'هيدروجين', percentage: 35.0, roleEn: 'Blast envelope', roleAr: 'غلاف الانفجار' },
+    ],
+    nucleosynthesisRoleEn: 'Dispersing explosive core-collapse elements to seed future generations of solar systems and rocky planets.',
+    nucleosynthesisRoleAr: 'نشر نواتج المستعر الأعظم لتخصيب سحب الغاز وبناء أجيال قادمة من الكواكب الصخرية والحياة.',
+  },
+
+  pillars_of_creation: {
+    id: 'pillars_of_creation',
+    nameEn: 'Pillars of Creation (Eagle Nebula M16)',
+    nameAr: 'أعمدة الخلق (سديم النسر)',
+    type: 'nebula',
+    scaleLevel: 3,
+    position: [-20.0, -8.0, -15.0],
+    size: 4.5,
+    color: '#84cc16',
+    emissiveColor: '#10b981',
+    distanceFromEarth: '6,500 - 7,000 light-years',
+    mass: '200 M_Sun (Molecular gas)',
+    radius: '4 - 5 light-years long',
+    descriptionEn: 'Towering elephant trunks of cold interstellar molecular hydrogen gas and microscopic dust, acting as incubators for nascent protostars emerging from Evaporating Gaseous Globules (EGGs).',
+    descriptionAr: 'أعمدة شاهقة من غاز الهيدروجين الجزيئي البارد والغبار الكوني الدقيق، تعمل كحاضنات تولد بداخلها النجوم الأولية الجديدة.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Molecular Hydrogen (H2)', nameAr: 'هيدروجين جزيئي', percentage: 70.0, roleEn: 'Cold stellar nursery fuel', roleAr: 'وقود ولادة النجوم البارد' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 28.0, roleEn: 'Nebular matrix', roleAr: 'مصفوفة السديم' },
+      { atomicNumber: 6, symbol: 'C', nameEn: 'Carbon (Graphite/PAHs)', nameAr: 'كربون (غبار كوني)', percentage: 1.2, roleEn: 'Cosmic dust grains', roleAr: 'حبيبات الغبار الكوني' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon (Silicate dust)', nameAr: 'سيليكون (سيليكات)', percentage: 0.7, roleEn: 'Rocky planet seeds', roleAr: 'بذور تكوين الكواكب' },
+    ],
+  },
+
+  kilonova_factory: {
+    id: 'kilonova_factory',
+    nameEn: 'Kilonova Forge (Neutron Star Merger)',
+    nameAr: 'مصنع الكيلونوفا (اندماج النجوم النيوترونية)',
+    type: 'supernova_remnant',
+    scaleLevel: 3,
+    position: [25.0, -16.0, -10.0],
+    size: 3.2,
+    color: '#facc15',
+    emissiveColor: '#eab308',
+    distanceFromEarth: 'Analogous to GW170817 (130 million light-years)',
+    mass: '2 - 3 M_Sun total merger',
+    radius: 'Ejecta expands at 0.1 - 0.3 c (30,000 - 90,000 km/s)',
+    descriptionEn: 'The cataclysmic collision of two neutron stars, triggering the rapid neutron-capture process (r-process) to forge the universe heaviest precious metals: Gold, Platinum, and Uranium.',
+    descriptionAr: 'الاصطدام الكارثي بين نجمين نيوترونيين، يطلق عملية الالتقاط السريع للنيوترونات (r-process) لتخليق أثقل المعادن الثمينة في الكون: الذهب والبلاتين واليورانيوم.',
+    primaryElements: [
+      { atomicNumber: 79, symbol: 'Au', nameEn: 'Gold', nameAr: 'ذهب', percentage: 15.0, roleEn: '10 to 100 Earth masses of pure gold generated!', roleAr: 'إنتاج ما يعادل 10 إلى 100 كتلة أرضية من الذهب الصافي!' },
+      { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 25.0, roleEn: 'Massive r-process yield', roleAr: 'تخليق مكثف عبر عملية r-process' },
+      { atomicNumber: 92, symbol: 'U', nameEn: 'Uranium', nameAr: 'يورانيوم', percentage: 5.0, roleEn: 'Actinide nucleosynthesis', roleAr: 'تخليق الأكتينيدات الثقيلة' },
+      { atomicNumber: 0, symbol: 'n', nameEn: 'Free Neutrons', nameAr: 'نيوترونات حرة', percentage: 40.0, roleEn: 'Rapid neutron deluge', roleAr: 'طوفان نيوتروني خاطف' },
+    ],
+    nucleosynthesisRoleEn: 'The primary cosmic birthplace of elements heavier than iron, including gold, platinum, and radioactive actinides.',
+    nucleosynthesisRoleAr: 'المسقط الكوني الأساسي لمعظم العناصر الأثقل من الحديد كالذهب والبلاتين واليورانيوم.',
+    videoId: 'T5j1w5uN3_4',
+  },
+
+  // ----------------------------------------------------
+  // SCALE 4: EXTRAGALACTIC REALM & ANDROMEDA
+  // ----------------------------------------------------
+  andromeda_galaxy: {
+    id: 'andromeda_galaxy',
+    nameEn: 'Andromeda Galaxy (Messier 31)',
+    nameAr: 'مجرة المرأة المسلسلة (أندروميدا M31)',
+    type: 'galaxy',
+    scaleLevel: 4,
+    position: [0, 0, 0],
+    size: 14.0,
+    color: '#60a5fa',
+    emissiveColor: '#3b82f6',
+    distanceFromEarth: '2.537 million light-years (778 kpc)',
+    mass: '1.5 × 10¹² M_Sun (1 trillion stars)',
+    radius: '110,000 light-years (Diameter 220,000 ly)',
+    rotationSpeed: 0.002,
+    descriptionEn: 'The largest galactic titan in our Local Group, containing approximately one trillion stars. It is hurtling toward the Milky Way at 110 km/s, set to merge into Milkomeda in 4.5 billion years.',
+    descriptionAr: 'المجرة العملاقة الكبرى في مجموعتنا المحلية، تضم تريليون نجم. تقترب من درب التبانة بسرعة 110 كم/ثانية وستندمجان بعد 4.5 مليار عام لتشكيلا مجرة ميلكوميدا.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Primordial Hydrogen Gas', nameAr: 'غاز هيدروجين بدائي', percentage: 72.0, roleEn: 'Galactic disc reservoir', roleAr: 'مخزون القرص المجري' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 26.0, roleEn: 'Stellar core ash', roleAr: 'رماد النجوم' },
+      { atomicNumber: 26, symbol: 'Fe', nameEn: 'Iron & Heavy Metals', nameAr: 'حديد وفلزات ثقيلة', percentage: 1.5, roleEn: 'Enriched population I stars', roleAr: 'نجوم الجيل الأول الغنية' },
+    ],
+    videoId: 'qn3-N8_6Y4Y',
+  },
+
+  triangulum_galaxy: {
+    id: 'triangulum_galaxy',
+    nameEn: 'Triangulum Galaxy (Messier 33)',
+    nameAr: 'مجرة المثلث (ميسييه 33)',
+    type: 'galaxy',
+    scaleLevel: 4,
+    position: [28.0, 10.0, -18.0],
+    size: 7.5,
+    color: '#a78bfa',
+    emissiveColor: '#8b5cf6',
+    distanceFromEarth: '2.73 million light-years',
+    mass: '5.0 × 10¹⁰ M_Sun (40 billion stars)',
+    radius: '30,000 light-years',
+    rotationSpeed: 0.003,
+    descriptionEn: 'The third-largest galaxy of the Local Group, showcasing a loose, unbarred spiral structure bursting with gigantic star-forming hydrogen regions like NGC 604.',
+    descriptionAr: 'ثالث أكبر مجرة في المجموعة المحلية، تمتاز ببنية لولبية غير ضليعة عامرة بمناطق ولادة النجوم الهائلة من غاز الهيدروجين مثل NGC 604.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Neutral Hydrogen (H I)', nameAr: 'هيدروجين متعادل', percentage: 74.0, roleEn: 'Massive starburst nebulae', roleAr: 'سدم تفجر ولادة النجوم' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 25.0, roleEn: 'Interstellar medium', roleAr: 'الوسط بين النجمي' },
+    ],
+  },
+
+  large_magellanic_cloud: {
+    id: 'large_magellanic_cloud',
+    nameEn: 'Large Magellanic Cloud (LMC)',
+    nameAr: 'سحابة ماجلان الكبرى',
+    type: 'galaxy',
+    scaleLevel: 4,
+    position: [-25.0, -18.0, 15.0],
+    size: 5.5,
+    color: '#fb7185',
+    distanceFromEarth: '163,000 light-years',
+    mass: '1.0 × 10¹⁰ M_Sun',
+    radius: '14,000 light-years',
+    descriptionEn: 'A disrupted satellite dwarf galaxy orbiting the Milky Way, housing the colossal Tarantula Nebula (30 Doradus) and host to the famous Supernova SN 1987A.',
+    descriptionAr: 'مجرة قزمة تابعة تدور حول درب التبانة، تحتضن سديم الرتيلاء العملاق وشهدت انفجار المستعر الأعظم الشهير SN 1987A.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Hydrogen Gas', nameAr: 'غاز هيدروجين', percentage: 75.0, roleEn: 'Tarantula starburst fuel', roleAr: 'وقود سديم الرتيلاء' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.2, roleEn: 'Cosmic background', roleAr: 'الوسط الكوني' },
+    ],
+  },
+
+  m87_black_hole: {
+    id: 'm87_black_hole',
+    nameEn: 'M87* Supermassive Black Hole',
+    nameAr: 'الثقب الأسود الفائق في M87*',
+    type: 'black_hole',
+    scaleLevel: 4,
+    position: [-38.0, 22.0, -28.0],
+    size: 4.8,
+    color: '#000000',
+    emissiveColor: '#fb923c',
+    spectralType: 'Singularity',
+    distanceFromEarth: '53.5 million light-years (16.4 Mpc)',
+    mass: '6.5 × 10⁹ M_Sun (6.5 billion solar masses)',
+    radius: '19 billion km (130 AU / 3 times Pluto orbit)',
+    descriptionEn: 'The first black hole ever imaged by humanity (Event Horizon Telescope, April 2019). Anchoring the giant elliptical galaxy Messier 87 and launching a 5,000 light-year relativistic plasma jet.',
+    descriptionAr: 'أول ثقب أسود يتم تصويره في تاريخ البشرية (تلسكوب أفق الحدث، أبريل 2019). يقع في قلب مجرة M87 الإهليلجية ويطلق نفاث بلازما نسبوياً يمتد 5,000 سنة ضوئية.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Relativistic Proton Jet', nameAr: 'نفاث بروتونات نسبوي', percentage: 85.0, roleEn: 'Synchrotron radiation beam', roleAr: 'حزمة إشعاع سنكروترون' },
+      { atomicNumber: 0, symbol: 'e⁻', nameEn: 'Positrons / Electrons', nameAr: 'إلكترونات وبوزيترونات', percentage: 12.0, roleEn: 'Relativistic plasma sheath', roleAr: 'غلاف البلازما النسبوي' },
+    ],
+    videoId: '0t-w-4L6Z8Q',
+  },
+
+  // ----------------------------------------------------
+  // SCALE 5: COSMIC WEB & OBSERVABLE UNIVERSE
+  // ----------------------------------------------------
+  laniakea_supercluster: {
+    id: 'laniakea_supercluster',
+    nameEn: 'Laniakea Supercluster',
+    nameAr: 'عنقود لانياكيا الفائق',
+    type: 'supercluster',
+    scaleLevel: 5,
+    position: [0, 0, 0],
+    size: 18.0,
+    color: '#38bdf8',
+    emissiveColor: '#0284c7',
+    distanceFromEarth: 'Centred around the Great Attractor (250 million ly)',
+    mass: '10¹⁷ M_Sun (100,000 galaxies)',
+    radius: '260 million light-years radius (520 million ly span)',
+    descriptionEn: '"Immeasurable Heaven" in Hawaiian. Our home supercluster containing the Milky Way, Andromeda, and 100,000 galaxies flowing along gravitational streamlines toward the Great Attractor.',
+    descriptionAr: '"السماء التي لا تقاس" باللغة الهاواية. موطننا الكوني الفائق الذي يضم درب التبانة وأندروميدا و100 ألف مجرة تتدفق نحو الجاذب الأعظم.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Baryonic Hydrogen Gas', nameAr: 'غاز هيدروجين باريوني', percentage: 75.0, roleEn: 'Intergalactic warm-hot medium (WHIM)', roleAr: 'الوسط بين المجري الدافئ' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Helium', nameAr: 'هيليوم', percentage: 24.0, roleEn: 'Primordial matter', roleAr: 'مادة بدائية من الانفجار العظيم' },
+    ],
+    videoId: 'Z_1Q0XB4X0Y',
+  },
+
+  bootes_void: {
+    id: 'bootes_void',
+    nameEn: 'Boötes Void ("The Great Nothing")',
+    nameAr: 'فراغ العواء (العدم العظيم)',
+    type: 'cosmic_structure',
+    scaleLevel: 5,
+    position: [35.0, 25.0, -30.0],
+    size: 14.0,
+    color: '#030712',
+    emissiveColor: '#1e1b4b',
+    distanceFromEarth: '700 million light-years',
+    mass: 'Extremely depleted of matter',
+    radius: '165 million light-years radius (330 million ly diameter)',
+    descriptionEn: 'One of the largest supervoids known in the universe. A sphere 330 million light-years across containing only ~60 known galaxies, where a normal region would contain 10,000.',
+    descriptionAr: 'أحد أضخم الفراغات الكونية المعروفة. كرة قطرها 330 مليون سنة ضوئية تحتوي على نحو 60 مجرة فقط، بينما كان يفترض أن تحوي 10,000 مجرة في المعدل الطبيعي.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Sparse Intergalactic Hydrogen', nameAr: 'هيدروجين بين مجري مخلخل', percentage: 98.0, roleEn: 'Ultra-low density gas (< 1 atom / m³)', roleAr: 'غاز فائق التخلخل (< 1 ذرة / م³)' },
+    ],
+  },
+
+  cmb_sphere: {
+    id: 'cmb_sphere',
+    nameEn: 'Cosmic Microwave Background (CMB)',
+    nameAr: 'إشعاع الخلفية الكونية الميكروي (CMB)',
+    type: 'cosmic_structure',
+    scaleLevel: 5,
+    position: [0, 0, 0],
+    size: 45.0,
+    color: '#f97316',
+    emissiveColor: '#ea580c',
+    distanceFromEarth: '46.5 billion light-years (Radius of Observable Universe)',
+    mass: 'All baryonic + dark matter in universe',
+    radius: 'Observable horizon boundary (z ≈ 1,100)',
+    temperature: '2.7255 K (-270.425 °C)',
+    descriptionEn: 'The thermal echo of the Big Bang, released 380,000 years after creation when neutral hydrogen formed during recombination and the primordial universe became transparent to light.',
+    descriptionAr: 'الصدى الحراري للانفجار العظيم، انطلق بعد 380 ألف سنة من الخلق حين تشكل الهيدروجين المتعادل أثناء عهد إعادة الاندماج وأصبح الكون شفافاً للضوء.',
+    primaryElements: [
+      { atomicNumber: 1, symbol: 'H', nameEn: 'Primordial Hydrogen', nameAr: 'هيدروجين بدائي', percentage: 75.0, roleEn: 'Recombination atoms', roleAr: 'ذرات إعادة الاندماج' },
+      { atomicNumber: 2, symbol: 'He', nameEn: 'Primordial Helium-4', nameAr: 'هيليوم-4 بدائي', percentage: 24.9, roleEn: 'Big Bang nucleosynthesis', roleAr: 'تخليق الانفجار العظيم' },
+      { atomicNumber: 3, symbol: 'Li', nameEn: 'Lithium-7', nameAr: 'ليثيوم-7', percentage: 0.0001, roleEn: 'Cosmological lithium problem', roleAr: 'لغز الليثيوم الكوني' },
+    ],
+  },
+};
+
+// ----------------------------------------------------
+// COSMIC NUCLEOSYNTHESIS MAP FOR ALL 118 ELEMENTS
+// ----------------------------------------------------
+export interface CosmicNucleosynthesisInfo {
+  source: NucleosynthesisSource;
+  sourceNameEn: string;
+  sourceNameAr: string;
+  primaryLocationEn: string;
+  primaryLocationAr: string;
+  keyCosmicBodyIds: string[];
+  explanationEn: string;
+  explanationAr: string;
+}
+
+export const COSMIC_NUCLEOSYNTHESIS_MAP: Record<number, CosmicNucleosynthesisInfo> = {
+  // Z=1 to 2: Big Bang
+  1: {
+    source: 'big_bang',
+    sourceNameEn: 'Big Bang Nucleosynthesis',
+    sourceNameAr: 'تخليق الانفجار العظيم',
+    primaryLocationEn: 'Pillars of Creation, Sun, Intergalactic Web',
+    primaryLocationAr: 'أعمدة الخلق، الشمس، والنسيج بين المجري',
+    keyCosmicBodyIds: ['cmb_sphere', 'sun', 'pillars_of_creation', 'andromeda_galaxy'],
+    explanationEn: 'Forged within the first 3 minutes of the universe as cooling quarks coalesced into stable protons.',
+    explanationAr: 'تكون في الدقائق الثلاث الأولى بعد الانفجار العظيم إثر تجمع الكواركات في بروتونات مستقرة.',
+  },
+  2: {
+    source: 'big_bang',
+    sourceNameEn: 'Big Bang & Stellar Fusion',
+    sourceNameAr: 'الانفجار العظيم والاندماج النجمي',
+    primaryLocationEn: 'Sun Core, Jupiter, Betelgeuse',
+    primaryLocationAr: 'قلب الشمس، المشتري، ومنكب الجوزاء',
+    keyCosmicBodyIds: ['sun', 'jupiter', 'cmb_sphere', 'sirius_a'],
+    explanationEn: '25% created during the Big Bang; continuously forged by hydrogen fusion in stellar cores across all galaxies.',
+    explanationAr: 'تكون 25% منه في الانفجار العظيم، ويستمر تخليقه باندماج الهيدروجين في قلوب جميع النجوم.',
+  },
+  // Z=3 to 5: Cosmic Rays & Big Bang
+  3: {
+    source: 'cosmic_rays',
+    sourceNameEn: 'Cosmic Ray Spallation & Big Bang',
+    sourceNameAr: 'تفتيت الأشعة الكونية والانفجار العظيم',
+    primaryLocationEn: 'Interstellar Gas Clouds, Earth Crust',
+    primaryLocationAr: 'سحب الغاز بين النجمي وقشرة الأرض',
+    keyCosmicBodyIds: ['pillars_of_creation', 'earth', 'cmb_sphere'],
+    explanationEn: 'Synthesized when relativistic high-energy cosmic rays strike interstellar carbon and oxygen nuclei.',
+    explanationAr: 'يتكون عند اصطدام جسيمات الأشعة الكونية فائقة الطاقة بنوى الكربون والأكسجين في الفضاء.',
+  },
+  4: {
+    source: 'cosmic_rays',
+    sourceNameEn: 'Cosmic Ray Spallation',
+    sourceNameAr: 'تفتيت الأشعة الكونية',
+    primaryLocationEn: 'JWST Mirrors, Asteroid Belts, Interstellar Dust',
+    primaryLocationAr: 'مرايا تلسكوب جيمس ويب، حزام الكويكبات والغبار النجمي',
+    keyCosmicBodyIds: ['jwst', 'asteroid_belt', 'pillars_of_creation'],
+    explanationEn: 'Too fragile to survive stellar fusion temperatures; exclusively formed by cosmic ray fragmentation.',
+    explanationAr: 'هش للغايه ولا يتحمل حرارة قلوب النجوم؛ يتكون حصرياً بتفتت النوى بالأشعة الكونية.',
+  },
+  5: {
+    source: 'cosmic_rays',
+    sourceNameEn: 'Cosmic Ray Spallation',
+    sourceNameAr: 'تفتيت الأشعة الكونية',
+    primaryLocationEn: 'Meteorites, Lunar Regolith, Interstellar Gas',
+    primaryLocationAr: 'النيازك، ريغوليث القمر وغاز السدم',
+    keyCosmicBodyIds: ['moon', 'asteroid_belt', 'earth'],
+    explanationEn: 'Created by high-velocity protons shattering heavier interstellar atoms.',
+    explanationAr: 'ينشأ بفعل تحطيم البروتونات فائقة السرعة للذرات الأثقل في السحب الكونية.',
+  },
+  // Z=6 to 8: Low mass and massive stars
+  6: {
+    source: 'dying_low_mass_stars',
+    sourceNameEn: 'Dying Low-Mass Stars & Triple-Alpha',
+    sourceNameAr: 'النجوم منخفضة الكتلة المحتضرة وتفاعل ألفا الثلاثي',
+    primaryLocationEn: 'Sirius B Core, Titan Atmosphere, Earth Biosphere',
+    primaryLocationAr: 'قلب الشعرى اليمانية ب، غلاف تيتان، والمحيط الحيوي للأرض',
+    keyCosmicBodyIds: ['sirius_b', 'titan', 'earth', 'betelgeuse'],
+    explanationEn: 'Forged via the triple-alpha process (3 He-4 -> C-12) in red giants and planetary nebulae.',
+    explanationAr: 'يتشكل عبر تفاعل ألفا الثلاثي في عمالقة النجوم الحمراء ويقذف عبر السدم الكوكبية.',
+  },
+  7: {
+    source: 'dying_low_mass_stars',
+    sourceNameEn: 'Dying Low-Mass Stars (CNO Cycle)',
+    sourceNameAr: 'النجوم المحتضرة ودورة CNO',
+    primaryLocationEn: 'Titan Atmosphere, Earth Air, Interstellar Clouds',
+    primaryLocationAr: 'غلاف تيتان، هواء الأرض، والسحب النجمية',
+    keyCosmicBodyIds: ['titan', 'earth', 'sirius_a', 'pillars_of_creation'],
+    explanationEn: 'Generated in stellar envelopes via hydrogen burning in the catalytic CNO cycle.',
+    explanationAr: 'يتولد في أغلفة النجوم عبر حرق الهيدروجين بمساعدة محفزات دورة CNO.',
+  },
+  8: {
+    source: 'exploding_massive_stars',
+    sourceNameEn: 'Exploding Massive Stars (Supernovae)',
+    sourceNameAr: 'انفجار النجوم فائقة الكتلة (المستعرات العظمى)',
+    primaryLocationEn: 'Crab Nebula, Earth Oceans & Crust, Europa Ocean',
+    primaryLocationAr: 'سديم السرطان، محيطات وقشرة الأرض، وبحر أوروبا الجوفي',
+    keyCosmicBodyIds: ['crab_nebula', 'earth', 'europa', 'betelgeuse'],
+    explanationEn: 'Forged by helium burning in massive stars and blasted across the galaxy by core-collapse supernovae.',
+    explanationAr: 'ينتج بحرق الهيليوم في النجوم الضخمة ويُنثر عبر المجرة بفعل انفجارات المستعر الأعظم.',
+  },
+  // Z=9 to 20: Alpha-chain & Supernovae
+  12: {
+    source: 'exploding_massive_stars',
+    sourceNameEn: 'Exploding Massive Stars',
+    sourceNameAr: 'المستعرات العظمى للنجوم الضخمة',
+    primaryLocationEn: 'Earth Mantle, Mars Silicates, Crab Nebula',
+    primaryLocationAr: 'وشاح الأرض، سيليكات المريخ، وسديم السرطان',
+    keyCosmicBodyIds: ['earth', 'mars', 'crab_nebula', 'betelgeuse'],
+    explanationEn: 'Synthesized during carbon burning in stars over 8 solar masses.',
+    explanationAr: 'يتخلق أثناء حرق الكربون في النجوم التي تفوق كتلتها 8 كتل شمسية.',
+  },
+  14: {
+    source: 'exploding_massive_stars',
+    sourceNameEn: 'Exploding Massive Stars',
+    sourceNameAr: 'المستعرات العظمى للنجوم الضخمة',
+    primaryLocationEn: 'Earth & Rocky Planets Crust, Betelgeuse Inner Shell',
+    primaryLocationAr: 'قشرة الأرض والكواكب الصخرية، وغلاف منكب الجوزاء الداخلي',
+    keyCosmicBodyIds: ['earth', 'moon', 'mars', 'betelgeuse'],
+    explanationEn: 'Created by oxygen burning shells prior to core-collapse supernovae.',
+    explanationAr: 'ينتج في طبقات حرق الأكسجين في اللحظات الأخيرة قبل انهيار قلب النجم.',
+  },
+  16: {
+    source: 'exploding_massive_stars',
+    sourceNameEn: 'Exploding Massive Stars',
+    sourceNameAr: 'المستعرات العظمى للنجوم الضخمة',
+    primaryLocationEn: 'Io Volcanoes, Venus Clouds, Crab Nebula',
+    primaryLocationAr: 'براكين قمر أيو، غيوم الزهرة، وسديم السرطان',
+    keyCosmicBodyIds: ['crab_nebula', 'venus', 'earth'],
+    explanationEn: 'Synthesized by silicon burning in massive stellar cores and distributed by supernova shockwaves.',
+    explanationAr: 'يتكون باندماج السيليكون في قلوب النجوم العملاقة وينتشر بصدمات المستعر الأعظم.',
+  },
+  26: {
+    source: 'exploding_white_dwarfs',
+    sourceNameEn: 'Exploding White Dwarfs (Type Ia Supernovae)',
+    sourceNameAr: 'انفجار الأقزام البيضاء (مستعر أعظم Type Ia)',
+    primaryLocationEn: 'Earth Core, Mercury Metallic Interior, Mars Surface Dust',
+    primaryLocationAr: 'قلب الأرض، باطن عطارد الفلزي، وغبار سطح المريخ',
+    keyCosmicBodyIds: ['earth', 'mercury', 'mars', 'crab_pulsar', 'betelgeuse'],
+    explanationEn: 'Produced predominantly by thermonuclear runaway detonations of carbon-oxygen white dwarfs in binary systems.',
+    explanationAr: 'ينتج أساساً من الانفجار النووي الحراري للأقزام البيضاء المكونة من الكربون والأكسجين في الأنظمة الثنائية.',
+  },
+  28: {
+    source: 'exploding_white_dwarfs',
+    sourceNameEn: 'Exploding White Dwarfs & Supernovae',
+    sourceNameAr: 'انفجار الأقزام البيضاء والمستعرات العظمى',
+    primaryLocationEn: 'Earth & Planetary Geodynamos, Metallic Asteroids',
+    primaryLocationAr: 'قلوب الكواكب ومولداتها المغناطيسية، والكويكبات الفلزية',
+    keyCosmicBodyIds: ['earth', 'mercury', 'asteroid_belt'],
+    explanationEn: 'Synthesized in the same explosive silicon-fusion decay chain (Ni-56 -> Co-56 -> Fe-56).',
+    explanationAr: 'يتخلق في نفس سلسلة التحلل النووي لانفجارات السيليكون النجمية.',
+  },
+  // Heavy elements: Kilonovae & r-process
+  78: {
+    source: 'merging_neutron_stars',
+    sourceNameEn: 'Merging Neutron Stars (Kilonovae)',
+    sourceNameAr: 'اندماج النجوم النيوترونية (الكيلونوفا)',
+    primaryLocationEn: 'Kilonova Forge, M-Type Asteroids, Earth Core Relics',
+    primaryLocationAr: 'سدم الكيلونوفا، الكويكبات الفلزية، ورواسب باطن الأرض',
+    keyCosmicBodyIds: ['kilonova_factory', 'asteroid_belt', 'earth'],
+    explanationEn: 'Rapid neutron capture (r-process) in the relativistic ejecta of binary neutron star mergers.',
+    explanationAr: 'الالتقاط السريع للنيوترونات في الحطام النسبوي المتطاير من تصادم النجوم النيوترونية.',
+  },
+  79: {
+    source: 'merging_neutron_stars',
+    sourceNameEn: 'Merging Neutron Stars (Kilonovae)',
+    sourceNameAr: 'اندماج النجوم النيوترونية (الكيلونوفا)',
+    primaryLocationEn: 'Kilonova Forge, JWST Mirror Coating, Golden Record on Voyager',
+    primaryLocationAr: 'مصنع الكيلونوفا، طلاء مرايا جيمس ويب، والأسطوانة الذهبية على فوياجر',
+    keyCosmicBodyIds: ['kilonova_factory', 'jwst', 'voyager_1', 'asteroid_belt'],
+    explanationEn: 'Almost all the gold in your jewelry was forged in the violent collision of two neutron stars billions of years ago.',
+    explanationAr: 'كل ذرة ذهب في مجوهراتك صُنعت في اصطدام كوني عنيف بين نجمين نيوترونيين قبل مليارات السنين.',
+  },
+  92: {
+    source: 'merging_neutron_stars',
+    sourceNameEn: 'Merging Neutron Stars (r-process)',
+    sourceNameAr: 'اندماج النجوم النيوترونية (عملية r-process)',
+    primaryLocationEn: 'Kilonova Forge, Planetary Mantle Geothermal Radiogenic Heat',
+    primaryLocationAr: 'مصنع الكيلونوفا، والحرارة الجوفية الإشعاعية لوشاح الأرض',
+    keyCosmicBodyIds: ['kilonova_factory', 'earth'],
+    explanationEn: 'The heaviest primordial element found in nature, assembled by intense neutron inundation during kilonova events.',
+    explanationAr: 'أثقل عنصر طبيعي في الكون، تكون بفيض نيوتروني هائل خلال أحداث الكيلونوفا.',
+  },
+  94: {
+    source: 'synthetic',
+    sourceNameEn: 'Synthetic & Kilonova Trace',
+    sourceNameAr: 'مُخلّق مخبرياً وآثار نادرة من الكيلونوفا',
+    primaryLocationEn: 'Voyager 1 & 2 RTG Nuclear Generators, Earth Laboratories',
+    primaryLocationAr: 'مولدات الطاقة النووية لمسبارات فوياجر، والمختبرات الأرضية',
+    keyCosmicBodyIds: ['voyager_1', 'earth'],
+    explanationEn: 'Primarily manufactured in nuclear reactors on Earth (e.g. Pu-238 powering deep space probes like Voyager 1).',
+    explanationAr: 'يُصنع صناعياً في المفاعلات الأرضية (مثل Pu-238 المستخدم لتزويد مسابر الفضاء السحيق بالطاقة كالفوياجر).',
+  },
+};
+
+// Fallback helper for any element 1..118
+export function getCosmicNucleosynthesis(atomicNumber: number): CosmicNucleosynthesisInfo {
+  if (COSMIC_NUCLEOSYNTHESIS_MAP[atomicNumber]) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[atomicNumber];
+  }
+
+  if (atomicNumber <= 2) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[1];
+  } else if (atomicNumber <= 5) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[3];
+  } else if (atomicNumber <= 8) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[6];
+  } else if (atomicNumber <= 20) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[14];
+  } else if (atomicNumber <= 30) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[26];
+  } else if (atomicNumber <= 56) {
+    return {
+      source: 'dying_low_mass_stars',
+      sourceNameEn: 'Slow Neutron Capture (s-process) in Giant Stars',
+      sourceNameAr: 'الالتقاط البطيء للنيوترونات في النجوم العملاقة',
+      primaryLocationEn: 'Betelgeuse Envelopes, Crab Nebula, Planetary Systems',
+      primaryLocationAr: 'أغلفة منكب الجوزاء، سديم السرطان والأنظمة الكوكبية',
+      keyCosmicBodyIds: ['betelgeuse', 'crab_nebula', 'earth'],
+      explanationEn: 'Formed through gradual neutron additions inside Asymptotic Giant Branch (AGB) stars.',
+      explanationAr: 'تكون بالتقاط بطيء وتدريجي للنيوترونات في أعماق النجوم العملاقة المقاربة.',
+    };
+  } else if (atomicNumber <= 92) {
+    return COSMIC_NUCLEOSYNTHESIS_MAP[79];
+  } else {
+    return {
+      source: 'synthetic',
+      sourceNameEn: 'Synthetic / Particle Accelerator Laboratories',
+      sourceNameAr: 'مُصنّع مخبرياً في مسرعات الجسيمات الأرضية',
+      primaryLocationEn: 'Earth Laboratories (Dubna, Berkeley, GSI Darmstadt, RIKEN)',
+      primaryLocationAr: 'مختبرات كوكب الأرض (دوبنا، بيركلي، دارمشتات، ورايكن)',
+      keyCosmicBodyIds: ['earth'],
+      explanationEn: 'Superheavy transuranic element artificially synthesized by colliding heavy ions in terrestrial particle accelerators.',
+      explanationAr: 'عنصر فائق الثقل مصنع صناعياً عبر صدم الأيونات الثقيلة في مسرعات الجسيمات على الأرض.',
+    };
+  }
+}

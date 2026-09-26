@@ -348,7 +348,7 @@ export const QuantumCinemaModal: React.FC = () => {
             <iframe
               key={currentVideo.id}
               className="w-full h-full"
-              src={`https://www.youtube-nocookie.com/embed/${currentVideo.id}?autoplay=1&rel=0`}
+              src={currentVideo.embedUrl || `https://www.youtube-nocookie.com/embed/${currentVideo.id}?autoplay=1&rel=0`}
               title={currentVideo.titleEn}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

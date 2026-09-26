@@ -14,7 +14,12 @@ import { Element118GridModal } from '@/components/hud/Element118GridModal';
 import { ResearchDrawer } from '@/components/dossier/ResearchDrawer';
 import { QuantumCinemaModal } from '@/components/hud/QuantumCinemaModal';
 
-// Dynamically import CanvasContainer with SSR disabled for WebGL
+import { CosmicScaleDock } from '@/components/universe/hud/CosmicScaleDock';
+import { CelestialInspectorTooltip } from '@/components/universe/hud/CelestialInspectorTooltip';
+import { CosmicElementDrawer } from '@/components/universe/hud/CosmicElementDrawer';
+import { UniverseCinemaModal } from '@/components/universe/hud/UniverseCinemaModal';
+
+// Dynamically import Subatomic 3D Canvas with SSR disabled
 const CanvasContainer = dynamic(
   () =>
     import('@/components/3d/CanvasContainer').then(
@@ -23,8 +28,18 @@ const CanvasContainer = dynamic(
   { ssr: false }
 );
 
+// Dynamically import Cosmic Universe 3D Canvas with SSR disabled
+const UniverseCanvasContainer = dynamic(
+  () =>
+    import('@/components/universe/UniverseCanvasContainer').then(
+      (mod) => mod.UniverseCanvasContainer
+    ),
+  { ssr: false }
+);
+
 export default function QuantumElementApp() {
   const language = useQuantumStore((s) => s.language);
+  const activeWorld = useQuantumStore((s) => s.activeWorld);
 
   // Sync document direction and language on mount & update
   useEffect(() => {
@@ -50,21 +65,40 @@ export default function QuantumElementApp() {
   }, []);
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#030712]">
-      {/* 3D WebGL Canvas Viewport */}
-      <CanvasContainer />
+    <main className="relative w-screen h-screen overflow-hidden bg-[#020617]">
+      {/* 3D WebGL Canvas Viewport (Subatomic or Universe) */}
+      {activeWorld === 'subatomic' ? (
+        <CanvasContainer />
+      ) : (
+        <UniverseCanvasContainer />
+      )}
 
-      {/* HUD Overlay Layer */}
+      {/* Top Header with World Switcher, Brand, Sound, and Language */}
       <Header />
-      <ElementBadge />
-      <ParticleFilterBar />
-      <ScaleDock />
-      <MobileElementStrip />
 
-      {/* Modals & Slide-over Drawers */}
-      <Element118GridModal />
-      <ResearchDrawer />
-      <QuantumCinemaModal />
+      {/* Subatomic World HUD & Modals */}
+      {activeWorld === 'subatomic' && (
+        <>
+          <ElementBadge />
+          <ParticleFilterBar />
+          <ScaleDock />
+          <MobileElementStrip />
+
+          <Element118GridModal />
+          <ResearchDrawer />
+          <QuantumCinemaModal />
+        </>
+      )}
+
+      {/* Cosmic Universe World HUD & Modals */}
+      {activeWorld === 'universe' && (
+        <>
+          <CosmicScaleDock />
+          <CelestialInspectorTooltip />
+          <CosmicElementDrawer />
+          <UniverseCinemaModal />
+        </>
+      )}
     </main>
   );
 }
