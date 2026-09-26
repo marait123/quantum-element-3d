@@ -47,7 +47,10 @@ export const ScaleDock: React.FC = () => {
   ];
 
   return (
-    <div className="absolute bottom-20 md:bottom-6 inset-x-0 z-20 flex flex-col items-center gap-2.5 pointer-events-none px-4">
+    <div
+      id="subatomic-scale-dock"
+      className="absolute bottom-20 md:bottom-6 inset-x-0 z-20 flex flex-col items-center gap-2.5 pointer-events-none px-4"
+    >
       {/* Contextual Interactive Actions Bar for Active Scale */}
       <div className="flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
         {/* Contextual Video Masterclass for Current Scale */}

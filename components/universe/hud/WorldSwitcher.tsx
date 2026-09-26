@@ -10,7 +10,10 @@ export const WorldSwitcher: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
 
   return (
-    <div className="inline-flex items-center p-1 rounded-xl bg-slate-900/80 border border-slate-700/60 backdrop-blur-md shadow-2xl">
+    <div
+      id="world-switcher"
+      className="inline-flex items-center p-1 rounded-xl bg-slate-900/80 border border-slate-700/60 backdrop-blur-md shadow-2xl"
+    >
       {/* Subatomic World Option */}
       <button
         type="button"

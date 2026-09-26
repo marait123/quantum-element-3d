@@ -34,7 +34,10 @@ export const CosmicScaleDock: React.FC = () => {
       )}
 
       {/* Main Glassmorphic Dock */}
-      <div className="flex items-center gap-1.5 p-2 rounded-2xl bg-slate-900/85 border border-slate-700/60 backdrop-blur-xl shadow-2xl">
+      <div
+        id="cosmic-scale-dock"
+        className="flex items-center gap-1.5 p-2 rounded-2xl bg-slate-900/85 border border-slate-700/60 backdrop-blur-xl shadow-2xl"
+      >
         {/* Zoom Out Button */}
         <button
           type="button"
@@ -125,12 +128,13 @@ export const CosmicScaleDock: React.FC = () => {
 
         {/* Video Masterclass Trigger */}
         <button
+          id="universe-cinema-btn"
           type="button"
           onClick={() => {
             const scaleKeys = ['solar_system', 'stars_supergiants', 'milky_way_sgr_a', 'extragalactic_andromeda', 'cosmic_web'];
             setUniverseVideoModalOpen(true, scaleKeys[cosmicScaleLevel - 1]);
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 transition-colors cursor-pointer"
           title={language === 'ar' ? 'فيديو تعليمي لهذا المستوى' : 'Scale Masterclass Video'}
         >
           <Video className="w-3.5 h-3.5" />

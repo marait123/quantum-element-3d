@@ -88,7 +88,10 @@ export const CelestialInspectorTooltip: React.FC = () => {
         </button>
       ) : (
         /* Expanded Full HUD Card */
-        <div className="w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-slate-950/92 border border-slate-700/80 shadow-2xl backdrop-blur-xl text-slate-100 overflow-hidden animate-fadeIn">
+        <div
+          id="celestial-inspector-card"
+          className="w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-slate-950/92 border border-slate-700/80 shadow-2xl backdrop-blur-xl text-slate-100 overflow-hidden animate-fadeIn"
+        >
           {/* Header Bar (Draggable) */}
           <div
             className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/70 cursor-grab active:cursor-grabbing"

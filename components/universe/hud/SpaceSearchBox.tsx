@@ -128,6 +128,7 @@ export const SpaceSearchBox: React.FC<Props> = ({ isMobileModal, onCloseMobile }
 
   return (
     <div
+      id="space-search-box-container"
       ref={containerRef}
       className={`relative pointer-events-auto ${isMobileModal ? 'w-full' : 'w-64 md:w-80'}`}
     >

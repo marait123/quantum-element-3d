@@ -42,6 +42,7 @@ export const ElementBadge: React.FC = () => {
 
   return (
     <div
+      id="element-badge"
       className={`z-20 pointer-events-auto transition-shadow duration-200 select-none ${
         isDragging ? 'opacity-95 shadow-2xl scale-[1.01]' : ''
       }`}
