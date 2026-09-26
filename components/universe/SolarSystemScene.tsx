@@ -15,6 +15,10 @@ import {
   getJupiterTexture,
   getSaturnRingTexture,
 } from '@/lib/planetTextures';
+import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { RealisticVoyager1 } from './models/RealisticVoyager1';
+import { RealisticJWST } from './models/RealisticJWST';
+import { RealisticHubble } from './models/RealisticHubble';
 
 // ==========================================
 // REALISTIC EARTH WITH ROTATING CLOUD SHIFT
@@ -30,10 +34,30 @@ const RealisticEarth: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
   const earthGroupRef = useRef<THREE.Group>(null);
+  const moonGroupRef = useRef<THREE.Group>(null);
   const surfaceRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const moonOrbitRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+
+  // Register with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (earthGroupRef.current) {
+      registerCelestialObject('earth', earthGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('earth');
+    };
+  }, []);
+
+  useEffect(() => {
+    if (moonGroupRef.current) {
+      registerCelestialObject('moon', moonGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('moon');
+    };
+  }, []);
 
   const [textures, setTextures] = useState<{
     earth?: THREE.CanvasTexture;
@@ -158,7 +182,7 @@ const RealisticEarth: React.FC<{
 
       {/* Moon Orbiting Earth */}
       <group ref={moonOrbitRef}>
-        <group position={[3.2, 0.4, 0]}>
+        <group ref={moonGroupRef} position={[3.2, 0.4, 0]}>
           <mesh>
             <sphereGeometry args={[moonBody.size, 24, 24]} />
             {textures.moon ? (
@@ -195,6 +219,16 @@ const RealisticMars: React.FC<{
 
   useEffect(() => {
     setMarsTexture(getMarsTexture());
+  }, []);
+
+  // Register with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (marsGroupRef.current) {
+      registerCelestialObject('mars', marsGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('mars');
+    };
   }, []);
 
   useFrame((_, delta) => {
@@ -297,12 +331,32 @@ const RealisticJupiter: React.FC<{
   const jupiterGroupRef = useRef<THREE.Group>(null);
   const jupiterMeshRef = useRef<THREE.Mesh>(null);
   const europaOrbitRef = useRef<THREE.Group>(null);
+  const europaGroupRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
 
   const [jupTexture, setJupTexture] = useState<THREE.CanvasTexture | null>(null);
 
   useEffect(() => {
     setJupTexture(getJupiterTexture());
+  }, []);
+
+  // Register with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (jupiterGroupRef.current) {
+      registerCelestialObject('jupiter', jupiterGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('jupiter');
+    };
+  }, []);
+
+  useEffect(() => {
+    if (europaGroupRef.current) {
+      registerCelestialObject('europa', europaGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('europa');
+    };
   }, []);
 
   useFrame((_, delta) => {
@@ -374,10 +428,12 @@ const RealisticJupiter: React.FC<{
 
       {/* Orbiting Moon Europa */}
       <group ref={europaOrbitRef}>
-        <mesh position={[5.2, 0.4, 0]}>
-          <sphereGeometry args={[europaBody.size, 20, 20]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.3} metalness={0.2} />
-        </mesh>
+        <group ref={europaGroupRef} position={[5.2, 0.4, 0]}>
+          <mesh>
+            <sphereGeometry args={[europaBody.size, 20, 20]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} metalness={0.2} />
+          </mesh>
+        </group>
       </group>
     </group>
   );
@@ -399,12 +455,32 @@ const RealisticSaturn: React.FC<{
   const saturnGroupRef = useRef<THREE.Group>(null);
   const saturnMeshRef = useRef<THREE.Mesh>(null);
   const titanOrbitRef = useRef<THREE.Group>(null);
+  const titanGroupRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
 
   const [ringTexture, setRingTexture] = useState<THREE.CanvasTexture | null>(null);
 
   useEffect(() => {
     setRingTexture(getSaturnRingTexture());
+  }, []);
+
+  // Register with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (saturnGroupRef.current) {
+      registerCelestialObject('saturn', saturnGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('saturn');
+    };
+  }, []);
+
+  useEffect(() => {
+    if (titanGroupRef.current) {
+      registerCelestialObject('titan', titanGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('titan');
+    };
   }, []);
 
   useFrame((_, delta) => {
@@ -496,10 +572,12 @@ const RealisticSaturn: React.FC<{
 
       {/* Orbiting Moon Titan */}
       <group ref={titanOrbitRef}>
-        <mesh position={[6.8, -0.6, 0]}>
-          <sphereGeometry args={[titanBody.size, 20, 20]} />
-          <meshStandardMaterial color="#f59e0b" roughness={0.7} />
-        </mesh>
+        <group ref={titanGroupRef} position={[6.8, -0.6, 0]}>
+          <mesh>
+            <sphereGeometry args={[titanBody.size, 20, 20]} />
+            <meshStandardMaterial color="#f59e0b" roughness={0.7} />
+          </mesh>
+        </group>
       </group>
     </group>
   );
@@ -520,6 +598,16 @@ const StandardPlanet: React.FC<{
 }> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
   const meshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+
+  // Register with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (meshRef.current) {
+      registerCelestialObject(body.id, meshRef.current);
+    }
+    return () => {
+      unregisterCelestialObject(body.id);
+    };
+  }, [body.id]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -646,125 +734,6 @@ const AsteroidBelt: React.FC = () => {
 };
 
 // ==========================================
-// HIGH-DETAIL VOYAGER 1 MODEL
-// ==========================================
-const DetailedVoyager1: React.FC<{
-  language: 'en' | 'ar';
-  isSelected: boolean;
-  onSelect: () => void;
-}> = ({ language, isSelected, onSelect }) => {
-  const probeRef = useRef<THREE.Group>(null);
-  const body = CELESTIAL_BODIES.voyager_1;
-
-  useFrame((_, delta) => {
-    if (!probeRef.current) return;
-    probeRef.current.rotation.y += delta * 0.08;
-    probeRef.current.rotation.x += delta * 0.04;
-  });
-
-  return (
-    <group
-      ref={probeRef}
-      position={body.position}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-    >
-      {/* 3.7m Parabolic High-Gain Dish */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[1.5, 0.25, 0.45, 32, 1, true]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.25} metalness={0.6} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Feed Horn at Subreflector Focus */}
-      <mesh position={[0, 0.6, 0]}>
-        <sphereGeometry args={[0.12, 12, 12]} />
-        <meshStandardMaterial color="#475569" metalness={0.8} />
-      </mesh>
-      {/* Golden Record on probe flank */}
-      <mesh position={[0, -0.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.55, 32]} />
-        <meshStandardMaterial color="#eab308" metalness={0.95} roughness={0.08} emissive="#ca8a04" emissiveIntensity={0.35} />
-      </mesh>
-      {/* RTG Nuclear Power Unit */}
-      <mesh position={[1.1, -0.7, 0]} rotation={[0, 0, Math.PI / 3]}>
-        <cylinderGeometry args={[0.22, 0.22, 1.1, 16]} />
-        <meshStandardMaterial color="#334155" metalness={0.85} roughness={0.4} />
-      </mesh>
-      {/* Magnetometer Boom extending 13m into interstellar void */}
-      <mesh position={[-1.4, 0, 0]} rotation={[0, 0, -Math.PI / 4]}>
-        <cylinderGeometry args={[0.035, 0.035, 2.8, 8]} />
-        <meshBasicMaterial color="#94a3b8" />
-      </mesh>
-
-      {/* Label */}
-      <Html position={[0, 2.0, 0]} center distanceFactor={28}>
-        <div className={`px-2.5 py-1 rounded-full bg-amber-950/90 border ${isSelected ? 'border-amber-400 ring-2 ring-amber-400' : 'border-amber-500/50'} text-[11px] font-bold text-amber-300 whitespace-nowrap shadow-xl flex items-center gap-1.5`}>
-          <span>🛰️</span>
-          <span>{language === 'ar' ? body.nameAr : body.nameEn} (Interstellar)</span>
-        </div>
-      </Html>
-    </group>
-  );
-};
-
-// ==========================================
-// HIGH-DETAIL JWST MODEL
-// ==========================================
-const DetailedJWST: React.FC<{
-  language: 'en' | 'ar';
-  isSelected: boolean;
-  onSelect: () => void;
-}> = ({ language, isSelected, onSelect }) => {
-  const jwstRef = useRef<THREE.Group>(null);
-  const body = CELESTIAL_BODIES.jwst;
-
-  useFrame((_, delta) => {
-    if (!jwstRef.current) return;
-    jwstRef.current.rotation.y += delta * 0.12;
-  });
-
-  return (
-    <group
-      ref={jwstRef}
-      position={body.position}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-    >
-      {/* 5-Layer Silver Sunshield Diamond Kite */}
-      <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
-        <planeGeometry args={[2.4, 1.6]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.92} roughness={0.15} side={THREE.DoubleSide} />
-      </mesh>
-      {/* 18 Beryllium-Gold Hexagonal Primary Mirror Array */}
-      <mesh position={[0, 0.6, 0]} rotation={[0, 0, 0]}>
-        <circleGeometry args={[0.85, 6]} />
-        <meshStandardMaterial color="#fbbf24" metalness={0.98} roughness={0.03} emissive="#d97706" emissiveIntensity={0.45} />
-      </mesh>
-      {/* Secondary Mirror Assembly Tripod */}
-      <mesh position={[0, 1.1, 0.7]}>
-        <sphereGeometry args={[0.09, 12, 12]} />
-        <meshStandardMaterial color="#334155" metalness={0.9} />
-      </mesh>
-      <mesh position={[0, 0.85, 0.35]} rotation={[Math.PI / 5, 0, 0]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.8, 6]} />
-        <meshBasicMaterial color="#64748b" />
-      </mesh>
-
-      {/* Label */}
-      <Html position={[0, 1.9, 0]} center distanceFactor={28}>
-        <div className={`px-2.5 py-1 rounded-full bg-indigo-950/90 border ${isSelected ? 'border-amber-400 ring-2 ring-amber-400' : 'border-indigo-500/50'} text-[11px] font-bold text-indigo-300 whitespace-nowrap shadow-xl flex items-center gap-1.5`}>
-          <span>🔭</span>
-          <span>{language === 'ar' ? body.nameAr : body.nameEn} (L2 Orbit)</span>
-        </div>
-      </Html>
-    </group>
-  );
-};
-
-// ==========================================
 // MAIN SOLAR SYSTEM SCENE
 // ==========================================
 export const SolarSystemScene: React.FC = () => {
@@ -777,10 +746,21 @@ export const SolarSystemScene: React.FC = () => {
 
   const sunRef = useRef<THREE.Mesh>(null);
   const sunCoronaRef = useRef<THREE.Mesh>(null);
+  const sunGroupRef = useRef<THREE.Group>(null);
   const [sunTexture, setSunTexture] = useState<THREE.CanvasTexture | null>(null);
 
   useEffect(() => {
     setSunTexture(getSunTexture());
+  }, []);
+
+  // Register Sun with global runtime celestial registry for live camera follow
+  useEffect(() => {
+    if (sunGroupRef.current) {
+      registerCelestialObject('sun', sunGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('sun');
+    };
   }, []);
 
   useFrame((_, delta) => {
@@ -805,6 +785,7 @@ export const SolarSystemScene: React.FC = () => {
 
       {/* Sun Photosphere & Animated Corona */}
       <group
+        ref={sunGroupRef}
         position={[0, 0, 0]}
         onClick={(e) => {
           e.stopPropagation();
@@ -955,18 +936,29 @@ export const SolarSystemScene: React.FC = () => {
         language={language}
       />
 
-      {/* High-Detail Probes */}
-      <DetailedVoyager1
+      {/* Ultra-Realistic Deep Space Probes & Satellites */}
+      <RealisticVoyager1
+        body={CELESTIAL_BODIES.voyager_1}
         language={language}
         isSelected={selectedCosmicBodyId === 'voyager_1'}
         onSelect={() => setSelectedCosmicBodyId('voyager_1')}
       />
 
-      <DetailedJWST
+      <RealisticJWST
+        body={CELESTIAL_BODIES.jwst}
         language={language}
         isSelected={selectedCosmicBodyId === 'jwst'}
         onSelect={() => setSelectedCosmicBodyId('jwst')}
       />
+
+      {CELESTIAL_BODIES.hubble && (
+        <RealisticHubble
+          body={CELESTIAL_BODIES.hubble}
+          language={language}
+          isSelected={selectedCosmicBodyId === 'hubble'}
+          onSelect={() => setSelectedCosmicBodyId('hubble')}
+        />
+      )}
     </group>
   );
 };

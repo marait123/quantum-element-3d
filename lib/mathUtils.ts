@@ -169,3 +169,33 @@ export function generateCalabiYauPoints(
 
   return points;
 }
+
+/**
+ * Calculates 3D coordinates for an element's card in the standard 18-column Periodic Table
+ */
+export function getElementCardPosition(
+  row: number,
+  col: number,
+  cat: string,
+  num: number
+): [number, number] {
+  const colOffset = 9.5;
+  const rowOffset = 4.2;
+  const dx = 1.68;
+  const dy = 1.68;
+
+  let r = row;
+  let c = col;
+
+  if (cat === 'lanthanide') {
+    r = 8.6;
+    c = num - 57 + 3;
+  } else if (cat === 'actinide') {
+    r = 9.9;
+    c = num - 89 + 3;
+  }
+
+  const x = (c - colOffset) * dx;
+  const y = -(r - rowOffset) * dy;
+  return [x, y];
+}

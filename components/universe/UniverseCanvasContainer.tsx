@@ -9,6 +9,10 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { COSMIC_SCALES, CELESTIAL_BODIES } from '@/data/universeData';
+import {
+  getCelestialWorldPosition,
+  calculateFramingCameraPosition,
+} from '@/lib/celestialRegistry';
 import { SolarSystemScene } from './SolarSystemScene';
 import { StellarNeighborhoodScene } from './StellarNeighborhoodScene';
 import { MilkyWayScene } from './MilkyWayScene';
@@ -79,12 +83,34 @@ const UniverseCameraManager: React.FC = () => {
   const prevScaleRef = useRef(cosmicScaleLevel);
   const isTweeningRef = useRef(false);
   const isInitialMountRef = useRef(true);
+  const isTrackingRef = useRef(false);
+  const lastTargetPosRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
-  // Real-time continuous zoom distance tracker and HUD synchronization
+  // Real-time continuous zoom distance tracker and HUD synchronization + Live Orbit Following
   useFrame(() => {
-    if (isTweeningRef.current || !controlsRef.current) return;
+    if (!controlsRef.current) return;
 
-    const currentDist = camera.position.distanceTo(controlsRef.current.target);
+    // 1. DYNAMIC CELESTIAL FOLLOW:
+    // If a celestial body is selected and tracking is active, continuously follow it!
+    if (isTrackingRef.current && !isTweeningRef.current && selectedCosmicBodyId) {
+      const currentLivePos = new THREE.Vector3();
+      if (getCelestialWorldPosition(selectedCosmicBodyId, currentLivePos)) {
+        // Delta movement of the body during this frame
+        const deltaMove = currentLivePos.clone().sub(lastTargetPosRef.current);
+
+        // Add delta to camera so camera stays locked in orbit with the body
+        camera.position.add(deltaMove);
+        controlsRef.current.target.copy(currentLivePos);
+        lastTargetPosRef.current.copy(currentLivePos);
+      }
+    }
+
+    // 2. Real-time continuous zoom distance tracker and HUD synchronization
+    // Only auto-detect scale when freely exploring space (NOT inspecting a specific celestial body and NOT tweening)
+    if (isTweeningRef.current || selectedCosmicBodyId) return;
+
+    // Measure macro distance from cosmos origin
+    const currentDist = camera.position.length();
 
     let detectedLevel: 1 | 2 | 3 | 4 | 5 = 1;
     if (currentDist < 350) {
@@ -105,53 +131,77 @@ const UniverseCameraManager: React.FC = () => {
     }
   });
 
-  // Smooth camera glide (or instant initial snap) to selected celestial body
+  // Smooth camera glide (or instant initial snap) to selected celestial body with Sun-glare avoidance
   useEffect(() => {
-    if (navigationMode === 'fly' || !selectedCosmicBodyId) return;
+    if (navigationMode === 'fly') return;
+
+    if (!selectedCosmicBodyId) {
+      isTrackingRef.current = false;
+      return;
+    }
 
     const body = CELESTIAL_BODIES[selectedCosmicBodyId];
     if (!body) return;
 
-    const targetPos = new THREE.Vector3(...body.position);
-    const offsetDist = Math.max(body.size * 2.8, 4.0);
-    const camPos = new THREE.Vector3(
-      body.position[0] + offsetDist * 0.7,
-      body.position[1] + offsetDist * 0.45,
-      body.position[2] + offsetDist
-    );
+    // Retrieve live position from registry if already rendered, else fallback to static definition
+    const liveTargetPos = new THREE.Vector3();
+    const hasLivePos = getCelestialWorldPosition(selectedCosmicBodyId, liveTargetPos);
+    if (!hasLivePos) {
+      liveTargetPos.set(...body.position);
+    }
+
+    // Calculate intelligent framing position (focusing on illuminated surface, avoiding Sun glare)
+    const camPos = new THREE.Vector3();
+    calculateFramingCameraPosition(selectedCosmicBodyId, liveTargetPos, camPos);
 
     // If initial page load/refresh with body param, snap immediately to view!
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       camera.position.copy(camPos);
       if (controlsRef.current) {
-        controlsRef.current.target.copy(targetPos);
+        controlsRef.current.target.copy(liveTargetPos);
         controlsRef.current.update();
       }
+      lastTargetPosRef.current.copy(liveTargetPos);
+      isTrackingRef.current = true;
       return;
     }
 
     isTweeningRef.current = true;
+    isTrackingRef.current = false;
     gsap.killTweensOf(camera.position);
 
     gsap.to(camera.position, {
       x: camPos.x,
       y: camPos.y,
       z: camPos.z,
-      duration: 1.5,
+      duration: 1.4,
       ease: 'power3.inOut',
       onUpdate: () => {
         if (controlsRef.current) {
-          controlsRef.current.target.lerp(targetPos, 0.15);
+          const curPos = new THREE.Vector3();
+          if (getCelestialWorldPosition(selectedCosmicBodyId, curPos)) {
+            controlsRef.current.target.lerp(curPos, 0.2);
+          } else {
+            controlsRef.current.target.lerp(liveTargetPos, 0.2);
+          }
           controlsRef.current.update();
         }
       },
       onComplete: () => {
         if (controlsRef.current) {
-          controlsRef.current.target.copy(targetPos);
+          const finalPos = new THREE.Vector3();
+          if (getCelestialWorldPosition(selectedCosmicBodyId, finalPos)) {
+            controlsRef.current.target.copy(finalPos);
+            lastTargetPosRef.current.copy(finalPos);
+          } else {
+            controlsRef.current.target.copy(liveTargetPos);
+            lastTargetPosRef.current.copy(liveTargetPos);
+          }
           controlsRef.current.update();
         }
         isTweeningRef.current = false;
+        isTrackingRef.current = true;
       },
     });
   }, [selectedCosmicBodyId, navigationMode, camera]);
@@ -159,6 +209,8 @@ const UniverseCameraManager: React.FC = () => {
   // Smooth camera glide (or instant initial snap) when clicking scale milestone in HUD dock
   useEffect(() => {
     if (navigationMode === 'fly' || selectedCosmicBodyId) return;
+
+    isTrackingRef.current = false;
 
     const scaleConfig = COSMIC_SCALES.find((s) => s.level === cosmicScaleLevel);
     if (!scaleConfig) return;

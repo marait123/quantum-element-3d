@@ -8,6 +8,8 @@ import gsap from 'gsap';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
 import { useQuantumStore } from '@/stores/useQuantumStore';
+import { ELEMENTS } from '@/data/elementsData';
+import { getElementCardPosition } from '@/lib/mathUtils';
 import { PeriodicTableScene } from './PeriodicTableScene';
 import { AtomScene } from './AtomScene';
 import { NucleusScene } from './NucleusScene';
@@ -16,7 +18,7 @@ import { StringScene } from './StringScene';
 
 // Camera position parameters for each scale
 const SCALE_CAMERA_CONFIGS = {
-  1: { position: [0, 0, 32], fov: 48, minDistance: 8, maxDistance: 45 },
+  1: { position: [0, 0, 32], fov: 48, minDistance: 5.2, maxDistance: 45 },
   2: { position: [0, 0, 24], fov: 45, minDistance: 6.5, maxDistance: 38 },
   3: { position: [0, 0, 14], fov: 45, minDistance: 4.5, maxDistance: 26 },
   4: { position: [0, 0, 9.5], fov: 45, minDistance: 3.2, maxDistance: 18 },
@@ -28,10 +30,12 @@ const CameraAndSceneManager: React.FC = () => {
   const controlsRef = useRef<OrbitControlsImpl>(null);
 
   const scaleLevel = useQuantumStore((s) => s.scaleLevel);
+  const activeElementNum = useQuantumStore((s) => s.activeElementNum);
   const zoomIn = useQuantumStore((s) => s.zoomIn);
   const zoomOut = useQuantumStore((s) => s.zoomOut);
 
   const isInitialMountRef = useRef(true);
+  const prevActiveElementRef = useRef<number>(activeElementNum);
 
   // Transition camera smoothly whenever scaleLevel changes
   useEffect(() => {
@@ -81,12 +85,89 @@ const CameraAndSceneManager: React.FC = () => {
     }
   }, [scaleLevel, camera]);
 
+  // Focus closely on element card when selected in Scale 1
+  useEffect(() => {
+    if (scaleLevel !== 1) {
+      prevActiveElementRef.current = activeElementNum;
+      return;
+    }
+    // Don't auto-focus on initial mount so user sees the grand table overview first
+    if (prevActiveElementRef.current === activeElementNum) return;
+    prevActiveElementRef.current = activeElementNum;
+
+    const el = ELEMENTS.find((e) => e.num === activeElementNum);
+    if (!el) return;
+
+    const [cardX, cardY] = getElementCardPosition(el.row, el.col, el.cat, el.num);
+
+    gsap.killTweensOf(camera.position);
+    if (controlsRef.current) {
+      gsap.killTweensOf(controlsRef.current.target);
+    }
+
+    gsap.to(camera.position, {
+      x: cardX,
+      y: cardY,
+      z: 8.5,
+      duration: 1.0,
+      ease: 'power3.out',
+    });
+
+    if (controlsRef.current) {
+      gsap.to(controlsRef.current.target, {
+        x: cardX,
+        y: cardY,
+        z: 0,
+        duration: 1.0,
+        ease: 'power3.out',
+        onUpdate: () => controlsRef.current?.update(),
+      });
+    }
+  }, [activeElementNum, scaleLevel, camera]);
+
+  // Listen for direct focus event from card clicks
+  useEffect(() => {
+    const handleFocusCard = (e: Event) => {
+      const customEvent = e as CustomEvent<{ num: number; x: number; y: number }>;
+      if (!customEvent.detail || scaleLevel !== 1) return;
+      const { x, y } = customEvent.detail;
+
+      gsap.killTweensOf(camera.position);
+      if (controlsRef.current) {
+        gsap.killTweensOf(controlsRef.current.target);
+      }
+
+      gsap.to(camera.position, {
+        x,
+        y,
+        z: 8.5,
+        duration: 1.0,
+        ease: 'power3.out',
+      });
+
+      if (controlsRef.current) {
+        gsap.to(controlsRef.current.target, {
+          x,
+          y,
+          z: 0,
+          duration: 1.0,
+          ease: 'power3.out',
+          onUpdate: () => controlsRef.current?.update(),
+        });
+      }
+    };
+
+    window.addEventListener('focus-element-card', handleFocusCard);
+    return () => window.removeEventListener('focus-element-card', handleFocusCard);
+  }, [scaleLevel, camera]);
+
   // Continuously check distance for natural pinch/scroll zoom between scales
   const lastZoomTimeRef = useRef(0);
 
   useFrame(() => {
     if (!controlsRef.current) return;
-    const distance = camera.position.length();
+    const targetPos = controlsRef.current.target;
+    const distance = camera.position.distanceTo(targetPos);
     const config = SCALE_CAMERA_CONFIGS[scaleLevel];
     const now = performance.now();
 

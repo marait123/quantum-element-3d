@@ -570,6 +570,29 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
   },
 
+  hubble: {
+    id: 'hubble',
+    nameEn: 'Hubble Space Telescope (HST)',
+    nameAr: 'تلسكوب هابل الفضائي',
+    type: 'spacecraft',
+    scaleLevel: 1,
+    position: [16.8, 1.2, 0.4],
+    size: 0.35,
+    color: '#38bdf8',
+    emissiveColor: '#0284c7',
+    distanceFromEarth: '540 km (Low Earth Orbit)',
+    mass: '11,110 kg',
+    radius: '13.2 m length × 4.2 m diameter',
+    descriptionEn: 'The monumental orbiting observatory deployed in 1990 that revolutionized modern astronomy, unveiling the age of the universe, cosmic dark energy, and deep galactic fields.',
+    descriptionAr: 'المرصد الفضائي التاريخي الذي أُطلق عام 1990 وأحدث ثورة في علم الفلك الحديث، كاشفاً عن عمر الكون والطاقة المظلمة ومجالات المجرات السحيقة.',
+    primaryElements: [
+      { atomicNumber: 13, symbol: 'Al', nameEn: 'Aluminium', nameAr: 'ألومنيوم', percentage: 65.0, roleEn: 'Telescope barrel & MLI thermal insulation blankets', roleAr: 'هيكل التلسكوب وأغطية العزل الحراري متعددة الطبقات' },
+      { atomicNumber: 14, symbol: 'Si', nameEn: 'Silicon', nameAr: 'سيليكون', percentage: 18.0, roleEn: 'Primary mirror substrate & photovoltaic solar cells', roleAr: 'مرآة زجاجية سيليكاتية وخلايا شمسية' },
+      { atomicNumber: 78, symbol: 'Pt', nameEn: 'Platinum', nameAr: 'بلاتين', percentage: 0.02, roleEn: 'Scientific instrumentation sensors', roleAr: 'مستشعرات الأجهزة العلمية الدقيقة' },
+    ],
+    videoId: '0mHjG1B4F48',
+  },
+
   // ----------------------------------------------------
   // SCALE 2: STELLAR NEIGHBORHOOD, COMPACT RELICS & GIANTS
   // ----------------------------------------------------

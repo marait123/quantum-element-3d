@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ELEMENTS, CATEGORY_COLORS, ElementData } from '@/data/elementsData';
 import { useQuantumStore } from '@/stores/useQuantumStore';
@@ -25,6 +25,7 @@ const ElementCardMesh: React.FC<CardProps> = ({
   onZoomIn,
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const { camera } = useThree();
   const [hovered, setHovered] = useState(false);
 
   const catColor = CATEGORY_COLORS[element.cat]?.hex || '#ffffff';
@@ -76,9 +77,18 @@ const ElementCardMesh: React.FC<CardProps> = ({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(element.num);
-        if (isSelected) {
+        const dist = camera.position.distanceTo(new THREE.Vector3(x, y, 0));
+        if (isSelected && dist < 12) {
           onZoomIn();
+        } else {
+          onSelect(element.num);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('focus-element-card', {
+                detail: { num: element.num, x, y },
+              })
+            );
+          }
         }
       }}
     >

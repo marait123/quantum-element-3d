@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { audioSynth } from '@/lib/audioSynth';
-import { CosmicScaleLevel } from '@/data/universeData';
+import { CosmicScaleLevel, CELESTIAL_BODIES } from '@/data/universeData';
 
 export type ScaleLevel = 1 | 2 | 3 | 4 | 5;
 export type ParticleFilter = 'all' | 'protons' | 'neutrons' | 'electrons';
@@ -257,10 +257,14 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
     const direction = newScale > current ? 'in' : 'out';
     audioSynth.playScaleWarpSweep(direction);
 
+    const currentBodyId = get().selectedCosmicBodyId;
+    const body = currentBodyId ? CELESTIAL_BODIES[currentBodyId] : null;
+    const shouldKeepBody = body && body.scaleLevel === newScale;
+
     set({
       previousCosmicScaleLevel: current,
       cosmicScaleLevel: newScale,
-      selectedCosmicBodyId: null, // Reset selection on scale jump
+      selectedCosmicBodyId: shouldKeepBody ? currentBodyId : null,
     });
   },
 
@@ -281,6 +285,14 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   setSelectedCosmicBodyId: (id: string | null) => {
     if (id) {
       audioSynth.playClick(1200);
+      const body = CELESTIAL_BODIES[id];
+      if (body) {
+        set({
+          selectedCosmicBodyId: id,
+          cosmicScaleLevel: body.scaleLevel,
+        });
+        return;
+      }
     }
     set({ selectedCosmicBodyId: id });
   },
