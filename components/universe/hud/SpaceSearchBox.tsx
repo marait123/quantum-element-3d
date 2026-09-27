@@ -137,7 +137,7 @@ export const SpaceSearchBox: React.FC<Props> = ({ isMobileModal, onCloseMobile }
       className={`relative pointer-events-auto ${isMobileModal ? 'w-full' : 'w-64 md:w-80'}`}
     >
       <div className="relative">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
+        <Search suppressHydrationWarning className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400" />
         <input
           type="text"
           value={query}

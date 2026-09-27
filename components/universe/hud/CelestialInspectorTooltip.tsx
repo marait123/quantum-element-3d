@@ -221,6 +221,53 @@ export const CelestialInspectorTooltip: React.FC = () => {
               </div>
             </div>
 
+            {/* Interstellar Probe Telemetry (for Voyagers) */}
+            {(body.id === 'voyager_1' || body.id === 'voyager_2') && (
+              <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-800/60 text-xs space-y-2">
+                <div className="flex items-center justify-between font-bold text-sky-300">
+                  <span className="flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-sky-400" />
+                    <span>{language === 'ar' ? 'بيانات المسار بين النجوم' : 'Interstellar Telemetry'}</span>
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 font-mono">
+                    {body.id === 'voyager_1' ? '+35.2° North' : '-48.0° South'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                  <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[9px]">
+                      {language === 'ar' ? 'السرعة الشمسية' : 'Escape Velocity'}
+                    </span>
+                    <span className="font-semibold text-slate-200">
+                      {body.id === 'voyager_1' ? '17.0 km/s (3.6 AU/yr)' : '15.3 km/s (3.2 AU/yr)'}
+                    </span>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400 block text-[9px]">
+                      {language === 'ar' ? 'الهدف النجمي القادم' : 'Encounter Target'}
+                    </span>
+                    <span className="font-semibold text-sky-200">
+                      {body.id === 'voyager_1' ? 'Gliese 445 (~40k yrs)' : 'Ross 248 / Sirius'}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-300 leading-relaxed">
+                  <span className="text-amber-400 font-semibold block mb-0.5">
+                    {language === 'ar' ? '💡 هل يتجه نحو أقرب نجم (بروكسيما قنطورس)؟' : '💡 Heading to the nearest star (Proxima)?'}
+                  </span>
+                  <span>
+                    {body.id === 'voyager_1'
+                      ? language === 'ar'
+                        ? 'كلا، قذفته جاذبية قمر تيتان شمالاً (+35.2°) باتجاه كوكبة الزرافة، بينما يقع بروكسيما قنطورس في أقصى سماء الجنوب (-62.7°).'
+                        : 'No. Titan gravity assist flung it North (+35.2°) toward Camelopardalis, whereas Proxima Centauri lies in the deep South (-62.7°).'
+                      : language === 'ar'
+                        ? 'كلا، قذفته جاذبية نبتون وتريتون جنوباً (-48.0°) نحو كوكبة الطاووس ليمر بمحاذاة روس 248 والشعرى اليمانية.'
+                        : 'No. Neptune polar assist deflected it South (-48.0°) toward Pavo, passing Ross 248 and Sirius.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Temperature (if available) */}
             {body.temperature && (
               <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-950/30 border border-amber-900/50 text-xs text-amber-200">

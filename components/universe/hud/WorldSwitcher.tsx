@@ -1,13 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { Atom, Compass } from 'lucide-react';
 
 export const WorldSwitcher: React.FC = () => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const activeWorld = useQuantumStore((s) => s.activeWorld);
   const setActiveWorld = useQuantumStore((s) => s.setActiveWorld);
   const language = useQuantumStore((s) => s.language);
+
+  const effectiveWorld = isMounted ? activeWorld : 'subatomic';
 
   return (
     <div
@@ -19,7 +26,7 @@ export const WorldSwitcher: React.FC = () => {
         type="button"
         onClick={() => setActiveWorld('subatomic')}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 select-none ${
-          activeWorld === 'subatomic'
+          effectiveWorld === 'subatomic'
             ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 ring-1 ring-cyan-400'
             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
         }`}
@@ -34,7 +41,7 @@ export const WorldSwitcher: React.FC = () => {
         type="button"
         onClick={() => setActiveWorld('universe')}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 select-none ${
-          activeWorld === 'universe'
+          effectiveWorld === 'universe'
             ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-sky-500 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-400'
             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
         }`}

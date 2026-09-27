@@ -8,6 +8,11 @@ import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
+import { RealisticPulsar } from './pulsar/RealisticPulsar';
+import { RealisticDiamondPlanet } from './exoplanet/RealisticDiamondPlanet';
+import { RealisticNebula } from './nebula/RealisticNebula';
+import { RealisticSupernova } from './supernova/RealisticSupernova';
 
 // 3D Barred Spiral Galaxy Particle Generator (Milky Way spanning 18,000 units)
 const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTexture?: THREE.CanvasTexture }> = ({
@@ -16,7 +21,6 @@ const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTextu
 }) => {
   const pointsRef = useRef<THREE.Points>(null);
   const { camera } = useThree();
-  const [visible, setVisible] = useState(false);
 
   const [positions, colors] = useMemo(() => {
     const count = 12000;
@@ -71,19 +75,14 @@ const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTextu
   useFrame((_, delta) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y += delta * 0.008;
-    }
-    // Only show dense galactic spiral arms when zooming out past local solar neighborhood
-    const dist = camera.position.length();
-    const shouldShow = dist > 250;
-    if (shouldShow !== visible) {
-      setVisible(shouldShow);
+      // Only show dense galactic spiral arms when zooming out past local solar neighborhood
+      const dist = camera.position.length();
+      pointsRef.current.visible = dist > 250;
     }
   });
 
-  if (!visible) return null;
-
   return (
-    <points ref={pointsRef}>
+    <points ref={pointsRef} visible={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
@@ -109,71 +108,22 @@ const SagittariusABlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const diskRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) {
-      registerCelestialObject('sagittarius_a', rootRef.current);
-    }
-    return () => unregisterCelestialObject('sagittarius_a');
-  }, []);
-
-  useFrame((_, delta) => {
-    if (diskRef.current) {
-      diskRef.current.rotation.z += delta * 1.2;
-    }
-  });
-
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#ea580c" intensity={6.0} distance={body.size * 12} />
-
-      {/* Event Horizon Shadow (Pure Black) */}
-      <mesh>
-        <sphereGeometry args={[body.size, 36, 36]} />
-        <meshBasicMaterial color="#000000" />
-      </mesh>
-
-      {/* Relativistic Accretion Ring (EHT Photon Ring) */}
-      <mesh ref={diskRef} rotation={[-Math.PI / 3, 0, 0]}>
-        <ringGeometry args={[body.size * 1.12, body.size * 3.2, 64]} />
-        <meshStandardMaterial
-          color="#ea580c"
-          emissive="#f97316"
-          emissiveIntensity={2.2}
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
-
-      {/* Synchrotron Outer Plasma Halo */}
-      <mesh>
-        <sphereGeometry args={[body.size * 1.35, 24, 24]} />
-        <meshBasicMaterial color="#fbbf24" transparent opacity={0.25} wireframe />
-      </mesh>
-
-      {/* Tag */}
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 40, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-orange-500 shadow-2xl text-xs font-bold text-orange-200 whitespace-nowrap">
-            🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (4.15M M☉)
-          </div>
-        </Html>
-      )}
-    </group>
+    <RealisticBlackHole
+      body={body}
+      colorCore="#fff7ed"
+      colorMid="#f97316"
+      colorOuter="#7c2d12"
+      accretionTilt={[-Math.PI / 3.2, Math.PI / 8, 0]}
+      spinSpeed={1.2}
+      dopplerStrength={1.25}
+      hasLensingHalo={true}
+      hasHotspots={true}
+      isSelected={isSelected}
+      isHighlighted={isHighlighted}
+      onSelect={onSelect}
+      language={language}
+    />
   );
 };
 
@@ -589,30 +539,15 @@ const PSRJ1719DiamondSystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ pulsar, diamondPlanet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const pulsarMeshRef = useRef<THREE.Mesh>(null);
   const diamondMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.8);
-  const [pulsarHovered, setPulsarHovered] = useState(false);
-  const [diamondHovered, setDiamondHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) registerCelestialObject(pulsar.id, rootRef.current);
-    return () => unregisterCelestialObject(pulsar.id);
-  }, [pulsar.id]);
-
-  useEffect(() => {
-    if (diamondMeshRef.current) registerCelestialObject(diamondPlanet.id, diamondMeshRef.current);
-    return () => unregisterCelestialObject(diamondPlanet.id);
-  }, [diamondPlanet.id]);
 
   useFrame((_, delta) => {
-    if (pulsarMeshRef.current) pulsarMeshRef.current.rotation.y += delta * 12.0; // Rapid millisecond spin
     if (diamondMeshRef.current) {
       orbitAngleRef.current += (diamondPlanet.orbitalSpeed || 0.075) * delta * 60;
       const r = diamondPlanet.orbitalRadius || 36.0;
       diamondMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       diamondMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
-      diamondMeshRef.current.rotation.y += delta * 0.8;
     }
   });
 
@@ -623,40 +558,16 @@ const PSRJ1719DiamondSystem: React.FC<{
 
   return (
     <group ref={rootRef} position={pulsar.position}>
-      {/* Millisecond Radio Pulsar */}
-      <group
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          if (e.delta && e.delta > 5) return;
-          e.stopPropagation();
-          onSelect(pulsar.id);
-        }}
-        onPointerOver={() => setPulsarHovered(true)}
-        onPointerOut={() => setPulsarHovered(false)}
-      >
-        <pointLight color="#38bdf8" intensity={5.0} distance={pulsar.size * 10} />
-        <mesh ref={pulsarMeshRef}>
-          <sphereGeometry args={[pulsar.size, 24, 24]} />
-          <meshBasicMaterial color="#e0f2fe" />
-        </mesh>
-
-        {/* Polar Relativistic Radiation Beams */}
-        <mesh position={[0, pulsar.size * 2.2, 0]}>
-          <coneGeometry args={[pulsar.size * 0.4, pulsar.size * 4, 16]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
-        </mesh>
-        <mesh position={[0, -pulsar.size * 2.2, 0]} rotation={[Math.PI, 0, 0]}>
-          <coneGeometry args={[pulsar.size * 0.4, pulsar.size * 4, 16]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
-        </mesh>
-
-        {(pulsarHovered || isPulsarSelected || isPulsarHighlighted) && (
-          <Html position={[0, pulsar.size + 15, 0]} center distanceFactor={pulsar.size * 5}>
-            <div className="px-3 py-1 rounded-full bg-cyan-950/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
-              ⚡ {language === 'ar' ? pulsar.nameAr : pulsar.nameEn}
-            </div>
-          </Html>
-        )}
-      </group>
+      {/* Millisecond Radio Pulsar with Dipolar Field Loops & Sweeping Beams */}
+      <RealisticPulsar
+        body={pulsar}
+        spinFrequency={14.0}
+        magneticTilt={0.52}
+        isSelected={isPulsarSelected}
+        isHighlighted={isPulsarHighlighted}
+        onSelect={() => onSelect(pulsar.id)}
+        language={language}
+      />
 
       {/* Orbit Ring */}
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -668,47 +579,15 @@ const PSRJ1719DiamondSystem: React.FC<{
       <group
         ref={diamondMeshRef}
         position={[diamondPlanet.orbitalRadius || 36, 0, 0]}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          if (e.delta && e.delta > 5) return;
-          e.stopPropagation();
-          onSelect(diamondPlanet.id);
-        }}
-        onPointerOver={() => setDiamondHovered(true)}
-        onPointerOut={() => setDiamondHovered(false)}
       >
-        {/* Faceted Crystallized Pure Diamond Sphere */}
-        <mesh>
-          <icosahedronGeometry args={[diamondPlanet.size, 2]} />
-          <meshStandardMaterial
-            color="#e0f2fe"
-            emissive="#bae6fd"
-            emissiveIntensity={0.5}
-            roughness={0.08}
-            metalness={0.95}
-            flatShading
-          />
-        </mesh>
-
-        {/* Refraction Aura */}
-        <mesh>
-          <sphereGeometry args={[diamondPlanet.size * 1.2, 16, 16]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} wireframe />
-        </mesh>
-
-        {(isDiamondSelected || isDiamondHighlighted) && (
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[diamondPlanet.size * 1.5, diamondPlanet.size * 1.75, 24]} />
-            <meshBasicMaterial color={isDiamondHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
-          </mesh>
-        )}
-
-        {(diamondHovered || isDiamondSelected || isDiamondHighlighted) && (
-          <Html position={[0, diamondPlanet.size + 4.5, 0]} center distanceFactor={25}>
-            <div className="px-3 py-1 rounded-full bg-sky-950/95 border border-sky-300 text-xs font-bold text-white whitespace-nowrap shadow-2xl flex items-center gap-1.5">
-              💎 {language === 'ar' ? diamondPlanet.nameAr : diamondPlanet.nameEn} (Pure Diamond)
-            </div>
-          </Html>
-        )}
+        <RealisticDiamondPlanet
+          body={diamondPlanet}
+          isMagmaWorld={false}
+          isSelected={isDiamondSelected}
+          isHighlighted={isDiamondHighlighted}
+          onSelect={() => onSelect(diamondPlanet.id)}
+          language={language}
+        />
       </group>
     </group>
   );
@@ -1296,6 +1175,130 @@ const KELT9System: React.FC<{
   );
 };
 
+// Generic Galactic Exoplanet System for Scale 3
+const GalacticExoplanetSystem: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+  icon: string;
+  badgeSuffix?: string;
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language, icon, badgeSuffix }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.03) * delta * 60;
+      const r = planet.orbitalRadius || 40.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  const radius = planet.orbitalRadius || 40.0;
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Central Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color={star.color} intensity={4.5} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color={star.color} />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
+          <meshBasicMaterial color={star.emissiveColor || star.color} transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 10, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-slate-900/95 border border-amber-400 text-xs font-bold text-amber-200 whitespace-nowrap shadow-xl">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn}
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius - 0.2, radius + 0.2, 64]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Orbiting Planet */}
+      <group
+        ref={planetMeshRef}
+        position={[radius, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 24, 24]} />
+          <meshStandardMaterial
+            color={planet.color}
+            emissive={planet.emissiveColor || planet.color}
+            emissiveIntensity={0.3}
+            roughness={0.7}
+          />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 4.5, 0]} center distanceFactor={24}>
+            <div className="px-3 py-1 rounded-full bg-slate-900/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
+              {icon} {language === 'ar' ? planet.nameAr : planet.nameEn} {badgeSuffix ? `(${badgeSuffix})` : ''}
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
 export const MilkyWayScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -1328,8 +1331,8 @@ export const MilkyWayScene: React.FC = () => {
         language={language}
       />
 
-      {/* Crab Nebula Supernova Remnant */}
-      <NebulaCloudNode
+      {/* Crab Nebula Supernova Remnant with Synchrotron Filament Web */}
+      <RealisticNebula
         body={CELESTIAL_BODIES.crab_nebula}
         isSelected={selectedCosmicBodyId === 'crab_nebula'}
         isHighlighted={isHighlighted(CELESTIAL_BODIES.crab_nebula)}
@@ -1338,8 +1341,8 @@ export const MilkyWayScene: React.FC = () => {
         icon="🌌"
       />
 
-      {/* Pillars of Creation Interstellar Nursery */}
-      <NebulaCloudNode
+      {/* Pillars of Creation Interstellar Nursery (Elephant Trunks & EGGs) */}
+      <RealisticNebula
         body={CELESTIAL_BODIES.pillars_of_creation}
         isSelected={selectedCosmicBodyId === 'pillars_of_creation'}
         isHighlighted={isHighlighted(CELESTIAL_BODIES.pillars_of_creation)}
@@ -1348,15 +1351,64 @@ export const MilkyWayScene: React.FC = () => {
         icon="🦅"
       />
 
-      {/* Kilonova Heavy Metal Forge */}
-      <NebulaCloudNode
+      {/* Orion Nebula (M42) Massive Starburst Nursery */}
+      {CELESTIAL_BODIES.orion_nebula && (
+        <RealisticNebula
+          body={CELESTIAL_BODIES.orion_nebula}
+          isSelected={selectedCosmicBodyId === 'orion_nebula'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.orion_nebula)}
+          onSelect={() => setSelectedCosmicBodyId('orion_nebula')}
+          language={language}
+          icon="✨"
+        />
+      )}
+
+      {/* Ring Nebula (M57) Planetary Nebula with Central White Dwarf */}
+      {CELESTIAL_BODIES.ring_nebula && (
+        <RealisticNebula
+          body={CELESTIAL_BODIES.ring_nebula}
+          isSelected={selectedCosmicBodyId === 'ring_nebula'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.ring_nebula)}
+          onSelect={() => setSelectedCosmicBodyId('ring_nebula')}
+          language={language}
+          icon="💍"
+        />
+      )}
+
+      {/* Carina Nebula (NGC 3372) Cosmic Cliffs */}
+      {CELESTIAL_BODIES.carina_nebula && (
+        <RealisticNebula
+          body={CELESTIAL_BODIES.carina_nebula}
+          isSelected={selectedCosmicBodyId === 'carina_nebula'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.carina_nebula)}
+          onSelect={() => setSelectedCosmicBodyId('carina_nebula')}
+          language={language}
+          icon="🏔️"
+        />
+      )}
+
+
+      {/* Kilonova Heavy-Element Radioactive Forge (GW170817) */}
+      <RealisticSupernova
         body={CELESTIAL_BODIES.kilonova_factory}
         isSelected={selectedCosmicBodyId === 'kilonova_factory'}
         isHighlighted={isHighlighted(CELESTIAL_BODIES.kilonova_factory)}
         onSelect={() => setSelectedCosmicBodyId('kilonova_factory')}
         language={language}
-        icon="💥"
+        icon="🥇"
       />
+
+      {/* Cassiopeia A Supernova Remnant & Reverse Shock */}
+      {CELESTIAL_BODIES.cas_a_supernova && (
+        <RealisticSupernova
+          body={CELESTIAL_BODIES.cas_a_supernova}
+          isSelected={selectedCosmicBodyId === 'cas_a_supernova'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.cas_a_supernova)}
+          onSelect={() => setSelectedCosmicBodyId('cas_a_supernova')}
+          language={language}
+          icon="💥"
+        />
+      )}
 
       {/* Kepler-22 System (Habitable Zone Ocean World) */}
       {CELESTIAL_BODIES.kepler_22 && CELESTIAL_BODIES.kepler_22b && (
@@ -1461,6 +1513,34 @@ export const MilkyWayScene: React.FC = () => {
           highlightedElement={highlightedCosmicElementNum}
           onSelect={(id) => setSelectedCosmicBodyId(id)}
           language={language}
+        />
+      )}
+
+      {/* Kepler-90 System (8-Planet Solar System Analog) */}
+      {CELESTIAL_BODIES.kepler_90 && CELESTIAL_BODIES.kepler_90_h && (
+        <GalacticExoplanetSystem
+          star={CELESTIAL_BODIES.kepler_90}
+          planet={CELESTIAL_BODIES.kepler_90_h}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="🪐"
+          badgeSuffix="8 Planets"
+        />
+      )}
+
+      {/* WASP-76 System (Ultra-Hot Jupiter Where It Rains Iron) */}
+      {CELESTIAL_BODIES.wasp_76 && CELESTIAL_BODIES.wasp_76_b && (
+        <GalacticExoplanetSystem
+          star={CELESTIAL_BODIES.wasp_76}
+          planet={CELESTIAL_BODIES.wasp_76_b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="🌧️"
+          badgeSuffix="Iron Rain"
         />
       )}
     </group>

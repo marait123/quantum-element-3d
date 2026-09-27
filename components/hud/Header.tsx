@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Volume2,
@@ -22,6 +22,11 @@ import { WorldSwitcher } from '@/components/universe/hud/WorldSwitcher';
 import { SpaceSearchBox } from '@/components/universe/hud/SpaceSearchBox';
 
 export const Header: React.FC = () => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const language = useQuantumStore((s) => s.language);
   const toggleLanguage = useQuantumStore((s) => s.toggleLanguage);
   const isAudioMuted = useQuantumStore((s) => s.isAudioMuted);
@@ -32,6 +37,8 @@ export const Header: React.FC = () => {
   const setActiveElement = useQuantumStore((s) => s.setActiveElement);
   const activeWorld = useQuantumStore((s) => s.activeWorld);
   const setTutorialOpen = useQuantumStore((s) => s.setTutorialOpen);
+
+  const effectiveWorld = isMounted ? activeWorld : 'subatomic';
 
   const t = TRANSLATIONS[language];
 
@@ -85,11 +92,11 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Center Search Bar: Subatomic Elements vs Cosmic Space */}
-        <div className="hidden lg:block relative pointer-events-auto">
-          {activeWorld === 'subatomic' ? (
-            <div className="relative w-64 md:w-80">
+        <div suppressHydrationWarning className="hidden lg:block relative pointer-events-auto">
+          {effectiveWorld === 'subatomic' ? (
+            <div key="subatomic-search-branch" className="relative w-64 md:w-80">
               <div className="relative">
-                <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-400/70" />
+                <Search suppressHydrationWarning className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-400/70" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -132,11 +139,14 @@ export const Header: React.FC = () => {
               )}
             </div>
           ) : (
-            <SpaceSearchBox />
+            <div key="universe-search-branch">
+              <SpaceSearchBox />
+            </div>
           )}
         </div>
 
         {/* Right Controls: Search (Mobile), 118 Grid, Audio, Language Toggle, Share, Dossier */}
+        {/* Right Controls: Consolidated System Utilities (Search Mobile, Tour, Audio, Language, Share) */}
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
           {/* Mobile Search Trigger Button */}
           <button
@@ -148,17 +158,19 @@ export const Header: React.FC = () => {
             <Search className="w-4 h-4 text-sky-400" />
           </button>
 
-          {/* 118 Grid Sheet Trigger (Subatomic mode) */}
-          {activeWorld === 'subatomic' && (
-            <button
-              onClick={() => setGridModalOpen(true)}
-              className="glass-button px-3 py-1.5 rounded-xl flex items-center gap-1.5 text-xs text-slate-200 font-semibold cursor-pointer"
-              title={t.grid118}
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden md:inline">{t.grid118}</span>
-            </button>
-          )}
+          {/* Interactive Platform Onboarding Tour Trigger */}
+          <button
+            id="platform-tour-btn"
+            type="button"
+            onClick={() => setTutorialOpen(true, 0)}
+            className="glass-button px-2.5 py-1.5 rounded-xl bg-purple-600/25 border-purple-400/50 flex items-center gap-1.5 text-xs text-purple-200 font-semibold hover:bg-purple-600/40 hover:text-white transition shadow-lg shadow-purple-500/20 cursor-pointer"
+            title={language === 'ar' ? 'دليل المنصة والتحكم (جولة تعريفية)' : 'Platform Guide & Controls Tour'}
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">
+              {language === 'ar' ? 'دليل المنصة' : 'Tour'}
+            </span>
+          </button>
 
           {/* Audio Mute/Unmute */}
           <button
@@ -182,20 +194,6 @@ export const Header: React.FC = () => {
           >
             <Globe className="w-3.5 h-3.5 text-amber-400" />
             <span>{language === 'en' ? 'العربية' : 'English'}</span>
-          </button>
-
-          {/* Interactive Platform Onboarding Tour Trigger */}
-          <button
-            id="platform-tour-btn"
-            type="button"
-            onClick={() => setTutorialOpen(true, 0)}
-            className="glass-button px-2.5 py-1.5 rounded-xl bg-purple-600/25 border-purple-400/50 flex items-center gap-1.5 text-xs text-purple-200 font-semibold hover:bg-purple-600/40 hover:text-white transition shadow-lg shadow-purple-500/20 cursor-pointer"
-            title={language === 'ar' ? 'دليل المنصة والتحكم (جولة تعريفية)' : 'Platform Guide & Controls Tour'}
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">
-              {language === 'ar' ? 'دليل المنصة' : 'Tour'}
-            </span>
           </button>
 
           {/* Share / Copy Direct View Link */}
@@ -226,32 +224,6 @@ export const Header: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Quantum Cinema Video Masterclasses Trigger (Subatomic mode) */}
-          {activeWorld === 'subatomic' && (
-            <button
-              id="quantum-cinema-btn"
-              onClick={() => setVideoModalOpen(true, 'scale')}
-              className="glass-button px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/30 border-rose-400/50 flex items-center gap-1.5 text-xs text-rose-200 font-bold hover:bg-rose-600/50 transition shadow-lg shadow-rose-500/20 cursor-pointer"
-              title={language === 'ar' ? 'سينما كوانتوم: المحاضرات المرئية' : 'Quantum Cinema & Masterclasses'}
-            >
-              <Film className="w-3.5 h-3.5 text-rose-300" />
-              <span className="hidden sm:inline">
-                {language === 'ar' ? 'فيديوهات' : 'Cinema 🎬'}
-              </span>
-            </button>
-          )}
-
-          {/* Scientific Dossier Drawer Trigger (Subatomic mode) */}
-          {activeWorld === 'subatomic' && (
-            <button
-              onClick={() => setDossierOpen(true)}
-              className="glass-button px-3 py-1.5 rounded-xl bg-cyan-600/30 border-cyan-400/50 flex items-center gap-1.5 text-xs text-cyan-200 font-bold hover:bg-cyan-600/50 transition shadow-lg shadow-cyan-500/20 cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4 text-cyan-300" />
-              <span className="hidden sm:inline">{t.openDossier}</span>
-            </button>
-          )}
         </div>
       </header>
 
@@ -260,7 +232,7 @@ export const Header: React.FC = () => {
         <div className="lg:hidden fixed top-16 inset-x-3 z-50 p-3 rounded-2xl bg-slate-950/95 border border-purple-500/40 shadow-2xl backdrop-blur-2xl pointer-events-auto animate-fadeIn">
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800">
             <span className="text-xs font-bold text-slate-200">
-              {activeWorld === 'universe'
+              {effectiveWorld === 'universe'
                 ? language === 'ar'
                   ? '🔭 البحث في أجرام الفضاء والكون'
                   : '🔭 Search Cosmic Bodies & Space'
@@ -277,7 +249,7 @@ export const Header: React.FC = () => {
             </button>
           </div>
 
-          {activeWorld === 'universe' ? (
+          {effectiveWorld === 'universe' ? (
             <SpaceSearchBox
               isMobileModal
               onCloseMobile={() => setIsMobileSearchOpen(false)}

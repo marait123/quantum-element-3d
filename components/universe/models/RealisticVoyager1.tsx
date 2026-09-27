@@ -7,14 +7,14 @@ import { Html } from '@react-three/drei';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
-interface RealisticVoyager1Props {
+interface RealisticVoyagerProps {
   body: CelestialBody;
   isSelected: boolean;
   onSelect: () => void;
   language: 'en' | 'ar';
 }
 
-export const RealisticVoyager1: React.FC<RealisticVoyager1Props> = ({
+export const RealisticVoyagerProbe: React.FC<RealisticVoyagerProps> = ({
   body,
   isSelected,
   onSelect,
@@ -26,12 +26,12 @@ export const RealisticVoyager1: React.FC<RealisticVoyager1Props> = ({
   // Register with global runtime celestial registry for live camera follow
   useEffect(() => {
     if (probeRootRef.current) {
-      registerCelestialObject('voyager_1', probeRootRef.current);
+      registerCelestialObject(body.id, probeRootRef.current);
     }
     return () => {
-      unregisterCelestialObject('voyager_1');
+      unregisterCelestialObject(body.id);
     };
-  }, []);
+  }, [body.id]);
 
   useFrame(({ clock }, delta) => {
     if (!probeRootRef.current) return;
@@ -294,7 +294,12 @@ export const RealisticVoyager1: React.FC<RealisticVoyager1Props> = ({
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[2.0, 2.15, 32]} />
-          <meshBasicMaterial color="#f59e0b" transparent opacity={0.65} side={THREE.DoubleSide} />
+          <meshBasicMaterial
+            color={body.id === 'voyager_2' ? '#10b981' : '#f59e0b'}
+            transparent
+            opacity={0.65}
+            side={THREE.DoubleSide}
+          />
         </mesh>
       )}
 
@@ -302,14 +307,24 @@ export const RealisticVoyager1: React.FC<RealisticVoyager1Props> = ({
         <div
           className={`px-3 py-1.5 rounded-full bg-slate-950/90 backdrop-blur-md border ${
             isSelected
-              ? 'border-amber-400 ring-2 ring-amber-400 shadow-amber-500/30'
-              : 'border-amber-500/40'
-          } text-[11px] font-bold text-amber-300 whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer transition-transform hover:scale-105`}
+              ? body.id === 'voyager_2'
+                ? 'border-emerald-400 ring-2 ring-emerald-400 shadow-emerald-500/30 text-emerald-200'
+                : 'border-amber-400 ring-2 ring-amber-400 shadow-amber-500/30 text-amber-200'
+              : body.id === 'voyager_2'
+                ? 'border-emerald-500/40 text-emerald-300'
+                : 'border-amber-500/40 text-amber-300'
+          } text-[11px] font-bold whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer transition-transform hover:scale-105`}
           onClick={onSelect}
         >
           <span className="text-sm">🛰️</span>
           <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200">
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded ${
+              body.id === 'voyager_2'
+                ? 'bg-emerald-500/20 text-emerald-200'
+                : 'bg-amber-500/20 text-amber-200'
+            }`}
+          >
             {language === 'ar' ? 'بين النجوم' : 'Interstellar'}
           </span>
         </div>
@@ -317,3 +332,5 @@ export const RealisticVoyager1: React.FC<RealisticVoyager1Props> = ({
     </group>
   );
 };
+
+export const RealisticVoyager1 = RealisticVoyagerProbe;

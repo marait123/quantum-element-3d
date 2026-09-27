@@ -16,9 +16,13 @@ import {
   getSaturnRingTexture,
 } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
-import { RealisticVoyager1 } from './models/RealisticVoyager1';
+import { RealisticVoyagerProbe } from './models/RealisticVoyager1';
 import { RealisticJWST } from './models/RealisticJWST';
 import { RealisticHubble } from './models/RealisticHubble';
+import { RealisticComet } from './smallbodies/RealisticComet';
+import { RealisticAsteroid } from './smallbodies/RealisticAsteroid';
+import { MeteorShowerEffect } from './smallbodies/MeteorShowerEffect';
+import { InterstellarTrajectories } from './trajectories/InterstellarTrajectories';
 
 // ==========================================
 // REALISTIC EARTH WITH ROTATING CLOUD SHIFT
@@ -838,8 +842,11 @@ const AsteroidBelt: React.FC = () => {
     return data;
   }, [count]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return;
+    // Performance LOD: freeze asteroid updates when in deep space
+    if (state.camera.position.length() > 2500) return;
+
     for (let i = 0; i < count; i++) {
       const a = asteroidData[i];
       a.angle += a.speed * delta * 1.2;
@@ -959,8 +966,74 @@ export const SolarSystemScene: React.FC = () => {
       <OrbitLine radius={58.0} color="#2563eb" />
       <OrbitLine radius={64.0} color="#a16207" />
 
-      {/* Main Asteroid Belt */}
+      {/* Main Asteroid Belt & Meteor Showers */}
       <AsteroidBelt />
+      <MeteorShowerEffect active={true} />
+
+      {/* Realistic Asteroids with Authentic Topologies */}
+      {CELESTIAL_BODIES.ceres && (
+        <RealisticAsteroid
+          body={CELESTIAL_BODIES.ceres}
+          isSelected={selectedCosmicBodyId === 'ceres'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.ceres)}
+          onSelect={() => setSelectedCosmicBodyId('ceres')}
+          language={language}
+          icon="☄️"
+        />
+      )}
+      {CELESTIAL_BODIES.bennu_asteroid && (
+        <RealisticAsteroid
+          body={CELESTIAL_BODIES.bennu_asteroid}
+          isSelected={selectedCosmicBodyId === 'bennu_asteroid'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.bennu_asteroid)}
+          onSelect={() => setSelectedCosmicBodyId('bennu_asteroid')}
+          language={language}
+          icon="🪨"
+        />
+      )}
+      {CELESTIAL_BODIES.psyche_asteroid && (
+        <RealisticAsteroid
+          body={CELESTIAL_BODIES.psyche_asteroid}
+          isSelected={selectedCosmicBodyId === 'psyche_asteroid'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.psyche_asteroid)}
+          onSelect={() => setSelectedCosmicBodyId('psyche_asteroid')}
+          language={language}
+          icon="🪙"
+        />
+      )}
+      {CELESTIAL_BODIES.apophis_asteroid && (
+        <RealisticAsteroid
+          body={CELESTIAL_BODIES.apophis_asteroid}
+          isSelected={selectedCosmicBodyId === 'apophis_asteroid'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.apophis_asteroid)}
+          onSelect={() => setSelectedCosmicBodyId('apophis_asteroid')}
+          language={language}
+          icon="⚠️"
+        />
+      )}
+
+      {/* Realistic Comets with Sublimating Coma & Dual Tails */}
+      {CELESTIAL_BODIES.halley_comet && (
+        <RealisticComet
+          body={CELESTIAL_BODIES.halley_comet}
+          isSelected={selectedCosmicBodyId === 'halley_comet'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.halley_comet)}
+          onSelect={() => setSelectedCosmicBodyId('halley_comet')}
+          language={language}
+          icon="☄️"
+        />
+      )}
+      {CELESTIAL_BODIES.oumuamua && (
+        <RealisticComet
+          body={CELESTIAL_BODIES.oumuamua}
+          isSelected={selectedCosmicBodyId === 'oumuamua'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.oumuamua)}
+          onSelect={() => setSelectedCosmicBodyId('oumuamua')}
+          language={language}
+          icon="🛸"
+        />
+      )}
+
 
       {/* Mercury & Venus */}
       <StandardPlanet
@@ -1080,13 +1153,30 @@ export const SolarSystemScene: React.FC = () => {
         />
       )}
 
-      {/* Ultra-Realistic Deep Space Probes & Satellites */}
-      <RealisticVoyager1
-        body={CELESTIAL_BODIES.voyager_1}
+      {/* Interstellar Trajectories, Gliese 445 / Ross 248 Encounter Beacons & Proxima Pointer */}
+      <InterstellarTrajectories
         language={language}
-        isSelected={selectedCosmicBodyId === 'voyager_1'}
-        onSelect={() => setSelectedCosmicBodyId('voyager_1')}
+        onSelectBody={setSelectedCosmicBodyId}
       />
+
+      {/* Ultra-Realistic Deep Space Probes & Satellites */}
+      {CELESTIAL_BODIES.voyager_1 && (
+        <RealisticVoyagerProbe
+          body={CELESTIAL_BODIES.voyager_1}
+          language={language}
+          isSelected={selectedCosmicBodyId === 'voyager_1'}
+          onSelect={() => setSelectedCosmicBodyId('voyager_1')}
+        />
+      )}
+
+      {CELESTIAL_BODIES.voyager_2 && (
+        <RealisticVoyagerProbe
+          body={CELESTIAL_BODIES.voyager_2}
+          language={language}
+          isSelected={selectedCosmicBodyId === 'voyager_2'}
+          onSelect={() => setSelectedCosmicBodyId('voyager_2')}
+        />
+      )}
 
       <RealisticJWST
         body={CELESTIAL_BODIES.jwst}

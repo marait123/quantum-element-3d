@@ -160,6 +160,40 @@ export interface TranslationStrings {
       viewDoi: string;
     };
   };
+
+  // Loading & Diagnostics Telemetry
+  loading: {
+    title: string;
+    subtitle: string;
+    initializing: string;
+    calibrating: string;
+    compiling: string;
+    indexing: string;
+    telemetryReady: string;
+    enterLab: string;
+    systemReady: string;
+    coreOnline: string;
+    shadersCompiled: string;
+    nasaConnected: string;
+    audioReady: string;
+    fastStart: string;
+  };
+
+  // Science & Discovery Hub
+  scienceHub: {
+    title: string;
+    database: string;
+    elements: string;
+    cinema: string;
+    dossier: string;
+    grid118: string;
+    collapse: string;
+    expand: string;
+    tooltipDatabase: string;
+    tooltipElements: string;
+    tooltipCinema: string;
+    tooltipDossier: string;
+  };
 }
 
 export const TRANSLATIONS: Record<'en' | 'ar', TranslationStrings> = {
@@ -320,6 +354,38 @@ export const TRANSLATIONS: Record<'en' | 'ar', TranslationStrings> = {
         viewDoi: "Read DOI Paper",
       },
     },
+
+    loading: {
+      title: "Ibrahim Science Laboratory",
+      subtitle: "Initializing Spacetime & Quantum Astrophysics Simulation",
+      initializing: "Initializing Quantum Core & Fundamental Physics Matrix...",
+      calibrating: "Calibrating Multi-Scale Coordinate Grid (10⁰ m to 10²⁶ m)...",
+      compiling: "Compiling Relativistic Gravitational & Accretion Shaders...",
+      indexing: "Indexing 300+ Celestial Objects & NASA Data Archives...",
+      telemetryReady: "Deep Space Telemetry Stream Synchronized. Systems Ready.",
+      enterLab: "Enter Laboratory",
+      systemReady: "ALL SYSTEMS NOMINAL",
+      coreOnline: "CORE: ONLINE",
+      shadersCompiled: "SHADERS: COMPILED",
+      nasaConnected: "NASA API: LINKED",
+      audioReady: "AUDIO: ARMED",
+      fastStart: "Warm start cached. Entering...",
+    },
+
+    scienceHub: {
+      title: "Science & Discovery",
+      database: "Cosmic Database & NASA",
+      elements: "Cosmic Elements",
+      cinema: "Science Cinema",
+      dossier: "Scientific Dossier",
+      grid118: "118 Element Grid",
+      collapse: "Collapse Tools",
+      expand: "Expand Tools",
+      tooltipDatabase: "Browse 300+ celestial bodies & NASA archives",
+      tooltipElements: "Cosmic nucleosynthesis & elemental origins",
+      tooltipCinema: "Astrophysics & quantum video masterclasses",
+      tooltipDossier: "In-depth physics research, equations & papers",
+    },
   },
 
   ar: {
@@ -478,6 +544,38 @@ export const TRANSLATIONS: Record<'en' | 'ar', TranslationStrings> = {
         citationsTitle: "أبرز أوراق الفيزياء التاريخية وروابط DOI المباشرة",
         viewDoi: "عرض ورقة البحث عبر DOI",
       },
+    },
+
+    loading: {
+      title: "معمل إبراهيم العلمي",
+      subtitle: "تهيئة محاكاة الزمكان والفيزياء الفلكية الكونية",
+      initializing: "تهيئة النواة الكمية ومصفوفة القوانين الفيزيائية...",
+      calibrating: "معايرة شبكة الإحداثيات الكونية المتصلة (10⁰ إلى 10²⁶ متر)...",
+      compiling: "ترجمة مظللات النسبية والجاذبية وأقراص التنامي GLSL...",
+      indexing: "فهرسة 300+ جرماً سماوياً وأرشيفات ناسا الفلكية الحية...",
+      telemetryReady: "تثبيت بث القياسات الفضائية الفوري. كافة الأنظمة جاهزة.",
+      enterLab: "دخول المعمل",
+      systemReady: "كافة الأنظمة في حالة تشغيل اسمي",
+      coreOnline: "النواة: متصلة",
+      shadersCompiled: "المظللات: مكتملة",
+      nasaConnected: "أرشيف ناسا: مرتبط",
+      audioReady: "الصوت: مُهيأ",
+      fastStart: "التحميل السريع مفعل. جارٍ الدخول...",
+    },
+
+    scienceHub: {
+      title: "أدوات البحث والاستكشاف",
+      database: "الموسوعة الكونية وأرشيف ناسا",
+      elements: "عناصر الكون وتشكّلها",
+      cinema: "سينما المحاضرات العلمية",
+      dossier: "الملف العلمي والأوراق البحثية",
+      grid118: "جدول الـ 118 عنصراً",
+      collapse: "طي الأدوات",
+      expand: "فتح الأدوات",
+      tooltipDatabase: "استكشف 300+ كياناً فلكياً وأرشيفات ناسا الحية",
+      tooltipElements: "أماكن ولادة وتشكّل العناصر الكيميائية في الكون",
+      tooltipCinema: "محاضرات فيديو متقدمة وموثقة لكل مقياس وعنصر",
+      tooltipDossier: "أبحاث فيزيائية متعمقة ومعادلات وأوراق محكمة",
     },
   },
 };

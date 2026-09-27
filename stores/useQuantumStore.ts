@@ -27,14 +27,21 @@ interface QuantumState {
   // Cosmic Universe Navigation & Scale
   cosmicScaleLevel: CosmicScaleLevel;
   previousCosmicScaleLevel: CosmicScaleLevel;
+  adjacentCosmicScaleLevel: CosmicScaleLevel | null;
   selectedCosmicBodyId: string | null;
   scaleNavigationRequest: { level: CosmicScaleLevel; timestamp: number } | null;
   continuousZoomRequest: ContinuousZoomRequest | null;
   navigationMode: NavigationMode;
   highlightedCosmicElementNum: number | null;
   isCosmicElementDrawerOpen: boolean;
+  isCosmicDatabaseOpen: boolean;
   isUniverseVideoModalOpen: boolean;
   activeUniverseVideoKey: string | null;
+
+  // Constellations & Minor Bodies Toggles
+  showConstellations: boolean;
+  selectedConstellationId: string | null;
+  showMinorBodies: boolean;
 
   // Language & Audio
   language: 'en' | 'ar';
@@ -85,6 +92,7 @@ interface QuantumState {
 
   // Cosmic Universe Actions
   setCosmicScaleLevel: (scale: CosmicScaleLevel) => void;
+  setAdjacentCosmicScaleLevel: (scale: CosmicScaleLevel | null) => void;
   requestScaleNavigation: (scale: CosmicScaleLevel) => void;
   requestContinuousZoom: (direction: 'in' | 'out', factor?: number) => void;
   cosmicZoomIn: () => void;
@@ -94,34 +102,86 @@ interface QuantumState {
   toggleNavigationMode: () => void;
   setHighlightedCosmicElementNum: (num: number | null) => void;
   setCosmicElementDrawerOpen: (open: boolean) => void;
+  setCosmicDatabaseOpen: (open: boolean) => void;
   setUniverseVideoModalOpen: (open: boolean, videoKey?: string) => void;
 
   // Tutorial & Speed Actions
   setTutorialOpen: (open: boolean, step?: number) => void;
   setTutorialStep: (step: number) => void;
   setMovementSpeedMultiplier: (mult: number) => void;
+
+  // Constellations & Minor Bodies Actions
+  toggleConstellations: () => void;
+  setSelectedConstellationId: (id: string | null) => void;
+  toggleMinorBodies: () => void;
+
+  // 3D Canvas Lifecycle & Readiness
+  isCanvasReady: boolean;
+  setCanvasReady: (ready: boolean) => void;
 }
 
+// Synchronously read initial URL parameters on client store creation
+const getInitialUrlState = () => {
+  if (typeof window === 'undefined') {
+    return {
+      world: 'subatomic' as ActiveWorld,
+      cosmicScale: 1 as CosmicScaleLevel,
+    };
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const worldParam = params.get('world');
+    const world: ActiveWorld = worldParam === 'universe' ? 'universe' : 'subatomic';
+
+    const scaleParam = parseInt(params.get('scale') || '', 10);
+    const cosmicScale: CosmicScaleLevel =
+      !isNaN(scaleParam) && scaleParam >= 1 && scaleParam <= 5
+        ? (scaleParam as CosmicScaleLevel)
+        : 1;
+
+    return { world, cosmicScale };
+  } catch {
+    return {
+      world: 'subatomic' as ActiveWorld,
+      cosmicScale: 1 as CosmicScaleLevel,
+    };
+  }
+};
+
+const _initialUrl = getInitialUrlState();
+
 export const useQuantumStore = create<QuantumState>((set, get) => ({
-  // World Selection
-  activeWorld: 'subatomic',
+  // World Selection (Synchronized with URL on initial mount)
+  activeWorld: _initialUrl.world,
+
+  // 3D Canvas Lifecycle & Readiness
+  isCanvasReady: false,
+  setCanvasReady: (ready: boolean) => set({ isCanvasReady: ready }),
 
   // Subatomic defaults
   activeElementNum: 6, // Carbon (C, Z=6) by default
   scaleLevel: 1, // Start at Periodic Table (Scale 1)
   previousScaleLevel: 1,
 
-  // Cosmic Universe defaults
-  cosmicScaleLevel: 1, // Start at Solar System (Cosmic Scale 1)
-  previousCosmicScaleLevel: 1,
+  // Cosmic Universe defaults (Synchronized with URL on initial mount)
+  cosmicScaleLevel: _initialUrl.cosmicScale,
+  previousCosmicScaleLevel: _initialUrl.cosmicScale,
+  adjacentCosmicScaleLevel: null,
   selectedCosmicBodyId: null,
   scaleNavigationRequest: null,
   continuousZoomRequest: null,
   navigationMode: 'orbit',
   highlightedCosmicElementNum: null,
   isCosmicElementDrawerOpen: false,
+  isCosmicDatabaseOpen: false,
   isUniverseVideoModalOpen: false,
   activeUniverseVideoKey: null,
+
+  // Constellations & Minor Bodies defaults
+  showConstellations: true,
+  selectedConstellationId: null,
+  showMinorBodies: true,
 
   // Platform Tutorial & Speed Multiplier defaults
   isTutorialOpen: false,
@@ -148,8 +208,10 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
 
   // World Action
   setActiveWorld: (world) => {
-    audioSynth.playScaleWarpSweep('in');
-    set({ activeWorld: world });
+    if (get().activeWorld !== world) {
+      audioSynth.playScaleWarpSweep('in');
+      set({ activeWorld: world, isCanvasReady: false });
+    }
   },
 
   setActiveElement: (num: number) => {
@@ -289,6 +351,11 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
     });
   },
 
+  setAdjacentCosmicScaleLevel: (scale: CosmicScaleLevel | null) => {
+    if (get().adjacentCosmicScaleLevel === scale) return;
+    set({ adjacentCosmicScaleLevel: scale });
+  },
+
   requestScaleNavigation: (newScale: CosmicScaleLevel) => {
     const current = get().cosmicScaleLevel;
     const direction = newScale > current ? 'in' : 'out';
@@ -356,6 +423,11 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
     set({ isCosmicElementDrawerOpen: open });
   },
 
+  setCosmicDatabaseOpen: (open: boolean) => {
+    audioSynth.playClick(880);
+    set({ isCosmicDatabaseOpen: open });
+  },
+
   setUniverseVideoModalOpen: (open: boolean, videoKey?: string) => {
     audioSynth.playClick(1000);
     set((state) => ({
@@ -380,5 +452,20 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   setMovementSpeedMultiplier: (mult: number) => {
     audioSynth.playClick(1300);
     set({ movementSpeedMultiplier: mult });
+  },
+
+  toggleConstellations: () => {
+    audioSynth.playClick(950);
+    set((s) => ({ showConstellations: !s.showConstellations }));
+  },
+
+  setSelectedConstellationId: (id: string | null) => {
+    audioSynth.playClick(880);
+    set({ selectedConstellationId: id });
+  },
+
+  toggleMinorBodies: () => {
+    audioSynth.playClick(900);
+    set((s) => ({ showMinorBodies: !s.showMinorBodies }));
   },
 }));

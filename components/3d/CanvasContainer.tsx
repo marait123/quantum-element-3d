@@ -224,8 +224,27 @@ const CameraAndSceneManager: React.FC = () => {
       {scaleLevel === 3 && <NucleusScene />}
       {scaleLevel === 4 && <QuarkScene />}
       {scaleLevel === 5 && <StringScene />}
+
+      {/* Notifies loading screen upon first rasterized WebGL frame */}
+      <SubatomicWebGlNotifier />
     </>
   );
+};
+
+const SubatomicWebGlNotifier: React.FC = () => {
+  const notifiedRef = useRef(false);
+  const setCanvasReady = useQuantumStore((s) => s.setCanvasReady);
+
+  useFrame(() => {
+    if (!notifiedRef.current) {
+      notifiedRef.current = true;
+      setCanvasReady(true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('webgl-canvas-ready', { detail: { world: 'subatomic' } }));
+      }
+    }
+  });
+  return null;
 };
 
 export const CanvasContainer: React.FC = () => {

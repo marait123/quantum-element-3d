@@ -62,7 +62,7 @@ export const UrlStateSynchronizer: React.FC = () => {
 
     // World
     const worldParam = params.get('world');
-    if (worldParam === 'universe' || worldParam === 'subatomic') {
+    if ((worldParam === 'universe' || worldParam === 'subatomic') && worldParam !== activeWorld) {
       setActiveWorld(worldParam);
     }
 

@@ -46,6 +46,7 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
 
   // Spacecraft & Satellites (Majestic 3/4 angle)
   voyager_1: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
+  voyager_2: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
   jwst: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
   hubble: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
 
@@ -107,6 +108,53 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   // Extragalactic Monster Star (Scale 4)
   r136a1: { elevation: 0.35, lateralAngle: 0 },
 
+  // Minor Bodies (Comets & Asteroids)
+  halley_comet: { elevation: 0.38, lateralAngle: Math.PI * 0.4 },
+  oumuamua: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+  bennu_asteroid: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  psyche_asteroid: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  apophis_asteroid: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+
+  // New Exoplanet Systems
+  barnard_star: { elevation: 0.3, lateralAngle: 0 },
+  barnard_b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  wolf_359: { elevation: 0.3, lateralAngle: 0 },
+  tau_ceti: { elevation: 0.3, lateralAngle: 0 },
+  tau_ceti_e: { elevation: 0.34, lateralAngle: Math.PI * 0.25 },
+  gliese_667c: { elevation: 0.32, lateralAngle: Math.PI * 0.2 },
+  gliese_667c_e: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  lhs_1140: { elevation: 0.3, lateralAngle: 0 },
+  lhs_1140_b: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  kepler_90: { elevation: 0.3, lateralAngle: 0 },
+  kepler_90_h: { elevation: 0.36, lateralAngle: Math.PI * 0.3 },
+  wasp_76: { elevation: 0.3, lateralAngle: 0 },
+  wasp_76_b: { elevation: 0.38, lateralAngle: Math.PI * 0.35 },
+
+  // Nebulae & Supernovae
+  orion_nebula: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
+  ring_nebula: { elevation: 0.45, lateralAngle: Math.PI * 0.2 },
+  carina_nebula: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
+  sn_1987a: { elevation: 0.42, lateralAngle: Math.PI * 0.3 },
+  cas_a_supernova: { elevation: 0.36, lateralAngle: Math.PI * 0.25 },
+
+  // Extragalactic Bodies & Near Galaxies (Scale 4)
+  small_magellanic_cloud: { elevation: 0.4, lateralAngle: Math.PI * 0.25 },
+  centaurus_a: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  messier_82: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  andromeda_core_black_hole: { elevation: 0.38, lateralAngle: Math.PI * 0.2 },
+  hubble_v1_star: { elevation: 0.3, lateralAngle: 0 },
+  mayall_ii_cluster: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
+  pa_99_n2_star: { elevation: 0.3, lateralAngle: 0 },
+  pa_99_n2_planet: { elevation: 0.34, lateralAngle: Math.PI * 0.25 },
+  ngc_604_nebula: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
+  m33_x7_star: { elevation: 0.32, lateralAngle: 0 },
+  m33_x7_black_hole: { elevation: 0.36, lateralAngle: Math.PI * 0.25 },
+  tarantula_nebula: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
+  s_doradus: { elevation: 0.32, lateralAngle: 0 },
+  ngc_346_nebula: { elevation: 0.36, lateralAngle: Math.PI * 0.25 },
+  smc_x1_star: { elevation: 0.3, lateralAngle: 0 },
+  smc_x1_pulsar: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+
   // Ultramassive Quasar (Scale 5)
   ton_618: { elevation: 0.42, lateralAngle: Math.PI * 0.25 },
 };
@@ -125,15 +173,27 @@ export function calculateFramingDistance(bodyId: string): number {
   // Geometric multiplier to account for external features:
   let margin = 2.4;
   if (bodyId === 'saturn') margin = 4.2; // Massive ring system
-  else if (bodyId === 'ton_618') margin = 3.6; // Incandescent accretion disk & relativistic jets
-  else if (bodyId === 'wasp_12b') margin = 3.2; // Stretched egg shape & tidal streamer
+  else if (bodyId === 'ton_618') margin = 3.8; // Quasar multi-zone accretion disk & relativistic jets
+  else if (bodyId === 'm87_black_hole') margin = 3.8; // Colossal shadow & 5,000-ly relativistic jet
+  else if (bodyId === 'sagittarius_a') margin = 3.4; // Gravitational lensing halo & EHT photon ring
+  else if (bodyId === 'cygnus_x1') margin = 3.6; // Binary donor star mass-transfer stream & microquasar jets
+  else if (bodyId === 'crab_pulsar' || bodyId === 'psr_j1719_1438') margin = 3.4; // Dipolar magnetic loops & sweeping lighthouse beams
+  else if (bodyId === 'sn_1987a') margin = 3.8; // Circumstellar pearl ring & bipolar reflection loops
+  else if (bodyId === 'halley_comet' || bodyId === 'oumuamua') margin = 4.8; // Dual ion & dust tails
+  else if (bodyId === 'ring_nebula') margin = 3.2; // Toroidal ring & outer spires
+  else if (bodyId === 'pillars_of_creation' || bodyId === 'orion_nebula') margin = 3.4; // Expansive elephant trunks & ionization fronts
+  else if (bodyId === 'wasp_12b' || bodyId === 'wasp_76_b') margin = 3.2; // Vapor envelope / tidal stream
   else if (bodyId === 'kelt_9b') margin = 3.2; // Blazing hot vapor envelope
   else if (bodyId === 'kepler_16_ab') margin = 3.4; // Binary suns pair
   else if (bodyId === 'pluto') margin = 2.8; // Pluto & Charon system
+  else if (bodyId === 'centaurus_a') margin = 3.6; // Relativistic jets & warped dust belt
+  else if (bodyId === 'messier_82') margin = 3.2; // Bipolar superwind chimneys
+  else if (body.type === 'star_cluster') margin = 2.6;
   else if (body.type === 'spacecraft') margin = 3.6; // High-gain dish, RTG & sensor booms
   else if (body.type === 'galaxy') margin = 2.4; // Galactic spiral discs & outer arms
   else if (body.type === 'supercluster' || body.type === 'cosmic_structure') margin = 2.1;
-  else if (body.type === 'nebula' || body.type === 'supernova_remnant') margin = 2.5; // Expanding gas shockwaves
+  else if (body.type === 'nebula' || body.type === 'supernova_remnant' || body.type === 'supernova') margin = 2.8; // Expanding gas shockwaves
+  else if (body.type === 'comet') margin = 4.2;
   else if (bodyId === 'sun') margin = 3.2; // Corona & prominence flares
   else if (body.type === 'star') margin = 2.8;
 

@@ -8,6 +8,7 @@ import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
 
 // Large Scale Cosmic Web Filaments (Dark matter & galaxy scaffolding spanning 100,000 -> 600,000 units)
 const FilamentaryWeb: React.FC<{ glowTexture?: THREE.CanvasTexture }> = ({ glowTexture }) => {
@@ -319,98 +320,40 @@ const TON618Quasar: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const diskRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
-    return () => unregisterCelestialObject(body.id);
-  }, [body.id]);
-
-  useFrame(({ clock }, delta) => {
-    if (diskRef.current) {
-      diskRef.current.rotation.z += delta * 0.15; // Rapid relativistic accretion disk spin
-    }
-  });
-
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
+    <RealisticBlackHole
+      body={body}
+      shadowRadius={body.size * 0.75}
+      innerDiskRadius={body.size * 0.88}
+      outerDiskRadius={body.size * 2.85}
+      colorCore="#faf5ff"
+      colorMid="#c084fc"
+      colorOuter="#7e22ce"
+      accretionTilt={[-Math.PI / 4, Math.PI / 6, 0]}
+      spinSpeed={1.5}
+      dopplerStrength={1.3}
+      hasLensingHalo={true}
+      hasDustyTorus={true}
+      hasJet={true}
+      jetProps={{
+        length: body.size * 5.8,
+        radius: body.size * 0.42,
+        color: '#a855f7',
+        knotColor: '#f3e8ff',
+        speed: 1.8,
+        knotFrequency: 3.2,
+        bipolar: true,
       }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#a855f7" intensity={15.0} distance={body.size * 6} />
-
-      {/* Relativistic Accretion Disk (Tilted at 35°) */}
-      <group ref={diskRef} rotation={[-Math.PI / 4, Math.PI / 6, 0]}>
-        {/* Inner Relativistic X-ray Ring */}
-        <mesh>
-          <ringGeometry args={[body.size * 0.95, body.size * 1.5, 64]} />
-          <meshBasicMaterial color="#c084fc" side={THREE.DoubleSide} transparent opacity={0.9} />
-        </mesh>
-        {/* Middle Luminous Optical Synchrotron Ring */}
-        <mesh>
-          <ringGeometry args={[body.size * 1.5, body.size * 2.5, 64]} />
-          <meshBasicMaterial color="#f59e0b" side={THREE.DoubleSide} transparent opacity={0.7} />
-        </mesh>
-        {/* Outer Infrared Torus */}
-        <mesh>
-          <ringGeometry args={[body.size * 2.5, body.size * 3.8, 48]} />
-          <meshBasicMaterial color="#ea580c" side={THREE.DoubleSide} transparent opacity={0.4} />
-        </mesh>
-      </group>
-
-      {/* Event Horizon (Pure Black Singularity) */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.88, 36, 36]} />
-        <meshBasicMaterial color="#000000" />
-      </mesh>
-
-      {/* Gravitational Lensing / Photon Sphere Rim */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.94, 24, 24]} />
-        <meshBasicMaterial color="#e9d5ff" transparent opacity={0.5} wireframe />
-      </mesh>
-
-      {/* Twin Collimated Relativistic Plasma Jets (North & South) */}
-      <mesh position={[0, body.size * 2.8, 0]}>
-        <cylinderGeometry args={[body.size * 0.08, body.size * 0.35, body.size * 5, 16]} />
-        <meshBasicMaterial color="#a855f7" transparent opacity={0.65} />
-      </mesh>
-      <mesh position={[0, -body.size * 2.8, 0]} rotation={[Math.PI, 0, 0]}>
-        <cylinderGeometry args={[body.size * 0.08, body.size * 0.35, body.size * 5, 16]} />
-        <meshBasicMaterial color="#a855f7" transparent opacity={0.65} />
-      </mesh>
-
-      {/* Selection Ring */}
-      {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 3.9, body.size * 4.2, 48]} />
-          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
-        </mesh>
-      )}
-
-      {(hovered || isSelected) && (
-        <Html position={[0, body.size * 3.2, 0]} center distanceFactor={body.size * 4}>
-          <div className="px-4 py-2 rounded-full bg-purple-950/95 border-2 border-purple-400 text-sm font-black text-purple-100 whitespace-nowrap shadow-2xl flex items-center gap-2">
-            🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (66B M☉ Quasar)
-          </div>
-        </Html>
-      )}
-    </group>
+      isSelected={isSelected}
+      onSelect={onSelect}
+      language={language}
+    />
   );
 };
 
 export const CosmicWebScene: React.FC = () => {
   const { camera } = useThree();
-  const [visible, setVisible] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
   const [glowTexture, setGlowTexture] = useState<THREE.CanvasTexture | undefined>(undefined);
 
   const language = useQuantumStore((s) => s.language);
@@ -421,25 +364,8 @@ export const CosmicWebScene: React.FC = () => {
     setGlowTexture(getGlowPointTexture());
   }, []);
 
-  // Distance-based Level of Detail (LOD): Only render the macro filaments when zoomed out far enough!
-  useFrame(() => {
-    const dist = camera.position.length();
-    const isCosmicWebSelected = !!selectedCosmicBodyId && [
-      'laniakea_supercluster',
-      'bootes_void',
-      'cmb_sphere',
-      'ton_618',
-    ].includes(selectedCosmicBodyId);
-    const shouldBeVisible = dist > 25000 || isCosmicWebSelected;
-    if (shouldBeVisible !== visible) {
-      setVisible(shouldBeVisible);
-    }
-  });
-
-  if (!visible) return null;
-
   return (
-    <group>
+    <group ref={groupRef}>
       {/* 3D Dark Matter & Galaxy Filaments */}
       <FilamentaryWeb glowTexture={glowTexture} />
 

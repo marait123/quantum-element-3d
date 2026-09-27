@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
+import { RealisticPulsar } from './pulsar/RealisticPulsar';
+import { RealisticDiamondPlanet } from './exoplanet/RealisticDiamondPlanet';
 
 // Betelgeuse Red Supergiant with pulsating convective envelope
 const BetelgeuseStar: React.FC<{
@@ -209,7 +212,7 @@ const SiriusBinarySystem: React.FC<{
   );
 };
 
-// Crab Pulsar with 30 Hz spinning synchrotron relativistic lighthouse beams
+// Crab Pulsar with 30 Hz spinning synchrotron relativistic lighthouse beams & dipolar field loops
 const CrabPulsarRelic: React.FC<{
   body: CelestialBody;
   isSelected: boolean;
@@ -217,85 +220,23 @@ const CrabPulsarRelic: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const beamGroupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) registerCelestialObject('crab_pulsar', rootRef.current);
-    return () => unregisterCelestialObject('crab_pulsar');
-  }, []);
-
-  useFrame((_, delta) => {
-    if (beamGroupRef.current) {
-      beamGroupRef.current.rotation.y += delta * 14.0;
-    }
-  });
-
-  const beamHeight = body.size * 5.0;
-  const beamRadius = body.size * 0.7;
-
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#38bdf8" intensity={4.0} distance={body.size * 12} />
-
-      {/* Compact Neutron Star Core */}
-      <mesh>
-        <sphereGeometry args={[body.size, 32, 32]} />
-        <meshBasicMaterial color="#0284c7" />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[body.size * 1.3, 20, 20]} />
-        <meshBasicMaterial color="#7dd3fc" transparent opacity={0.35} side={THREE.BackSide} />
-      </mesh>
-
-      {/* Relativistic Synchrotron Beams (Top and Bottom Cones) */}
-      <group ref={beamGroupRef} rotation={[0, 0, Math.PI / 6]}>
-        {/* North Jet */}
-        <mesh position={[0, beamHeight * 0.5, 0]}>
-          <coneGeometry args={[beamRadius, beamHeight, 24, 1, true]} />
-          <meshBasicMaterial
-            color="#38bdf8"
-            transparent
-            opacity={0.65}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        {/* South Jet */}
-        <mesh position={[0, -beamHeight * 0.5, 0]} rotation={[Math.PI, 0, 0]}>
-          <coneGeometry args={[beamRadius, beamHeight, 24, 1, true]} />
-          <meshBasicMaterial
-            color="#38bdf8"
-            transparent
-            opacity={0.65}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      </group>
-
-      {/* Tag */}
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 8, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
-            ⚡ {language === 'ar' ? body.nameAr : body.nameEn} (30 Hz Neutron Star)
-          </div>
-        </Html>
-      )}
-    </group>
+    <RealisticPulsar
+      body={body}
+      spinFrequency={10.0}
+      magneticTilt={0.58}
+      coreColor="#38bdf8"
+      beamColor="#0ea5e9"
+      magneticFieldColor="#7dd3fc"
+      isSelected={isSelected}
+      isHighlighted={isHighlighted}
+      onSelect={onSelect}
+      language={language}
+    />
   );
 };
 
-// Cygnus X-1 Stellar Black Hole with Relativistic Accretion Disk
+// Cygnus X-1 Stellar Black Hole with Relativistic Accretion Disk, Binary Donor Stream & Microquasar Jets
 const CygnusX1BlackHole: React.FC<{
   body: CelestialBody;
   isSelected: boolean;
@@ -303,70 +244,32 @@ const CygnusX1BlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const diskRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) registerCelestialObject('cygnus_x1', rootRef.current);
-    return () => unregisterCelestialObject('cygnus_x1');
-  }, []);
-
-  useFrame((_, delta) => {
-    if (diskRef.current) {
-      diskRef.current.rotation.z += delta * 2.0;
-    }
-  });
-
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
+    <RealisticBlackHole
+      body={body}
+      colorCore="#ecfeff"
+      colorMid="#06b6d4"
+      colorOuter="#1e3a8a"
+      accretionTilt={[-Math.PI / 3, Math.PI / 8, 0]}
+      spinSpeed={1.8}
+      dopplerStrength={1.2}
+      hasLensingHalo={true}
+      hasDonorStream={true}
+      hasJet={true}
+      jetProps={{
+        length: body.size * 4.5,
+        radius: body.size * 0.28,
+        color: '#a5f3fc',
+        knotColor: '#ffffff',
+        speed: 2.0,
+        knotFrequency: 4.0,
+        bipolar: true,
       }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#3b82f6" intensity={4.0} distance={body.size * 10} />
-
-      {/* Event Horizon Shadow (Pure Black) */}
-      <mesh>
-        <sphereGeometry args={[body.size, 36, 36]} />
-        <meshBasicMaterial color="#000000" />
-      </mesh>
-
-      {/* Swirling Relativistic Accretion Disk */}
-      <mesh ref={diskRef} rotation={[-Math.PI / 3, 0, 0]}>
-        <ringGeometry args={[body.size * 1.25, body.size * 3.6, 64]} />
-        <meshStandardMaterial
-          color="#3b82f6"
-          emissive="#60a5fa"
-          emissiveIntensity={1.4}
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.9}
-          roughness={0.2}
-        />
-      </mesh>
-
-      {/* Photon Sphere Glow */}
-      <mesh>
-        <sphereGeometry args={[body.size * 1.08, 24, 24]} />
-        <meshBasicMaterial color="#f59e0b" transparent opacity={0.4} wireframe />
-      </mesh>
-
-      {/* Tag */}
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 8, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-purple-500 shadow-2xl text-xs font-bold text-purple-200 whitespace-nowrap">
-            🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (Stellar Black Hole)
-          </div>
-        </Html>
-      )}
-    </group>
+      isSelected={isSelected}
+      isHighlighted={isHighlighted}
+      onSelect={onSelect}
+      language={language}
+    />
   );
 };
 
@@ -507,11 +410,6 @@ const Cancri55System: React.FC<{
     return () => unregisterCelestialObject(star.id);
   }, [star.id]);
 
-  useEffect(() => {
-    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
-    return () => unregisterCelestialObject(planet.id);
-  }, [planet.id]);
-
   useFrame(({ clock }, delta) => {
     if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
@@ -565,51 +463,19 @@ const Cancri55System: React.FC<{
         <meshBasicMaterial color="#38bdf8" transparent opacity={0.25} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* 55 Cancri e (The Diamond Planet) */}
+      {/* 55 Cancri e (The Diamond Magma Planet) */}
       <group
         ref={planetMeshRef}
         position={[planet.orbitalRadius || 28, 0, 0]}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          if (e.delta && e.delta > 5) return;
-          e.stopPropagation();
-          onSelect(planet.id);
-        }}
-        onPointerOver={() => setPlanetHovered(true)}
-        onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Diamond Crystalline Surface with Glowing Magma Crevasses */}
-        <mesh>
-          <icosahedronGeometry args={[planet.size, 3]} />
-          <meshStandardMaterial
-            color="#38bdf8"
-            emissive="#0284c7"
-            emissiveIntensity={0.35}
-            roughness={0.15}
-            metalness={0.9}
-            flatShading
-          />
-        </mesh>
-
-        {/* Diamond Refraction Aura */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.15, 16, 16]} />
-          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.3} wireframe />
-        </mesh>
-
-        {(isPlanetSelected || isPlanetHighlighted) && (
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.5, planet.size * 1.8, 24]} />
-            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
-          </mesh>
-        )}
-
-        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
-          <Html position={[0, planet.size + 3.5, 0]} center distanceFactor={25}>
-            <div className="px-3 py-1 rounded-full bg-sky-950/95 border border-sky-400 text-xs font-bold text-sky-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5">
-              💎 {language === 'ar' ? planet.nameAr : planet.nameEn}
-            </div>
-          </Html>
-        )}
+        <RealisticDiamondPlanet
+          body={planet}
+          isMagmaWorld={true}
+          isSelected={isPlanetSelected}
+          isHighlighted={isPlanetHighlighted}
+          onSelect={() => onSelect(planet.id)}
+          language={language}
+        />
       </group>
     </group>
   );
@@ -1222,6 +1088,239 @@ const TOI700System: React.FC<{
   );
 };
 
+// Scalable Generic Exoplanet System Node
+const ExoplanetSystemNode: React.FC<{
+  star: CelestialBody;
+  planets: CelestialBody[];
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+  icon?: string;
+}> = ({ star, planets, selectedId, highlightedElement, onSelect, language, icon = '🪐' }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const [starHovered, setStarHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isStarHighlighted =
+    highlightedElement !== null &&
+    star.primaryElements.some((e) => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Central Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color={star.color} intensity={3.8} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color={star.color} />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
+          <meshBasicMaterial
+            color={star.emissiveColor || star.color}
+            transparent
+            opacity={0.25}
+            side={THREE.BackSide}
+          />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 4, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-amber-400 text-xs font-semibold text-amber-200 whitespace-nowrap shadow-md">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} ({star.distanceFromEarth})
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbiting Planets */}
+      {planets.map((planet, idx) => (
+        <OrbitingPlanetSubNode
+          key={planet.id}
+          planet={planet}
+          orbitIndex={idx}
+          selectedId={selectedId}
+          highlightedElement={highlightedElement}
+          onSelect={onSelect}
+          language={language}
+          icon={icon}
+        />
+      ))}
+    </group>
+  );
+};
+
+const OrbitingPlanetSubNode: React.FC<{
+  planet: CelestialBody;
+  orbitIndex: number;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+  icon: string;
+}> = ({ planet, orbitIndex, selectedId, highlightedElement, onSelect, language, icon }) => {
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(orbitIndex * 1.8 + 0.5);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.04) * delta * 60;
+      const r = planet.orbitalRadius || 18.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  const isSelected = selectedId === planet.id;
+  const isHighlighted =
+    highlightedElement !== null &&
+    planet.primaryElements.some((e) => e.atomicNumber === highlightedElement);
+
+  const radius = planet.orbitalRadius || 18.0;
+
+  return (
+    <>
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius - 0.08, radius + 0.08, 64]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Planet Mesh */}
+      <group
+        ref={planetMeshRef}
+        position={[radius, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 24, 24]} />
+          <meshStandardMaterial
+            color={planet.color}
+            emissive={planet.emissiveColor || planet.color}
+            emissiveIntensity={0.25}
+            roughness={0.7}
+          />
+        </mesh>
+
+        {(isSelected || isHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(hovered || isSelected || isHighlighted) && (
+          <Html position={[0, planet.size + 2.4, 0]} center distanceFactor={18}>
+            <div className="px-2.5 py-1 rounded-full bg-slate-900/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
+              {icon} {language === 'ar' ? planet.nameAr : planet.nameEn}
+            </div>
+          </Html>
+        )}
+      </group>
+    </>
+  );
+};
+
+// Standalone Landmark Exoplanet Node (NASA Kepler, TRAPPIST, JWST Discoveries)
+const StandaloneExoplanetNode: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+  icon?: string;
+}> = ({ body, isSelected, isHighlighted, onSelect, language, icon = '🪐' }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
+    return () => unregisterCelestialObject(body.id);
+  }, [body.id]);
+
+  useFrame((_, delta) => {
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.4;
+  });
+
+  return (
+    <group
+      ref={rootRef}
+      position={body.position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[body.size, 32, 32]} />
+        <meshStandardMaterial
+          color={body.color}
+          emissive={body.emissiveColor || body.color}
+          emissiveIntensity={isSelected ? 0.6 : hovered ? 0.35 : 0.15}
+          roughness={0.65}
+          metalness={0.1}
+        />
+      </mesh>
+
+      {(isSelected || isHighlighted) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 1.35, body.size * 1.55, 32]} />
+          <meshBasicMaterial
+            color={isHighlighted ? '#fbbf24' : '#38bdf8'}
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.85}
+          />
+        </mesh>
+      )}
+
+      {(hovered || isSelected || isHighlighted) && (
+        <Html position={[0, body.size + 2.5, 0]} center distanceFactor={28}>
+          <div className="px-2.5 py-1 rounded-full bg-slate-900/95 border border-sky-400 text-xs font-bold text-sky-200 whitespace-nowrap shadow-xl">
+            {icon} {language === 'ar' ? body.nameAr : body.nameEn}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
 export const StellarNeighborhoodScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -1351,6 +1450,130 @@ export const StellarNeighborhoodScene: React.FC = () => {
           selectedId={selectedCosmicBodyId}
           highlightedElement={highlightedCosmicElementNum}
           onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Barnard's Star System (2nd Closest System with sub-Earth Barnard b) */}
+      {CELESTIAL_BODIES.barnard_star && CELESTIAL_BODIES.barnard_b && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.barnard_star}
+          planets={[CELESTIAL_BODIES.barnard_b]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="🪨"
+        />
+      )}
+
+      {/* Wolf 359 Flare Star System */}
+      {CELESTIAL_BODIES.wolf_359 && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.wolf_359}
+          planets={[]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Tau Ceti System with Habitable Zone Super-Earth Candidate */}
+      {CELESTIAL_BODIES.tau_ceti && CELESTIAL_BODIES.tau_ceti_e && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.tau_ceti}
+          planets={[CELESTIAL_BODIES.tau_ceti_e]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="🌍"
+        />
+      )}
+
+      {/* Gliese 667 C System with Habitable Super-Earth in Triple System */}
+      {CELESTIAL_BODIES.gliese_667c && CELESTIAL_BODIES.gliese_667c_e && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.gliese_667c}
+          planets={[CELESTIAL_BODIES.gliese_667c_e]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="🌊"
+        />
+      )}
+
+      {/* LHS 1140 System with JWST-Confirmed Temperate Ocean World Candidate */}
+      {CELESTIAL_BODIES.lhs_1140 && CELESTIAL_BODIES.lhs_1140_b && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.lhs_1140}
+          planets={[CELESTIAL_BODIES.lhs_1140_b]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+          icon="💧"
+        />
+      )}
+
+
+
+      {/* V404 Cygni Stellar Black Hole with Relativistic Jets */}
+      {CELESTIAL_BODIES.v404_cygni && (
+        <RealisticBlackHole
+          body={CELESTIAL_BODIES.v404_cygni}
+          shadowRadius={CELESTIAL_BODIES.v404_cygni.size * 0.42}
+          innerDiskRadius={CELESTIAL_BODIES.v404_cygni.size * 0.5}
+          outerDiskRadius={CELESTIAL_BODIES.v404_cygni.size * 1.65}
+          colorCore="#e0e7ff"
+          colorMid="#6366f1"
+          colorOuter="#312e81"
+          accretionTilt={[-Math.PI / 3, Math.PI / 5, 0]}
+          spinSpeed={1.8}
+          dopplerStrength={1.25}
+          hasLensingHalo={true}
+          hasJet={true}
+          jetProps={{
+            length: CELESTIAL_BODIES.v404_cygni.size * 4.2,
+            radius: CELESTIAL_BODIES.v404_cygni.size * 0.32,
+            color: '#818cf8',
+            knotColor: '#ffffff',
+            speed: 2.2,
+            knotFrequency: 3.5,
+          }}
+          isSelected={selectedCosmicBodyId === 'v404_cygni'}
+          onSelect={() => setSelectedCosmicBodyId('v404_cygni')}
+          language={language}
+        />
+      )}
+
+      {/* GRO J1655-40 Superluminal Jet Black Hole */}
+      {CELESTIAL_BODIES.gro_j1655_40 && (
+        <RealisticBlackHole
+          body={CELESTIAL_BODIES.gro_j1655_40}
+          shadowRadius={CELESTIAL_BODIES.gro_j1655_40.size * 0.44}
+          innerDiskRadius={CELESTIAL_BODIES.gro_j1655_40.size * 0.52}
+          outerDiskRadius={CELESTIAL_BODIES.gro_j1655_40.size * 1.55}
+          colorCore="#f3e8ff"
+          colorMid="#a855f7"
+          colorOuter="#581c87"
+          accretionTilt={[-Math.PI / 4, Math.PI / 4, 0]}
+          spinSpeed={1.6}
+          dopplerStrength={1.4}
+          hasLensingHalo={true}
+          hasJet={true}
+          jetProps={{
+            length: CELESTIAL_BODIES.gro_j1655_40.size * 4.8,
+            radius: CELESTIAL_BODIES.gro_j1655_40.size * 0.3,
+            color: '#c084fc',
+            knotColor: '#faf5ff',
+            speed: 2.5,
+            knotFrequency: 4.0,
+          }}
+          isSelected={selectedCosmicBodyId === 'gro_j1655_40'}
+          onSelect={() => setSelectedCosmicBodyId('gro_j1655_40')}
           language={language}
         />
       )}

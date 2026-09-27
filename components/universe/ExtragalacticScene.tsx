@@ -1,283 +1,26 @@
 'use client';
 
-import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import React, { useState, useEffect, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
-import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
+import { RealisticNebula } from './nebula/RealisticNebula';
+import { RealisticSupernova } from './supernova/RealisticSupernova';
+import { RealisticGalaxy } from './galaxy/RealisticGalaxy';
+import {
+  M31CoreBlackHoleSystem,
+  HubbleV1Cepheid,
+  MayallIIGlobularCluster,
+  PA99N2ExoplanetSystem,
+  M33X7BinarySystem,
+  SDoradusHypergiant,
+  SMCX1PulsarSystem,
+} from './galaxy/ExtragalacticObjects';
 
-// Andromeda Galaxy 3D Spiral Disc (Size 12,000)
-const AndromedaGalaxyModel: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  onSelect: () => void;
-  language: 'en' | 'ar';
-  glowTexture?: THREE.CanvasTexture;
-}> = ({ body, isSelected, onSelect, language, glowTexture }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  const [pointsPositions, pointsColors] = useMemo(() => {
-    const count = 8000;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const arms = 2;
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const r = Math.pow(Math.random(), 1.5) * body.size;
-      const angle = (i % arms) * Math.PI + (r / body.size) * Math.PI * 2.8;
-      const scatterX = (Math.random() - 0.5) * 0.28 * r;
-      const scatterY = (Math.random() - 0.5) * 0.08 * r;
-      const scatterZ = (Math.random() - 0.5) * 0.28 * r;
-
-      pos[i3] = Math.cos(angle) * r + scatterX;
-      pos[i3 + 1] = scatterY;
-      pos[i3 + 2] = Math.sin(angle) * r + scatterZ;
-
-      const c = new THREE.Color();
-      c.lerpColors(new THREE.Color('#fef08a'), new THREE.Color('#60a5fa'), r / body.size);
-      col[i3] = c.r;
-      col[i3 + 1] = c.g;
-      col[i3 + 2] = c.b;
-    }
-    return [pos, col];
-  }, [body.size]);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.006;
-    }
-  });
-
-  useEffect(() => {
-    if (groupRef.current) {
-      registerCelestialObject('andromeda_galaxy', groupRef.current);
-    }
-    return () => unregisterCelestialObject('andromeda_galaxy');
-  }, []);
-
-  return (
-    <group
-      ref={groupRef}
-      position={body.position}
-      rotation={[Math.PI / 4, 0, Math.PI / 6]}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#60a5fa" intensity={4.0} distance={body.size * 3} />
-
-      {/* Central Galactic Bulge */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.18, 24, 24]} />
-        <meshBasicMaterial color="#fef08a" />
-      </mesh>
-
-      {/* Particle Spiral Disc with circular glow */}
-      <points>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[pointsPositions, 3]} />
-          <bufferAttribute attach="attributes-color" args={[pointsColors, 3]} />
-        </bufferGeometry>
-        <pointsMaterial
-          size={body.size * 0.015}
-          map={glowTexture}
-          vertexColors
-          transparent
-          opacity={0.82}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </points>
-
-      {/* Tag */}
-      {(hovered || isSelected) && (
-        <Html position={[0, body.size * 0.45, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/90 border border-blue-400 text-xs font-bold text-blue-200 whitespace-nowrap shadow-xl">
-            🌀 {language === 'ar' ? body.nameAr : body.nameEn} (1T Stars)
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
-
-// Triangulum Galaxy M33 (Size 6,500)
-const TriangulumGalaxyModel: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  onSelect: () => void;
-  language: 'en' | 'ar';
-  glowTexture?: THREE.CanvasTexture;
-}> = ({ body, isSelected, onSelect, language, glowTexture }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (groupRef.current) {
-      registerCelestialObject('triangulum_galaxy', groupRef.current);
-    }
-    return () => unregisterCelestialObject('triangulum_galaxy');
-  }, []);
-
-  const [pointsPositions, pointsColors] = useMemo(() => {
-    const count = 4500;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const r = Math.pow(Math.random(), 1.4) * body.size;
-      const angle = (i % 3) * ((Math.PI * 2) / 3) + (r / body.size) * Math.PI * 2.2;
-      const scatterX = (Math.random() - 0.5) * 0.3 * r;
-      const scatterY = (Math.random() - 0.5) * 0.1 * r;
-      const scatterZ = (Math.random() - 0.5) * 0.3 * r;
-
-      pos[i3] = Math.cos(angle) * r + scatterX;
-      pos[i3 + 1] = scatterY;
-      pos[i3 + 2] = Math.sin(angle) * r + scatterZ;
-
-      const c = new THREE.Color();
-      c.lerpColors(new THREE.Color('#e9d5ff'), new THREE.Color('#a855f7'), r / body.size);
-      col[i3] = c.r;
-      col[i3 + 1] = c.g;
-      col[i3 + 2] = c.b;
-    }
-    return [pos, col];
-  }, [body.size]);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.008;
-    }
-  });
-
-  return (
-    <group
-      ref={groupRef}
-      position={body.position}
-      rotation={[-Math.PI / 5, 0, Math.PI / 4]}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <points>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[pointsPositions, 3]} />
-          <bufferAttribute attach="attributes-color" args={[pointsColors, 3]} />
-        </bufferGeometry>
-        <pointsMaterial
-          size={body.size * 0.015}
-          map={glowTexture}
-          vertexColors
-          transparent
-          opacity={0.8}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </points>
-
-      {(hovered || isSelected) && (
-        <Html position={[0, body.size * 0.45, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/90 border border-purple-400 text-xs font-bold text-purple-200 whitespace-nowrap shadow-xl">
-            🌀 {language === 'ar' ? body.nameAr : body.nameEn} (40B Stars)
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
-
-// Large Magellanic Cloud Satellite Dwarf Galaxy (Size 4,500)
-const LMCGalaxyModel: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  onSelect: () => void;
-  language: 'en' | 'ar';
-  glowTexture?: THREE.CanvasTexture;
-}> = ({ body, isSelected, onSelect, language, glowTexture }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (groupRef.current) {
-      registerCelestialObject('large_magellanic_cloud', groupRef.current);
-    }
-    return () => unregisterCelestialObject('large_magellanic_cloud');
-  }, []);
-
-  const [pointsPositions, pointsColors] = useMemo(() => {
-    const count = 3500;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const r = Math.random() * body.size;
-      const theta = Math.random() * Math.PI * 2;
-
-      pos[i3] = Math.cos(theta) * r + (Math.random() - 0.5) * 0.4 * r;
-      pos[i3 + 1] = (Math.random() - 0.5) * 0.3 * r;
-      pos[i3 + 2] = Math.sin(theta) * r + (Math.random() - 0.5) * 0.4 * r;
-
-      const c = new THREE.Color('#fb7185');
-      col[i3] = c.r;
-      col[i3 + 1] = c.g;
-      col[i3 + 2] = c.b;
-    }
-    return [pos, col];
-  }, [body.size]);
-
-  return (
-    <group
-      ref={groupRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <points>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[pointsPositions, 3]} />
-          <bufferAttribute attach="attributes-color" args={[pointsColors, 3]} />
-        </bufferGeometry>
-        <pointsMaterial
-          size={body.size * 0.016}
-          map={glowTexture}
-          vertexColors
-          transparent
-          opacity={0.75}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </points>
-
-      {(hovered || isSelected) && (
-        <Html position={[0, body.size * 0.5, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/90 border border-rose-400 text-xs font-bold text-rose-200 whitespace-nowrap shadow-xl">
-            ✨ {language === 'ar' ? body.nameAr : body.nameEn} (Dwarf Galaxy)
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
+const _scratchVecA = new THREE.Vector3();
 
 // M87* Supermassive Black Hole with 5,000-ly Relativistic Plasma Jet (Size 5,000)
 const M87SupermassiveBlackHole: React.FC<{
@@ -286,172 +29,33 @@ const M87SupermassiveBlackHole: React.FC<{
   onSelect: () => void;
   language: 'en' | 'ar';
 }> = ({ body, isSelected, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-  const jetRef = useRef<THREE.Mesh>(null);
-
-  useEffect(() => {
-    if (rootRef.current) {
-      registerCelestialObject('m87_black_hole', rootRef.current);
-    }
-    return () => unregisterCelestialObject('m87_black_hole');
-  }, []);
-
-  useFrame((_, delta) => {
-    if (jetRef.current) {
-      jetRef.current.rotation.y += delta * 0.6;
-    }
-  });
-
-  const jetHeight = body.size * 3.6;
-  const jetRadius = body.size * 0.28;
-
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
+    <RealisticBlackHole
+      body={body}
+      shadowRadius={body.size * 0.45}
+      innerDiskRadius={body.size * 0.52}
+      outerDiskRadius={body.size * 1.55}
+      colorCore="#ffedd5"
+      colorMid="#ea580c"
+      colorOuter="#431407"
+      accretionTilt={[-Math.PI / 4, Math.PI / 6, 0]}
+      spinSpeed={1.0}
+      dopplerStrength={1.35}
+      hasLensingHalo={true}
+      hasJet={true}
+      jetProps={{
+        length: body.size * 5.2,
+        radius: body.size * 0.38,
+        color: '#38bdf8',
+        knotColor: '#ffffff',
+        speed: 1.5,
+        knotFrequency: 3.5,
+        tilt: [Math.PI / 4, Math.PI / 4, 0],
       }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#fb923c" intensity={5.0} distance={body.size * 6} />
-
-      {/* Event Horizon Shadow */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.45, 32, 32]} />
-        <meshBasicMaterial color="#000000" />
-      </mesh>
-
-      {/* Accretion Ring */}
-      <mesh rotation={[-Math.PI / 4, 0, 0]}>
-        <ringGeometry args={[body.size * 0.48, body.size * 1.35, 48]} />
-        <meshStandardMaterial
-          color="#ea580c"
-          emissive="#f97316"
-          emissiveIntensity={2.4}
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
-
-      {/* Relativistic Plasma Jet (5,000 light-year synchroton blast) */}
-      <group rotation={[Math.PI / 4, Math.PI / 4, 0]}>
-        <mesh ref={jetRef} position={[0, jetHeight * 0.5, 0]}>
-          <cylinderGeometry args={[jetRadius * 0.15, jetRadius, jetHeight, 20, 1, true]} />
-          <meshBasicMaterial
-            color="#38bdf8"
-            transparent
-            opacity={0.7}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-      </group>
-
-      {/* Tag */}
-      {(hovered || isSelected) && (
-        <Html position={[0, body.size * 0.6, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-orange-500 shadow-2xl text-xs font-bold text-orange-200 whitespace-nowrap">
-            🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (6.5B M☉ EHT First Image)
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
-
-// R136a1 Hypermassive Monster Star (Most massive star known, inside LMC Tarantula Nebula)
-const R136a1Star: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  isHighlighted: boolean;
-  onSelect: () => void;
-  language: 'en' | 'ar';
-}> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
-  const rootRef = useRef<THREE.Group>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
-  const windRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
-    return () => unregisterCelestialObject(body.id);
-  }, [body.id]);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    if (coreRef.current) {
-      coreRef.current.rotation.y = t * 0.05;
-      const pulse = 1.0 + Math.sin(t * 2.0) * 0.03;
-      coreRef.current.scale.set(pulse, pulse, pulse);
-    }
-    if (windRef.current) {
-      windRef.current.rotation.z = -t * 0.03;
-      const windPulse = 1.1 + Math.sin(t * 1.2) * 0.05;
-      windRef.current.scale.set(windPulse, windPulse, windPulse);
-    }
-  });
-
-  return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#60a5fa" intensity={10.0} distance={body.size * 10} />
-
-      {/* Blinding Blue-White Wolf-Rayet Core */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[body.size, 32, 32]} />
-        <meshStandardMaterial
-          color="#93c5fd"
-          emissive="#3b82f6"
-          emissiveIntensity={1.2}
-          roughness={0.2}
-        />
-      </mesh>
-
-      {/* Extreme Ultraviolet Stellar Wind Halo */}
-      <mesh ref={windRef}>
-        <sphereGeometry args={[body.size * 1.3, 24, 24]} />
-        <meshBasicMaterial
-          color="#60a5fa"
-          transparent
-          opacity={0.3}
-          side={THREE.BackSide}
-          wireframe
-        />
-      </mesh>
-
-      {(isSelected || isHighlighted) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 1.5, 36]} />
-          <meshBasicMaterial
-            color={isHighlighted ? '#fbbf24' : '#38bdf8'}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      )}
-
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 45, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3.5 py-1.5 rounded-full bg-blue-950/95 border-2 border-blue-400 text-xs font-black text-blue-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5">
-            🔥 {language === 'ar' ? body.nameAr : body.nameEn} (200 M☉)
-          </div>
-        </Html>
-      )}
-    </group>
+      isSelected={isSelected}
+      onSelect={onSelect}
+      language={language}
+    />
   );
 };
 
@@ -462,81 +66,343 @@ export const ExtragalacticScene: React.FC = () => {
   const highlightedCosmicElementNum = useQuantumStore((s) => s.highlightedCosmicElementNum);
 
   const [glowTexture, setGlowTexture] = useState<THREE.CanvasTexture | undefined>(undefined);
-  const [visible, setVisible] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
+
+  // Hierarchical LoD: Internal galaxy subsystems are culled when viewing macro Extragalactic scale
+  const andromedaInternalsRef = useRef<THREE.Group>(null);
+  const triangulumInternalsRef = useRef<THREE.Group>(null);
+  const lmcInternalsRef = useRef<THREE.Group>(null);
+  const smcInternalsRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
     setGlowTexture(getGlowPointTexture());
   }, []);
 
-  const isHighlighted = (body: CelestialBody) =>
+  const isHighlighted = (body?: CelestialBody) =>
+    body !== undefined &&
     highlightedCosmicElementNum !== null &&
     body.primaryElements.some((e) => e.atomicNumber === highlightedCosmicElementNum);
 
   useFrame(() => {
-    const dist = camera.position.length();
-    const isExtragalacticSelected = !!selectedCosmicBodyId && [
-      'andromeda_galaxy',
-      'triangulum_galaxy',
-      'large_magellanic_cloud',
-      'm87_black_hole',
-      'r136a1',
-    ].includes(selectedCosmicBodyId);
-    const shouldShow = dist > 3000 || isExtragalacticSelected;
-    if (shouldShow !== visible) {
-      setVisible(shouldShow);
+    if (andromedaInternalsRef.current) {
+      const isSelected = !!selectedCosmicBodyId && [
+        'andromeda_core_black_hole',
+        'hubble_v1_star',
+        'mayall_ii_cluster',
+        'pa_99_n2_star',
+        'pa_99_n2_planet',
+      ].includes(selectedCosmicBodyId);
+      _scratchVecA.set(75000, 18000, -60000);
+      andromedaInternalsRef.current.visible = isSelected || camera.position.distanceTo(_scratchVecA) < 45000;
+    }
+
+    if (triangulumInternalsRef.current) {
+      const isSelected = !!selectedCosmicBodyId && [
+        'ngc_604_nebula',
+        'm33_x7_star',
+        'm33_x7_black_hole',
+      ].includes(selectedCosmicBodyId);
+      _scratchVecA.set(-45000, 12000, 42000);
+      triangulumInternalsRef.current.visible = isSelected || camera.position.distanceTo(_scratchVecA) < 30000;
+    }
+
+    if (lmcInternalsRef.current) {
+      const isSelected = !!selectedCosmicBodyId && [
+        'tarantula_nebula',
+        'r136a1',
+        's_doradus',
+        'sn_1987a',
+      ].includes(selectedCosmicBodyId);
+      _scratchVecA.set(-24000, -22000, 18000);
+      lmcInternalsRef.current.visible = isSelected || camera.position.distanceTo(_scratchVecA) < 26000;
+    }
+
+    if (smcInternalsRef.current) {
+      const isSelected = !!selectedCosmicBodyId && [
+        'ngc_346_nebula',
+        'smc_x1_star',
+        'smc_x1_pulsar',
+      ].includes(selectedCosmicBodyId);
+      _scratchVecA.set(-30000, -32000, 28000);
+      smcInternalsRef.current.visible = isSelected || camera.position.distanceTo(_scratchVecA) < 22000;
     }
   });
 
-  if (!visible) return null;
-
   return (
-    <group>
-      {/* Andromeda Galaxy */}
-      <AndromedaGalaxyModel
-        body={CELESTIAL_BODIES.andromeda_galaxy}
-        isSelected={selectedCosmicBodyId === 'andromeda_galaxy'}
-        onSelect={() => setSelectedCosmicBodyId('andromeda_galaxy')}
-        language={language}
-        glowTexture={glowTexture}
-      />
-
-      {/* Triangulum Galaxy */}
-      <TriangulumGalaxyModel
-        body={CELESTIAL_BODIES.triangulum_galaxy}
-        isSelected={selectedCosmicBodyId === 'triangulum_galaxy'}
-        onSelect={() => setSelectedCosmicBodyId('triangulum_galaxy')}
-        language={language}
-        glowTexture={glowTexture}
-      />
-
-      {/* Large Magellanic Cloud */}
-      <LMCGalaxyModel
-        body={CELESTIAL_BODIES.large_magellanic_cloud}
-        isSelected={selectedCosmicBodyId === 'large_magellanic_cloud'}
-        onSelect={() => setSelectedCosmicBodyId('large_magellanic_cloud')}
-        language={language}
-        glowTexture={glowTexture}
-      />
-
-      {/* R136a1 Monster Star in LMC Tarantula Nebula */}
-      {CELESTIAL_BODIES.r136a1 && (
-        <R136a1Star
-          body={CELESTIAL_BODIES.r136a1}
-          isSelected={selectedCosmicBodyId === 'r136a1'}
-          isHighlighted={isHighlighted(CELESTIAL_BODIES.r136a1)}
-          onSelect={() => setSelectedCosmicBodyId('r136a1')}
+    <group ref={groupRef}>
+      {/* ==================================================== */}
+      {/* 1. ANDROMEDA GALAXY (M31) & INTERNAL SYSTEMS */}
+      {/* ==================================================== */}
+      {CELESTIAL_BODIES.andromeda_galaxy && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.andromeda_galaxy}
+          morphology="spiral"
+          isSelected={selectedCosmicBodyId === 'andromeda_galaxy'}
+          onSelect={() => setSelectedCosmicBodyId('andromeda_galaxy')}
           language={language}
+          icon="🌀"
+          badgeLabel="1 Trillion Stars"
+          glowTexture={glowTexture}
         />
       )}
 
-      {/* M87* Supermassive Black Hole */}
-      <M87SupermassiveBlackHole
-        body={CELESTIAL_BODIES.m87_black_hole}
-        isSelected={selectedCosmicBodyId === 'm87_black_hole'}
-        onSelect={() => setSelectedCosmicBodyId('m87_black_hole')}
-        language={language}
-      />
+      {/* Andromeda Internal Sub-Systems (LoD Culling: only visible when proximity < 45000 or entity selected) */}
+      <group ref={andromedaInternalsRef} visible={false}>
+        {/* M31* Core Supermassive Black Hole & Double Nucleus */}
+        {CELESTIAL_BODIES.andromeda_core_black_hole && (
+          <M31CoreBlackHoleSystem
+            body={CELESTIAL_BODIES.andromeda_core_black_hole}
+            isSelected={selectedCosmicBodyId === 'andromeda_core_black_hole'}
+            onSelect={() => setSelectedCosmicBodyId('andromeda_core_black_hole')}
+            language={language}
+          />
+        )}
+
+        {/* Hubble's Variable V1 (Historic Cepheid) */}
+        {CELESTIAL_BODIES.hubble_v1_star && (
+          <HubbleV1Cepheid
+            body={CELESTIAL_BODIES.hubble_v1_star}
+            isSelected={selectedCosmicBodyId === 'hubble_v1_star'}
+            onSelect={() => setSelectedCosmicBodyId('hubble_v1_star')}
+            language={language}
+          />
+        )}
+
+        {/* Mayall II (G1 - Titan Globular Cluster) */}
+        {CELESTIAL_BODIES.mayall_ii_cluster && (
+          <MayallIIGlobularCluster
+            body={CELESTIAL_BODIES.mayall_ii_cluster}
+            isSelected={selectedCosmicBodyId === 'mayall_ii_cluster'}
+            onSelect={() => setSelectedCosmicBodyId('mayall_ii_cluster')}
+            language={language}
+          />
+        )}
+
+        {/* PA-99-N2 Extragalactic Exoplanet & Red Giant Star */}
+        {CELESTIAL_BODIES.pa_99_n2_star && CELESTIAL_BODIES.pa_99_n2_planet && (
+          <PA99N2ExoplanetSystem
+            star={CELESTIAL_BODIES.pa_99_n2_star}
+            planet={CELESTIAL_BODIES.pa_99_n2_planet}
+            selectedId={selectedCosmicBodyId}
+            onSelect={(id) => setSelectedCosmicBodyId(id)}
+            language={language}
+          />
+        )}
+      </group>
+
+      {/* ==================================================== */}
+      {/* 2. TRIANGULUM GALAXY (M33) & INTERNAL SYSTEMS */}
+      {/* ==================================================== */}
+      {CELESTIAL_BODIES.triangulum_galaxy && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.triangulum_galaxy}
+          morphology="flocculent"
+          isSelected={selectedCosmicBodyId === 'triangulum_galaxy'}
+          onSelect={() => setSelectedCosmicBodyId('triangulum_galaxy')}
+          language={language}
+          icon="🌀"
+          badgeLabel="40 Billion Stars"
+          glowTexture={glowTexture}
+        />
+      )}
+
+      {/* Triangulum Internal Sub-Systems (LoD Culling: proximity < 30000 or selected) */}
+      <group ref={triangulumInternalsRef} visible={false}>
+        {/* NGC 604 Giant Starburst Nursery */}
+        {CELESTIAL_BODIES.ngc_604_nebula && (
+          <RealisticNebula
+            body={CELESTIAL_BODIES.ngc_604_nebula}
+            isSelected={selectedCosmicBodyId === 'ngc_604_nebula'}
+            isHighlighted={isHighlighted(CELESTIAL_BODIES.ngc_604_nebula)}
+            onSelect={() => setSelectedCosmicBodyId('ngc_604_nebula')}
+            language={language}
+            icon="✨"
+          />
+        )}
+
+        {/* M33 X-7 Black Hole & Blue Supergiant Binary */}
+        {CELESTIAL_BODIES.m33_x7_star && CELESTIAL_BODIES.m33_x7_black_hole && (
+          <M33X7BinarySystem
+            star={CELESTIAL_BODIES.m33_x7_star}
+            blackHole={CELESTIAL_BODIES.m33_x7_black_hole}
+            selectedId={selectedCosmicBodyId}
+            onSelect={(id) => setSelectedCosmicBodyId(id)}
+            language={language}
+          />
+        )}
+      </group>
+
+      {/* ==================================================== */}
+      {/* 3. LARGE MAGELLANIC CLOUD (LMC) & INTERNAL SYSTEMS */}
+      {/* ==================================================== */}
+      {CELESTIAL_BODIES.large_magellanic_cloud && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.large_magellanic_cloud}
+          morphology="dwarf_irregular"
+          isSelected={selectedCosmicBodyId === 'large_magellanic_cloud'}
+          onSelect={() => setSelectedCosmicBodyId('large_magellanic_cloud')}
+          language={language}
+          icon="✨"
+          badgeLabel="Satellite Dwarf"
+          glowTexture={glowTexture}
+        />
+      )}
+
+      {/* LMC Internal Sub-Systems (LoD Culling: proximity < 26000 or selected) */}
+      <group ref={lmcInternalsRef} visible={false}>
+        {/* Tarantula Nebula (30 Doradus) */}
+        {CELESTIAL_BODIES.tarantula_nebula && (
+          <RealisticNebula
+            body={CELESTIAL_BODIES.tarantula_nebula}
+            isSelected={selectedCosmicBodyId === 'tarantula_nebula'}
+            isHighlighted={isHighlighted(CELESTIAL_BODIES.tarantula_nebula)}
+            onSelect={() => setSelectedCosmicBodyId('tarantula_nebula')}
+            language={language}
+            icon="🕷️"
+          />
+        )}
+
+        {/* R136a1 Hypermassive Monster Star (Inside Tarantula Nebula) */}
+        {CELESTIAL_BODIES.r136a1 && (
+          <group
+            position={CELESTIAL_BODIES.r136a1.position}
+            onClick={(e) => {
+              if (e.delta && e.delta > 5) return;
+              e.stopPropagation();
+              setSelectedCosmicBodyId('r136a1');
+            }}
+          >
+            <pointLight color="#60a5fa" intensity={8.0} distance={CELESTIAL_BODIES.r136a1.size * 8} />
+            <mesh>
+              <sphereGeometry args={[CELESTIAL_BODIES.r136a1.size, 32, 32]} />
+              <meshStandardMaterial
+                color="#93c5fd"
+                emissive="#3b82f6"
+                emissiveIntensity={1.5}
+                roughness={0.2}
+              />
+            </mesh>
+            <mesh>
+              <sphereGeometry args={[CELESTIAL_BODIES.r136a1.size * 1.35, 24, 24]} />
+              <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} wireframe />
+            </mesh>
+            {selectedCosmicBodyId === 'r136a1' && (
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry
+                  args={[CELESTIAL_BODIES.r136a1.size * 1.4, CELESTIAL_BODIES.r136a1.size * 1.55, 36]}
+                />
+                <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+              </mesh>
+            )}
+          </group>
+        )}
+
+        {/* S Doradus Prototype LBV Hypergiant */}
+        {CELESTIAL_BODIES.s_doradus && (
+          <SDoradusHypergiant
+            body={CELESTIAL_BODIES.s_doradus}
+            isSelected={selectedCosmicBodyId === 's_doradus'}
+            onSelect={() => setSelectedCosmicBodyId('s_doradus')}
+            language={language}
+          />
+        )}
+
+        {/* Supernova 1987A (Circumstellar Pearl Collision Ring in LMC) */}
+        {CELESTIAL_BODIES.sn_1987a && (
+          <RealisticSupernova
+            body={CELESTIAL_BODIES.sn_1987a}
+            isSelected={selectedCosmicBodyId === 'sn_1987a'}
+            isHighlighted={isHighlighted(CELESTIAL_BODIES.sn_1987a)}
+            onSelect={() => setSelectedCosmicBodyId('sn_1987a')}
+            language={language}
+            icon="💥"
+          />
+        )}
+      </group>
+
+      {/* ==================================================== */}
+      {/* 4. SMALL MAGELLANIC CLOUD (SMC) & INTERNAL SYSTEMS */}
+      {/* ==================================================== */}
+      {CELESTIAL_BODIES.small_magellanic_cloud && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.small_magellanic_cloud}
+          morphology="dwarf_irregular"
+          isSelected={selectedCosmicBodyId === 'small_magellanic_cloud'}
+          onSelect={() => setSelectedCosmicBodyId('small_magellanic_cloud')}
+          language={language}
+          icon="✨"
+          badgeLabel="SMC Dwarf"
+          glowTexture={glowTexture}
+        />
+      )}
+
+      {/* SMC Internal Sub-Systems (LoD Culling: proximity < 22000 or selected) */}
+      <group ref={smcInternalsRef} visible={false}>
+        {/* NGC 346 Starburst Nursery */}
+        {CELESTIAL_BODIES.ngc_346_nebula && (
+          <RealisticNebula
+            body={CELESTIAL_BODIES.ngc_346_nebula}
+            isSelected={selectedCosmicBodyId === 'ngc_346_nebula'}
+            isHighlighted={isHighlighted(CELESTIAL_BODIES.ngc_346_nebula)}
+            onSelect={() => setSelectedCosmicBodyId('ngc_346_nebula')}
+            language={language}
+            icon="🌟"
+          />
+        )}
+
+        {/* SMC X-1 High-Mass X-Ray Pulsar Binary */}
+        {CELESTIAL_BODIES.smc_x1_star && CELESTIAL_BODIES.smc_x1_pulsar && (
+          <SMCX1PulsarSystem
+            star={CELESTIAL_BODIES.smc_x1_star}
+            pulsar={CELESTIAL_BODIES.smc_x1_pulsar}
+            selectedId={selectedCosmicBodyId}
+            onSelect={(id) => setSelectedCosmicBodyId(id)}
+            language={language}
+          />
+        )}
+      </group>
+
+      {/* ==================================================== */}
+      {/* 5. NEAR ACTIVE & STARBURST GALAXIES */}
+      {/* ==================================================== */}
+      {/* Centaurus A (NGC 5128 Active Galaxy with 1M-ly Jets) */}
+      {CELESTIAL_BODIES.centaurus_a && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.centaurus_a}
+          morphology="active_elliptical"
+          isSelected={selectedCosmicBodyId === 'centaurus_a'}
+          onSelect={() => setSelectedCosmicBodyId('centaurus_a')}
+          language={language}
+          icon="⚡"
+          badgeLabel="1M-ly Jets"
+          glowTexture={glowTexture}
+        />
+      )}
+
+      {/* Messier 82 (Cigar Galaxy - Superwind Starburst Chimneys) */}
+      {CELESTIAL_BODIES.messier_82 && (
+        <RealisticGalaxy
+          body={CELESTIAL_BODIES.messier_82}
+          morphology="starburst"
+          isSelected={selectedCosmicBodyId === 'messier_82'}
+          onSelect={() => setSelectedCosmicBodyId('messier_82')}
+          language={language}
+          icon="🔥"
+          badgeLabel="Starburst Superwinds"
+          glowTexture={glowTexture}
+        />
+      )}
+
+      {/* M87* Supermassive Black Hole & 5,000-ly Jet */}
+      {CELESTIAL_BODIES.m87_black_hole && (
+        <M87SupermassiveBlackHole
+          body={CELESTIAL_BODIES.m87_black_hole}
+          isSelected={selectedCosmicBodyId === 'm87_black_hole'}
+          onSelect={() => setSelectedCosmicBodyId('m87_black_hole')}
+          language={language}
+        />
+      )}
     </group>
   );
 };
