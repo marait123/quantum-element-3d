@@ -370,56 +370,605 @@ const CygnusX1BlackHole: React.FC<{
   );
 };
 
-// Proxima Centauri Red Dwarf
-const ProximaCentauriStar: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  isHighlighted: boolean;
-  onSelect: () => void;
+// Proxima Centauri System with Habitable Planet b
+const ProximaCentauriSystem: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
   language: 'en' | 'ar';
-}> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-  const starRef = useRef<THREE.Mesh>(null);
+  const planetOrbitRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(0);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
 
   useEffect(() => {
-    if (rootRef.current) registerCelestialObject('proxima_centauri', rootRef.current);
-    return () => unregisterCelestialObject('proxima_centauri');
-  }, []);
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starRef.current) starRef.current.rotation.y += delta * 0.1;
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.1;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.04) * delta * 60;
+      const r = planet.orbitalRadius || 14.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.5;
+    }
   });
 
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
   return (
-    <group
-      ref={rootRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color="#f87171" intensity={3.0} distance={body.size * 10} />
-      <mesh ref={starRef}>
-        <sphereGeometry args={[body.size, 28, 28]} />
-        <meshBasicMaterial color="#ef4444" />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[body.size * 1.25, 20, 20]} />
-        <meshBasicMaterial color="#fca5a5" transparent opacity={0.25} side={THREE.BackSide} />
+    <group ref={rootRef} position={star.position}>
+      {/* Red Dwarf Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#f87171" intensity={3.0} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.25, 20, 20]} />
+          <meshBasicMaterial color="#fca5a5" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 6, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-rose-950/90 border border-rose-500 text-xs font-semibold text-rose-200 whitespace-nowrap shadow-md">
+              🔴 {language === 'ar' ? star.nameAr : star.nameEn} (4.24 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Line */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 14) - 0.06, (planet.orbitalRadius || 14) + 0.06, 64]} />
+        <meshBasicMaterial color="#f43f5e" transparent opacity={0.2} side={THREE.DoubleSide} />
       </mesh>
 
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 6, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-2.5 py-0.5 rounded-full bg-rose-950/90 border border-rose-500 text-xs font-semibold text-rose-200 whitespace-nowrap shadow-md">
-            🔴 {language === 'ar' ? body.nameAr : body.nameEn} (M-Dwarf 4.24 ly)
-          </div>
-        </Html>
-      )}
+      {/* Planet b (Habitable Zone Terrestrial World) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 14, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 24, 24]} />
+          <meshStandardMaterial color="#d97706" roughness={0.7} metalness={0.2} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.4, planet.size * 1.6, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 2.5, 0]} center distanceFactor={18}>
+            <div className="px-2 py-0.5 rounded-full bg-slate-950/90 border border-amber-400 text-[10px] font-bold text-amber-200 whitespace-nowrap shadow-lg">
+              🪐 {language === 'ar' ? planet.nameAr : planet.nameEn} (Habitable Zone)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// 55 Cancri Binary & Diamond World System (55 Cancri e / Janssen)
+const Cancri55System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(0.8);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame(({ clock }, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.055) * delta * 60;
+      const r = planet.orbitalRadius || 28.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.4;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* 55 Cancri A (Yellow Dwarf Host) */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#fde047" intensity={4.5} distance={star.size * 12} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 32, 32]} />
+          <meshBasicMaterial color="#fef08a" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.2, 24, 24]} />
+          <meshBasicMaterial color="#fde047" transparent opacity={0.3} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 8, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-amber-950/90 border border-amber-400 text-xs font-bold text-amber-200 whitespace-nowrap shadow-xl">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (41 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Path */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 28) - 0.1, (planet.orbitalRadius || 28) + 0.1, 80]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.25} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* 55 Cancri e (The Diamond Planet) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 28, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Diamond Crystalline Surface with Glowing Magma Crevasses */}
+        <mesh>
+          <icosahedronGeometry args={[planet.size, 3]} />
+          <meshStandardMaterial
+            color="#38bdf8"
+            emissive="#0284c7"
+            emissiveIntensity={0.35}
+            roughness={0.15}
+            metalness={0.9}
+            flatShading
+          />
+        </mesh>
+
+        {/* Diamond Refraction Aura */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.15, 16, 16]} />
+          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.3} wireframe />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.5, planet.size * 1.8, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 3.5, 0]} center distanceFactor={25}>
+            <div className="px-3 py-1 rounded-full bg-sky-950/95 border border-sky-400 text-xs font-bold text-sky-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5">
+              💎 {language === 'ar' ? planet.nameAr : planet.nameEn}
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// TRAPPIST-1 Multi-Planet System (TRAPPIST-1e Habitable Earth Analog)
+const Trappist1System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(1.4);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.08;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.048) * delta * 60;
+      const r = planet.orbitalRadius || 16.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.6;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Crimson Ultra-Cool Dwarf */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#ef4444" intensity={3.2} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#dc2626" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.25, 20, 20]} />
+          <meshBasicMaterial color="#f87171" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 6, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-red-950/90 border border-red-500 text-xs font-semibold text-red-200 whitespace-nowrap shadow-md">
+              🔴 {language === 'ar' ? star.nameAr : star.nameEn} (39.5 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 16) - 0.08, (planet.orbitalRadius || 16) + 0.08, 64]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* TRAPPIST-1e (Habitable Ocean & Rust Terrestrial World) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 16, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 24, 24]} />
+          <meshStandardMaterial color="#0284c7" roughness={0.5} metalness={0.3} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.4, planet.size * 1.6, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 2.5, 0]} center distanceFactor={18}>
+            <div className="px-2 py-0.5 rounded-full bg-slate-950/90 border border-sky-400 text-[10px] font-bold text-sky-200 whitespace-nowrap shadow-lg">
+              🌊 {language === 'ar' ? planet.nameAr : planet.nameEn} (Ocean Habitable)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// K2-18 System (K2-18b Hycean Ocean Candidate)
+const K218System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(2.1);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.06;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.042) * delta * 60;
+      const r = planet.orbitalRadius || 26.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.35;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* K2-18 Red Dwarf */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#ea580c" intensity={3.5} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#ea580c" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.22, 20, 20]} />
+          <meshBasicMaterial color="#f97316" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 7, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-orange-950/90 border border-orange-500 text-xs font-semibold text-orange-200 whitespace-nowrap shadow-md">
+              🔴 {language === 'ar' ? star.nameAr : star.nameEn} (124 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 26) - 0.08, (planet.orbitalRadius || 26) + 0.08, 72]} />
+        <meshBasicMaterial color="#06b6d4" transparent opacity={0.25} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* K2-18b (Hycean Ocean Candidate with Hydrogen/CH4 Atmosphere) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 26, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Ocean Core */}
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#06b6d4" roughness={0.3} metalness={0.1} />
+        </mesh>
+
+        {/* Thick Hydrogen & Methane Atmosphere Layer */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.12, 24, 24]} />
+          <meshStandardMaterial color="#a5f3fc" transparent opacity={0.4} roughness={0.9} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.5, planet.size * 1.7, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 3.0, 0]} center distanceFactor={22}>
+            <div className="px-3 py-1 rounded-full bg-cyan-950/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
+              🌊 {language === 'ar' ? planet.nameAr : planet.nameEn} (Hycean Candidate)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// HD 189733 System (Cobalt Blue Glass-Rain Hot Jupiter)
+const HD189733System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(3.0);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.052) * delta * 60;
+      const r = planet.orbitalRadius || 24.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* K-type Orange Dwarf */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#fb923c" intensity={4.0} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#fb923c" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.2, 20, 20]} />
+          <meshBasicMaterial color="#fdba74" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 7, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-orange-950/90 border border-orange-400 text-xs font-semibold text-orange-200 whitespace-nowrap shadow-md">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (64.5 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 24) - 0.08, (planet.orbitalRadius || 24) + 0.08, 64]} />
+        <meshBasicMaterial color="#3b82f6" transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* HD 189733 b (Cobalt Blue Glass Rain Giant) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 24, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#1d4ed8" roughness={0.35} metalness={0.4} />
+        </mesh>
+
+        {/* Silicate Wind Band Streak */}
+        <mesh rotation={[0.4, 0, 0]}>
+          <torusGeometry args={[planet.size * 1.05, 0.08, 12, 32]} />
+          <meshBasicMaterial color="#93c5fd" transparent opacity={0.6} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 3.2, 0]} center distanceFactor={22}>
+            <div className="px-3 py-1 rounded-full bg-blue-950/95 border border-blue-400 text-xs font-bold text-blue-200 whitespace-nowrap shadow-xl">
+              🌧️ {language === 'ar' ? planet.nameAr : planet.nameEn} (Glass Rain)
+            </div>
+          </Html>
+        )}
+      </group>
     </group>
   );
 };
@@ -473,14 +1022,65 @@ export const StellarNeighborhoodScene: React.FC = () => {
         language={language}
       />
 
-      {/* Proxima Centauri */}
-      <ProximaCentauriStar
-        body={CELESTIAL_BODIES.proxima_centauri}
-        isSelected={selectedCosmicBodyId === 'proxima_centauri'}
-        isHighlighted={isHighlighted(CELESTIAL_BODIES.proxima_centauri)}
-        onSelect={() => setSelectedCosmicBodyId('proxima_centauri')}
-        language={language}
-      />
+      {/* Proxima Centauri System with Habitable Planet b */}
+      {CELESTIAL_BODIES.proxima_centauri && CELESTIAL_BODIES.proxima_centauri_b && (
+        <ProximaCentauriSystem
+          star={CELESTIAL_BODIES.proxima_centauri}
+          planet={CELESTIAL_BODIES.proxima_centauri_b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* 55 Cancri System with The Diamond Planet (Janssen) */}
+      {CELESTIAL_BODIES.cancri_55_a && CELESTIAL_BODIES.cancri_55_e && (
+        <Cancri55System
+          star={CELESTIAL_BODIES.cancri_55_a}
+          planet={CELESTIAL_BODIES.cancri_55_e}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* TRAPPIST-1 System with Earth-analog Planet 1e */}
+      {CELESTIAL_BODIES.trappist_1 && CELESTIAL_BODIES.trappist_1e && (
+        <Trappist1System
+          star={CELESTIAL_BODIES.trappist_1}
+          planet={CELESTIAL_BODIES.trappist_1e}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* K2-18 System with Hycean Ocean Candidate K2-18b */}
+      {CELESTIAL_BODIES.k2_18 && CELESTIAL_BODIES.k2_18b && (
+        <K218System
+          star={CELESTIAL_BODIES.k2_18}
+          planet={CELESTIAL_BODIES.k2_18b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* HD 189733 System with Glass-Rain Cobalt Blue Planet */}
+      {CELESTIAL_BODIES.hd_189733 && CELESTIAL_BODIES.hd_189733_b && (
+        <HD189733System
+          star={CELESTIAL_BODIES.hd_189733}
+          planet={CELESTIAL_BODIES.hd_189733_b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
     </group>
   );
 };

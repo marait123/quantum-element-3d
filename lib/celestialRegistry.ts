@@ -21,6 +21,7 @@ const _tempVec = new THREE.Vector3();
 export function getCelestialWorldPosition(id: string, out: THREE.Vector3): boolean {
   const obj = registry.get(id);
   if (!obj) return false;
+  obj.updateWorldMatrix(true, false);
   obj.getWorldPosition(out);
   return true;
 }
@@ -68,6 +69,32 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   laniakea_supercluster: { elevation: 0.4, lateralAngle: 0 },
   bootes_void: { elevation: 0.4, lateralAngle: 0 },
   cmb_sphere: { elevation: 0.35, lateralAngle: 0 },
+
+  // Exoplanetary Systems & Diamond Worlds (Scale 2)
+  proxima_centauri_b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  cancri_55_a: { elevation: 0.3, lateralAngle: 0 },
+  cancri_55_e: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+  trappist_1: { elevation: 0.3, lateralAngle: 0 },
+  trappist_1e: { elevation: 0.3, lateralAngle: Math.PI * 0.25 },
+  k2_18: { elevation: 0.3, lateralAngle: 0 },
+  k2_18b: { elevation: 0.34, lateralAngle: Math.PI * 0.25 },
+  hd_189733: { elevation: 0.3, lateralAngle: 0 },
+  hd_189733_b: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+
+  // Galactic Exoplanets & Extreme Stars (Scale 3)
+  kepler_22: { elevation: 0.3, lateralAngle: 0 },
+  kepler_22b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  wasp_12: { elevation: 0.3, lateralAngle: 0 },
+  wasp_12b: { elevation: 0.38, lateralAngle: Math.PI * 0.35 },
+  stephenson_2_18: { elevation: 0.35, lateralAngle: 0 },
+  psr_j1719_1438: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
+  psr_j1719_1438_b: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+
+  // Extragalactic Monster Star (Scale 4)
+  r136a1: { elevation: 0.35, lateralAngle: 0 },
+
+  // Ultramassive Quasar (Scale 5)
+  ton_618: { elevation: 0.42, lateralAngle: Math.PI * 0.25 },
 };
 
 /**
@@ -84,6 +111,8 @@ export function calculateFramingDistance(bodyId: string): number {
   // Geometric multiplier to account for external features:
   let margin = 2.4;
   if (bodyId === 'saturn') margin = 4.2; // Massive ring system
+  else if (bodyId === 'ton_618') margin = 3.6; // Incandescent accretion disk & relativistic jets
+  else if (bodyId === 'wasp_12b') margin = 3.2; // Stretched egg shape & tidal streamer
   else if (body.type === 'spacecraft') margin = 3.6; // High-gain dish, RTG & sensor booms
   else if (body.type === 'galaxy') margin = 2.4; // Galactic spiral discs & outer arms
   else if (body.type === 'supercluster' || body.type === 'cosmic_structure') margin = 2.1;

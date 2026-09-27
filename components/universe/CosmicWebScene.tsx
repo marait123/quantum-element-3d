@@ -5,7 +5,7 @@ import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
-import { CELESTIAL_BODIES } from '@/data/universeData';
+import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 
@@ -312,6 +312,102 @@ const LaniakeaFlowModel: React.FC<{
   );
 };
 
+// TON 618 Ultramassive Black Hole & Hyperluminous Quasar (66 Billion Solar Masses)
+const TON618Quasar: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const diskRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
+    return () => unregisterCelestialObject(body.id);
+  }, [body.id]);
+
+  useFrame(({ clock }, delta) => {
+    if (diskRef.current) {
+      diskRef.current.rotation.z += delta * 0.15; // Rapid relativistic accretion disk spin
+    }
+  });
+
+  return (
+    <group
+      ref={rootRef}
+      position={body.position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <pointLight color="#a855f7" intensity={15.0} distance={body.size * 6} />
+
+      {/* Relativistic Accretion Disk (Tilted at 35°) */}
+      <group ref={diskRef} rotation={[-Math.PI / 4, Math.PI / 6, 0]}>
+        {/* Inner Relativistic X-ray Ring */}
+        <mesh>
+          <ringGeometry args={[body.size * 0.95, body.size * 1.5, 64]} />
+          <meshBasicMaterial color="#c084fc" side={THREE.DoubleSide} transparent opacity={0.9} />
+        </mesh>
+        {/* Middle Luminous Optical Synchrotron Ring */}
+        <mesh>
+          <ringGeometry args={[body.size * 1.5, body.size * 2.5, 64]} />
+          <meshBasicMaterial color="#f59e0b" side={THREE.DoubleSide} transparent opacity={0.7} />
+        </mesh>
+        {/* Outer Infrared Torus */}
+        <mesh>
+          <ringGeometry args={[body.size * 2.5, body.size * 3.8, 48]} />
+          <meshBasicMaterial color="#ea580c" side={THREE.DoubleSide} transparent opacity={0.4} />
+        </mesh>
+      </group>
+
+      {/* Event Horizon (Pure Black Singularity) */}
+      <mesh>
+        <sphereGeometry args={[body.size * 0.88, 36, 36]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+
+      {/* Gravitational Lensing / Photon Sphere Rim */}
+      <mesh>
+        <sphereGeometry args={[body.size * 0.94, 24, 24]} />
+        <meshBasicMaterial color="#e9d5ff" transparent opacity={0.5} wireframe />
+      </mesh>
+
+      {/* Twin Collimated Relativistic Plasma Jets (North & South) */}
+      <mesh position={[0, body.size * 2.8, 0]}>
+        <cylinderGeometry args={[body.size * 0.08, body.size * 0.35, body.size * 5, 16]} />
+        <meshBasicMaterial color="#a855f7" transparent opacity={0.65} />
+      </mesh>
+      <mesh position={[0, -body.size * 2.8, 0]} rotation={[Math.PI, 0, 0]}>
+        <cylinderGeometry args={[body.size * 0.08, body.size * 0.35, body.size * 5, 16]} />
+        <meshBasicMaterial color="#a855f7" transparent opacity={0.65} />
+      </mesh>
+
+      {/* Selection Ring */}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 3.9, body.size * 4.2, 48]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {(hovered || isSelected) && (
+        <Html position={[0, body.size * 3.2, 0]} center distanceFactor={body.size * 4}>
+          <div className="px-4 py-2 rounded-full bg-purple-950/95 border-2 border-purple-400 text-sm font-black text-purple-100 whitespace-nowrap shadow-2xl flex items-center gap-2">
+            🕳️ {language === 'ar' ? body.nameAr : body.nameEn} (66B M☉ Quasar)
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
 export const CosmicWebScene: React.FC = () => {
   const { camera } = useThree();
   const [visible, setVisible] = useState(false);
@@ -332,6 +428,7 @@ export const CosmicWebScene: React.FC = () => {
       'laniakea_supercluster',
       'bootes_void',
       'cmb_sphere',
+      'ton_618',
     ].includes(selectedCosmicBodyId);
     const shouldBeVisible = dist > 25000 || isCosmicWebSelected;
     if (shouldBeVisible !== visible) {
@@ -367,6 +464,16 @@ export const CosmicWebScene: React.FC = () => {
         onSelect={() => setSelectedCosmicBodyId('cmb_sphere')}
         language={language}
       />
+
+      {/* TON 618 Ultramassive Black Hole & Quasar */}
+      {CELESTIAL_BODIES.ton_618 && (
+        <TON618Quasar
+          body={CELESTIAL_BODIES.ton_618}
+          isSelected={selectedCosmicBodyId === 'ton_618'}
+          onSelect={() => setSelectedCosmicBodyId('ton_618')}
+          language={language}
+        />
+      )}
     </group>
   );
 };

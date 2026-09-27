@@ -121,10 +121,9 @@ const UniverseCameraManager: React.FC = () => {
         const distToBody = camera.position.distanceTo(currentLivePos);
         const framingDist = calculateFramingDistance(selectedCosmicBodyId);
 
-        // If the user zooms out far enough away from the body, gently break away into free cosmic exploration!
-        if (distToBody > framingDist * 2.2) {
+        // If the user zooms out far enough away from the body, gently pause tracking without clearing selection
+        if (distToBody > framingDist * 5.0) {
           isTrackingRef.current = false;
-          setSelectedCosmicBodyId(null);
         } else {
           const deltaMove = currentLivePos.clone().sub(lastTargetPosRef.current);
           camera.position.add(deltaMove);

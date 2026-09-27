@@ -365,18 +365,113 @@ const M87SupermassiveBlackHole: React.FC<{
   );
 };
 
-export const ExtragalacticScene: React.FC = () => {
-  const { camera } = useThree();
-  const [visible, setVisible] = useState(false);
-  const [glowTexture, setGlowTexture] = useState<THREE.CanvasTexture | undefined>(undefined);
+// R136a1 Hypermassive Monster Star (Most massive star known, inside LMC Tarantula Nebula)
+const R136a1Star: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const windRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
 
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
+    return () => unregisterCelestialObject(body.id);
+  }, [body.id]);
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (coreRef.current) {
+      coreRef.current.rotation.y = t * 0.05;
+      const pulse = 1.0 + Math.sin(t * 2.0) * 0.03;
+      coreRef.current.scale.set(pulse, pulse, pulse);
+    }
+    if (windRef.current) {
+      windRef.current.rotation.z = -t * 0.03;
+      const windPulse = 1.1 + Math.sin(t * 1.2) * 0.05;
+      windRef.current.scale.set(windPulse, windPulse, windPulse);
+    }
+  });
+
+  return (
+    <group
+      ref={rootRef}
+      position={body.position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <pointLight color="#60a5fa" intensity={10.0} distance={body.size * 10} />
+
+      {/* Blinding Blue-White Wolf-Rayet Core */}
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[body.size, 32, 32]} />
+        <meshStandardMaterial
+          color="#93c5fd"
+          emissive="#3b82f6"
+          emissiveIntensity={1.2}
+          roughness={0.2}
+        />
+      </mesh>
+
+      {/* Extreme Ultraviolet Stellar Wind Halo */}
+      <mesh ref={windRef}>
+        <sphereGeometry args={[body.size * 1.3, 24, 24]} />
+        <meshBasicMaterial
+          color="#60a5fa"
+          transparent
+          opacity={0.3}
+          side={THREE.BackSide}
+          wireframe
+        />
+      </mesh>
+
+      {(isSelected || isHighlighted) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 1.35, body.size * 1.5, 36]} />
+          <meshBasicMaterial
+            color={isHighlighted ? '#fbbf24' : '#38bdf8'}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+
+      {(hovered || isSelected || isHighlighted) && (
+        <Html position={[0, body.size + 45, 0]} center distanceFactor={body.size * 5}>
+          <div className="px-3.5 py-1.5 rounded-full bg-blue-950/95 border-2 border-blue-400 text-xs font-black text-blue-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5">
+            🔥 {language === 'ar' ? body.nameAr : body.nameEn} (200 M☉)
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
+export const ExtragalacticScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
   const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
+  const highlightedCosmicElementNum = useQuantumStore((s) => s.highlightedCosmicElementNum);
+
+  const [glowTexture, setGlowTexture] = useState<THREE.CanvasTexture | undefined>(undefined);
+  const [visible, setVisible] = useState(false);
+  const { camera } = useThree();
 
   useEffect(() => {
     setGlowTexture(getGlowPointTexture());
   }, []);
+
+  const isHighlighted = (body: CelestialBody) =>
+    highlightedCosmicElementNum !== null &&
+    body.primaryElements.some((e) => e.atomicNumber === highlightedCosmicElementNum);
 
   useFrame(() => {
     const dist = camera.position.length();
@@ -385,6 +480,7 @@ export const ExtragalacticScene: React.FC = () => {
       'triangulum_galaxy',
       'large_magellanic_cloud',
       'm87_black_hole',
+      'r136a1',
     ].includes(selectedCosmicBodyId);
     const shouldShow = dist > 3000 || isExtragalacticSelected;
     if (shouldShow !== visible) {
@@ -422,6 +518,17 @@ export const ExtragalacticScene: React.FC = () => {
         language={language}
         glowTexture={glowTexture}
       />
+
+      {/* R136a1 Monster Star in LMC Tarantula Nebula */}
+      {CELESTIAL_BODIES.r136a1 && (
+        <R136a1Star
+          body={CELESTIAL_BODIES.r136a1}
+          isSelected={selectedCosmicBodyId === 'r136a1'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.r136a1)}
+          onSelect={() => setSelectedCosmicBodyId('r136a1')}
+          language={language}
+        />
+      )}
 
       {/* M87* Supermassive Black Hole */}
       <M87SupermassiveBlackHole

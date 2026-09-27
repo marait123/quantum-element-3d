@@ -252,6 +252,468 @@ const NebulaCloudNode: React.FC<{
   );
 };
 
+// Kepler-22 System (Habitable Super-Earth Ocean World)
+const Kepler22System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(1.2);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.034) * delta * 60;
+      const r = planet.orbitalRadius || 52.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.4;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#fef08a" intensity={4.0} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#fef08a" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.2, 20, 20]} />
+          <meshBasicMaterial color="#fef9c3" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 15, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-yellow-950/90 border border-yellow-400 text-xs font-bold text-yellow-200 whitespace-nowrap shadow-xl">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (638 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 52) - 0.2, (planet.orbitalRadius || 52) + 0.2, 80]} />
+        <meshBasicMaterial color="#10b981" transparent opacity={0.25} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Kepler-22b (Lush Ocean World) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 52, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#10b981" roughness={0.4} metalness={0.2} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 5.0, 0]} center distanceFactor={30}>
+            <div className="px-3 py-1 rounded-full bg-emerald-950/95 border border-emerald-400 text-xs font-bold text-emerald-200 whitespace-nowrap shadow-xl">
+              🌊 {language === 'ar' ? planet.nameAr : planet.nameEn} (Habitable Super-Earth)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// WASP-12 System (The Doomed Carbon-Rich Egg Planet)
+const WASP12System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(2.4);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.065) * delta * 60;
+      const r = planet.orbitalRadius || 48.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      // Tidally lock and point elongated axis toward star
+      planetMeshRef.current.rotation.y = -orbitAngleRef.current;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#f8fafc" intensity={4.5} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#f8fafc" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
+          <meshBasicMaterial color="#e2e8f0" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 18, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-slate-900/95 border border-slate-400 text-xs font-bold text-slate-200 whitespace-nowrap shadow-xl">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (1,410 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 48) - 0.2, (planet.orbitalRadius || 48) + 0.2, 80]} />
+        <meshBasicMaterial color="#f97316" transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* WASP-12b (Tidally Stretched Pitch-Black Egg Planet) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 48, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Egg-shaped mesh scaled along X axis */}
+        <mesh scale={[1.4, 0.95, 0.95]}>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
+        </mesh>
+
+        {/* Glowing tidal heat rim */}
+        <mesh scale={[1.42, 0.97, 0.97]}>
+          <sphereGeometry args={[planet.size, 20, 20]} />
+          <meshBasicMaterial color="#ea580c" transparent opacity={0.25} wireframe />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.6, planet.size * 1.85, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 6.0, 0]} center distanceFactor={32}>
+            <div className="px-3 py-1 rounded-full bg-orange-950/95 border border-orange-500 text-xs font-bold text-orange-200 whitespace-nowrap shadow-xl">
+              🥚 {language === 'ar' ? planet.nameAr : planet.nameEn} (Doomed Egg Planet)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// Stephenson 2-18 (The Largest Known Star in the Universe)
+const Stephenson218Star: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const shellRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
+    return () => unregisterCelestialObject(body.id);
+  }, [body.id]);
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (coreRef.current) {
+      coreRef.current.rotation.y = t * 0.02;
+      const pulse = 1.0 + Math.sin(t * 0.8) * 0.04;
+      coreRef.current.scale.set(pulse, pulse, pulse);
+    }
+    if (shellRef.current) {
+      shellRef.current.rotation.z = -t * 0.015;
+      const shellPulse = 1.06 + Math.sin(t * 0.5) * 0.06;
+      shellRef.current.scale.set(shellPulse, shellPulse, shellPulse);
+    }
+  });
+
+  return (
+    <group
+      ref={rootRef}
+      position={body.position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <pointLight color="#dc2626" intensity={8.0} distance={body.size * 6} />
+
+      {/* Gargantuan Convective Red Hypergiant Core */}
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[body.size, 36, 36]} />
+        <meshStandardMaterial
+          color="#dc2626"
+          emissive="#b91c1c"
+          emissiveIntensity={0.9}
+          roughness={0.8}
+        />
+      </mesh>
+
+      {/* Massive Convective Gas Shockwave Halo */}
+      <mesh ref={shellRef}>
+        <sphereGeometry args={[body.size * 1.14, 24, 24]} />
+        <meshBasicMaterial
+          color="#ea580c"
+          transparent
+          opacity={0.35}
+          side={THREE.BackSide}
+          wireframe
+        />
+      </mesh>
+
+      {/* Selection Ring */}
+      {(isSelected || isHighlighted) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 1.25, body.size * 1.35, 48]} />
+          <meshBasicMaterial
+            color={isHighlighted ? '#fbbf24' : '#38bdf8'}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+
+      {(hovered || isSelected || isHighlighted) && (
+        <Html position={[0, body.size + 45, 0]} center distanceFactor={body.size * 5}>
+          <div className="px-4 py-1.5 rounded-full bg-red-950/95 border-2 border-red-500 shadow-2xl text-sm font-black text-red-100 whitespace-nowrap flex items-center gap-2">
+            👑 {language === 'ar' ? body.nameAr : body.nameEn} (2,150 R☉)
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
+// PSR J1719-1438 Diamond Pulsar System
+const PSRJ1719DiamondSystem: React.FC<{
+  pulsar: CelestialBody;
+  diamondPlanet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ pulsar, diamondPlanet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const pulsarMeshRef = useRef<THREE.Mesh>(null);
+  const diamondMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(1.8);
+  const [pulsarHovered, setPulsarHovered] = useState(false);
+  const [diamondHovered, setDiamondHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(pulsar.id, rootRef.current);
+    return () => unregisterCelestialObject(pulsar.id);
+  }, [pulsar.id]);
+
+  useEffect(() => {
+    if (diamondMeshRef.current) registerCelestialObject(diamondPlanet.id, diamondMeshRef.current);
+    return () => unregisterCelestialObject(diamondPlanet.id);
+  }, [diamondPlanet.id]);
+
+  useFrame((_, delta) => {
+    if (pulsarMeshRef.current) pulsarMeshRef.current.rotation.y += delta * 12.0; // Rapid millisecond spin
+    if (diamondMeshRef.current) {
+      orbitAngleRef.current += (diamondPlanet.orbitalSpeed || 0.075) * delta * 60;
+      const r = diamondPlanet.orbitalRadius || 36.0;
+      diamondMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      diamondMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      diamondMeshRef.current.rotation.y += delta * 0.8;
+    }
+  });
+
+  const isPulsarSelected = selectedId === pulsar.id;
+  const isDiamondSelected = selectedId === diamondPlanet.id;
+  const isPulsarHighlighted = highlightedElement !== null && pulsar.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isDiamondHighlighted = highlightedElement !== null && diamondPlanet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={pulsar.position}>
+      {/* Millisecond Radio Pulsar */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(pulsar.id);
+        }}
+        onPointerOver={() => setPulsarHovered(true)}
+        onPointerOut={() => setPulsarHovered(false)}
+      >
+        <pointLight color="#38bdf8" intensity={5.0} distance={pulsar.size * 10} />
+        <mesh ref={pulsarMeshRef}>
+          <sphereGeometry args={[pulsar.size, 24, 24]} />
+          <meshBasicMaterial color="#e0f2fe" />
+        </mesh>
+
+        {/* Polar Relativistic Radiation Beams */}
+        <mesh position={[0, pulsar.size * 2.2, 0]}>
+          <coneGeometry args={[pulsar.size * 0.4, pulsar.size * 4, 16]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
+        </mesh>
+        <mesh position={[0, -pulsar.size * 2.2, 0]} rotation={[Math.PI, 0, 0]}>
+          <coneGeometry args={[pulsar.size * 0.4, pulsar.size * 4, 16]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
+        </mesh>
+
+        {(pulsarHovered || isPulsarSelected || isPulsarHighlighted) && (
+          <Html position={[0, pulsar.size + 15, 0]} center distanceFactor={pulsar.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-cyan-950/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
+              ⚡ {language === 'ar' ? pulsar.nameAr : pulsar.nameEn}
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(diamondPlanet.orbitalRadius || 36) - 0.15, (diamondPlanet.orbitalRadius || 36) + 0.15, 72]} />
+        <meshBasicMaterial color="#bae6fd" transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Pure Crystalline Diamond Planet (PSR J1719-1438 b) */}
+      <group
+        ref={diamondMeshRef}
+        position={[diamondPlanet.orbitalRadius || 36, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(diamondPlanet.id);
+        }}
+        onPointerOver={() => setDiamondHovered(true)}
+        onPointerOut={() => setDiamondHovered(false)}
+      >
+        {/* Faceted Crystallized Pure Diamond Sphere */}
+        <mesh>
+          <icosahedronGeometry args={[diamondPlanet.size, 2]} />
+          <meshStandardMaterial
+            color="#e0f2fe"
+            emissive="#bae6fd"
+            emissiveIntensity={0.5}
+            roughness={0.08}
+            metalness={0.95}
+            flatShading
+          />
+        </mesh>
+
+        {/* Refraction Aura */}
+        <mesh>
+          <sphereGeometry args={[diamondPlanet.size * 1.2, 16, 16]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} wireframe />
+        </mesh>
+
+        {(isDiamondSelected || isDiamondHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[diamondPlanet.size * 1.5, diamondPlanet.size * 1.75, 24]} />
+            <meshBasicMaterial color={isDiamondHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(diamondHovered || isDiamondSelected || isDiamondHighlighted) && (
+          <Html position={[0, diamondPlanet.size + 4.5, 0]} center distanceFactor={25}>
+            <div className="px-3 py-1 rounded-full bg-sky-950/95 border border-sky-300 text-xs font-bold text-white whitespace-nowrap shadow-2xl flex items-center gap-1.5">
+              💎 {language === 'ar' ? diamondPlanet.nameAr : diamondPlanet.nameEn} (Pure Diamond)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
 export const MilkyWayScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -313,6 +775,53 @@ export const MilkyWayScene: React.FC = () => {
         language={language}
         icon="💥"
       />
+
+      {/* Kepler-22 System (Habitable Zone Ocean World) */}
+      {CELESTIAL_BODIES.kepler_22 && CELESTIAL_BODIES.kepler_22b && (
+        <Kepler22System
+          star={CELESTIAL_BODIES.kepler_22}
+          planet={CELESTIAL_BODIES.kepler_22b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* WASP-12 System (The Doomed Egg Planet) */}
+      {CELESTIAL_BODIES.wasp_12 && CELESTIAL_BODIES.wasp_12b && (
+        <WASP12System
+          star={CELESTIAL_BODIES.wasp_12}
+          planet={CELESTIAL_BODIES.wasp_12b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Stephenson 2-18 (Largest Known Star in the Universe) */}
+      {CELESTIAL_BODIES.stephenson_2_18 && (
+        <Stephenson218Star
+          body={CELESTIAL_BODIES.stephenson_2_18}
+          isSelected={selectedCosmicBodyId === 'stephenson_2_18'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.stephenson_2_18)}
+          onSelect={() => setSelectedCosmicBodyId('stephenson_2_18')}
+          language={language}
+        />
+      )}
+
+      {/* PSR J1719-1438 Diamond Pulsar System */}
+      {CELESTIAL_BODIES.psr_j1719_1438 && CELESTIAL_BODIES.psr_j1719_1438_b && (
+        <PSRJ1719DiamondSystem
+          pulsar={CELESTIAL_BODIES.psr_j1719_1438}
+          diamondPlanet={CELESTIAL_BODIES.psr_j1719_1438_b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
     </group>
   );
 };
