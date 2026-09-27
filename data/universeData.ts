@@ -1200,7 +1200,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
     nucleosynthesisRoleEn: 'Fully convective red dwarf that will fuse hydrogen for over 10 trillion years, outliving all massive stars.',
     nucleosynthesisRoleAr: 'قزم أحمر بالحمل الحراري الكامل سيدمج الهيدروجين لأكثر من 10 تريليونات سنة، متجاوزاً عمر سائر النجوم.',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/f/fe/PIA22093-TRAPPIST-1-PlanetLineup-20180205.jpg',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA21422/PIA21422~medium.jpg',
     imageSource: 'NASA / JPL-Caltech',
   },
 
@@ -1232,7 +1232,7 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
     nucleosynthesisRoleEn: 'Terrestrial elements synthesized in ancient supernovae; iron core condensed during primordial planetesimal accretion.',
     nucleosynthesisRoleAr: 'عناصر صخرية تخفقت في مستعرات عظمى قديمة؛ مع قلب حديدي تكثف أثناء تراكم الكواكب الأولية.',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/f/fe/PIA22093-TRAPPIST-1-PlanetLineup-20180205.jpg',
+    imageUrl: 'https://images-assets.nasa.gov/image/PIA21422/PIA21422~medium.jpg',
     imageSource: 'NASA / JPL-Caltech / STScI',
   },
 
@@ -1635,8 +1635,8 @@ export const CELESTIAL_BODIES: Record<string, CelestialBody> = {
     ],
     nucleosynthesisRoleEn: 'Accreting and recycling primordial and stellar material from surrounding cosmic web filaments; emitting high-energy cosmic rays.',
     nucleosynthesisRoleAr: 'يبتلع ويعيد تدوير المواد البدائية والنجمية من خيوط النسيج الكوني المحيطة؛ ويطلق أشعة كونية فائقة الطاقة.',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/e/e0/TON_618_SDSS9.jpg',
-    imageSource: 'Sloan Digital Sky Survey (SDSS) / Marie-Paule Véron-Cetty',
+    imageUrl: '/images/celestial/ton_618.jpg',
+    imageSource: 'NASA / JPL-Caltech / NuSTAR',
   },
 };
 
