@@ -714,6 +714,588 @@ const PSRJ1719DiamondSystem: React.FC<{
   );
 };
 
+// Kepler-452 System ("Earth 2.0" & Sun-Twin Star)
+const Kepler452System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(0.4);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.038) * delta * 60;
+      const r = planet.orbitalRadius || 44.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.4;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Sun Twin Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#fef08a" intensity={4.5} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 32, 32]} />
+          <meshBasicMaterial color="#fef08a" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.15, 20, 20]} />
+          <meshBasicMaterial color="#fde047" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 14, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-amber-950/95 border border-amber-400 text-xs font-bold text-amber-200 whitespace-nowrap shadow-xl">
+              ☀️ {language === 'ar' ? star.nameAr : star.nameEn} (1,402 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Habitable Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 44) - 0.15, (planet.orbitalRadius || 44) + 0.15, 80]} />
+        <meshBasicMaterial color="#22c55e" transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Kepler-452b ("Earth 2.0" Super-Earth) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 44, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Oceans & Continents */}
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#15803d" roughness={0.4} metalness={0.15} />
+        </mesh>
+
+        {/* Dynamic Atmosphere & Clouds */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.03, 24, 24]} />
+          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.4} roughness={0.8} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#22c55e'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 4.0, 0]} center distanceFactor={26}>
+            <div className="px-3 py-1 rounded-full bg-emerald-950/95 border border-emerald-400 text-xs font-bold text-emerald-200 whitespace-nowrap shadow-xl flex items-center gap-1.5">
+              🌍 {language === 'ar' ? planet.nameAr : planet.nameEn} (Earth 2.0)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// Kepler-186 System (First Earth-Sized Habitable World)
+const Kepler186System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(1.7);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.042) * delta * 60;
+      const r = planet.orbitalRadius || 32.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Red Dwarf Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#f97316" intensity={4.0} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 28, 28]} />
+          <meshBasicMaterial color="#ea580c" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
+          <meshBasicMaterial color="#f97316" transparent opacity={0.25} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 10, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-2.5 py-0.5 rounded-full bg-red-950/90 border border-red-500 text-xs font-semibold text-red-200 whitespace-nowrap shadow-md">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (582 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 32) - 0.1, (planet.orbitalRadius || 32) + 0.1, 72]} />
+        <meshBasicMaterial color="#0284c7" transparent opacity={0.25} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Kepler-186f (First Earth-Sized Habitable World) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 32, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#0284c7" roughness={0.5} metalness={0.2} />
+        </mesh>
+
+        {/* Ice & Cloud Veil */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.04, 20, 20]} />
+          <meshBasicMaterial color="#f0f9ff" transparent opacity={0.3} wireframe />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 3.2, 0]} center distanceFactor={22}>
+            <div className="px-3 py-1 rounded-full bg-cyan-950/95 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl">
+              🌱 {language === 'ar' ? planet.nameAr : planet.nameEn} (First Earth-Sized)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// Kepler-16 Circumbinary System ("Tatooine" Dual Sun Planet)
+const Kepler16CircumbinarySystem: React.FC<{
+  binarySuns: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ binarySuns, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const sunAPosRef = useRef<THREE.Mesh>(null);
+  const sunBPosRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const binaryOrbitAngleRef = useRef(0);
+  const planetOrbitAngleRef = useRef(2.5);
+  const [sunsHovered, setSunsHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(binarySuns.id, rootRef.current);
+    return () => unregisterCelestialObject(binarySuns.id);
+  }, [binarySuns.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    binaryOrbitAngleRef.current += delta * 0.8;
+    if (sunAPosRef.current) {
+      sunAPosRef.current.position.x = Math.cos(binaryOrbitAngleRef.current) * 4.2;
+      sunAPosRef.current.position.z = Math.sin(binaryOrbitAngleRef.current) * 4.2;
+      sunAPosRef.current.rotation.y += delta * 0.05;
+    }
+    if (sunBPosRef.current) {
+      sunBPosRef.current.position.x = -Math.cos(binaryOrbitAngleRef.current) * 7.5;
+      sunBPosRef.current.position.z = -Math.sin(binaryOrbitAngleRef.current) * 7.5;
+      sunBPosRef.current.rotation.y += delta * 0.04;
+    }
+
+    if (planetMeshRef.current) {
+      planetOrbitAngleRef.current += (planet.orbitalSpeed || 0.035) * delta * 60;
+      const r = planet.orbitalRadius || 40.0;
+      planetMeshRef.current.position.x = Math.cos(planetOrbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(planetOrbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.4;
+    }
+  });
+
+  const isSunsSelected = selectedId === binarySuns.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isSunsHighlighted = highlightedElement !== null && binarySuns.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={binarySuns.position}>
+      {/* Dual Binary Suns (Kepler-16 A & B) */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(binarySuns.id);
+        }}
+        onPointerOver={() => setSunsHovered(true)}
+        onPointerOut={() => setSunsHovered(false)}
+      >
+        <pointLight color="#f97316" intensity={4.5} distance={binarySuns.size * 10} />
+
+        {/* Primary K-Dwarf Sun */}
+        <mesh ref={sunAPosRef} position={[4.2, 0, 0]}>
+          <sphereGeometry args={[binarySuns.size * 0.65, 28, 28]} />
+          <meshBasicMaterial color="#fb923c" />
+        </mesh>
+
+        {/* Secondary M-Dwarf Sun */}
+        <mesh ref={sunBPosRef} position={[-7.5, 0, 0]}>
+          <sphereGeometry args={[binarySuns.size * 0.38, 24, 24]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+
+        {(sunsHovered || isSunsSelected || isSunsHighlighted) && (
+          <Html position={[0, binarySuns.size + 12, 0]} center distanceFactor={binarySuns.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-amber-950/95 border border-amber-400 text-xs font-bold text-amber-200 whitespace-nowrap shadow-xl">
+              ☀️☀️ {language === 'ar' ? binarySuns.nameAr : binarySuns.nameEn} (245 ly)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Circumbinary Wide Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 40) - 0.15, (planet.orbitalRadius || 40) + 0.15, 80]} />
+        <meshBasicMaterial color="#eab308" transparent opacity={0.25} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Kepler-16b ("Tatooine" Circumbinary Gas Giant) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 40, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Saturn-like Golden Atmosphere */}
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#ca8a04" roughness={0.5} metalness={0.2} />
+        </mesh>
+
+        {/* Delicate Gas Giant Ring */}
+        <mesh rotation={[-Math.PI / 3, 0, 0]}>
+          <ringGeometry args={[planet.size * 1.35, planet.size * 2.1, 48]} />
+          <meshBasicMaterial color="#fef08a" transparent opacity={0.4} side={THREE.DoubleSide} />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 2.2, planet.size * 2.4, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#ca8a04'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 4.5, 0]} center distanceFactor={26}>
+            <div className="px-3 py-1 rounded-full bg-amber-950/95 border border-yellow-400 text-xs font-bold text-yellow-200 whitespace-nowrap shadow-2xl flex items-center gap-1.5">
+              🌅 {language === 'ar' ? planet.nameAr : planet.nameEn} (Tatooine Dual Suns)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// Kepler-1649c System (Earth-Twin Habitable Planet)
+const Kepler1649cSystem: React.FC<{
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(planet.id, rootRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (planetMeshRef.current) {
+      planetMeshRef.current.rotation.y += (planet.rotationSpeed || 0.014) * delta * 60;
+    }
+  });
+
+  const isSelected = selectedId === planet.id;
+  const isHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={planet.position}>
+      {/* Dim host red-dwarf illumination */}
+      <pointLight color="#f97316" intensity={2.5} distance={60} />
+
+      <group
+        ref={planetMeshRef}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        {/* Terrestrial Blue-Green Sphere */}
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial color="#0ea5e9" roughness={0.45} metalness={0.2} />
+        </mesh>
+
+        {/* Thin Cloud Shell */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.04, 20, 20]} />
+          <meshStandardMaterial color="#f8fafc" transparent opacity={0.35} />
+        </mesh>
+
+        {(isSelected || isHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <meshBasicMaterial color={isHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(hovered || isSelected || isHighlighted) && (
+          <Html position={[0, planet.size + 3.2, 0]} center distanceFactor={22}>
+            <div className="px-3 py-1 rounded-full bg-sky-950/95 border border-sky-400 text-xs font-bold text-sky-200 whitespace-nowrap shadow-xl">
+              🌐 {language === 'ar' ? planet.nameAr : planet.nameEn} (Earth Twin)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
+// KELT-9 System (Hottest Known Exoplanet 4,600 K)
+const KELT9System: React.FC<{
+  star: CelestialBody;
+  planet: CelestialBody;
+  selectedId: string | null;
+  highlightedElement: number | null;
+  onSelect: (id: string) => void;
+  language: 'en' | 'ar';
+}> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const starMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(1.0);
+  const [starHovered, setStarHovered] = useState(false);
+  const [planetHovered, setPlanetHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
+
+  useEffect(() => {
+    if (planetMeshRef.current) registerCelestialObject(planet.id, planetMeshRef.current);
+    return () => unregisterCelestialObject(planet.id);
+  }, [planet.id]);
+
+  useFrame((_, delta) => {
+    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.08;
+    if (planetMeshRef.current) {
+      orbitAngleRef.current += (planet.orbitalSpeed || 0.07) * delta * 60;
+      const r = planet.orbitalRadius || 46.0;
+      planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+      planetMeshRef.current.rotation.y += delta * 0.8;
+    }
+  });
+
+  const isStarSelected = selectedId === star.id;
+  const isPlanetSelected = selectedId === planet.id;
+  const isStarHighlighted = highlightedElement !== null && star.primaryElements.some(e => e.atomicNumber === highlightedElement);
+  const isPlanetHighlighted = highlightedElement !== null && planet.primaryElements.some(e => e.atomicNumber === highlightedElement);
+
+  return (
+    <group ref={rootRef} position={star.position}>
+      {/* Blazing A0 Blue-White Giant Star */}
+      <group
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(star.id);
+        }}
+        onPointerOver={() => setStarHovered(true)}
+        onPointerOut={() => setStarHovered(false)}
+      >
+        <pointLight color="#93c5fd" intensity={5.5} distance={star.size * 10} />
+        <mesh ref={starMeshRef}>
+          <sphereGeometry args={[star.size, 32, 32]} />
+          <meshBasicMaterial color="#bfdbfe" />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[star.size * 1.18, 24, 24]} />
+          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} />
+        </mesh>
+
+        {(starHovered || isStarSelected || isStarHighlighted) && (
+          <Html position={[0, star.size + 18, 0]} center distanceFactor={star.size * 5}>
+            <div className="px-3 py-1 rounded-full bg-blue-950/95 border border-blue-400 text-xs font-bold text-blue-200 whitespace-nowrap shadow-xl">
+              ⭐ {language === 'ar' ? star.nameAr : star.nameEn} (10,170 K)
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbit Ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[(planet.orbitalRadius || 46) - 0.2, (planet.orbitalRadius || 46) + 0.2, 80]} />
+        <meshBasicMaterial color="#facc15" transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* KELT-9b (Hottest Exoplanet 4,600 K with Vaporized Metal Envelope) */}
+      <group
+        ref={planetMeshRef}
+        position={[planet.orbitalRadius || 46, 0, 0]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onSelect(planet.id);
+        }}
+        onPointerOver={() => setPlanetHovered(true)}
+        onPointerOut={() => setPlanetHovered(false)}
+      >
+        {/* Incandescent Core */}
+        <mesh>
+          <sphereGeometry args={[planet.size, 28, 28]} />
+          <meshStandardMaterial
+            color="#facc15"
+            emissive="#f97316"
+            emissiveIntensity={0.8}
+            roughness={0.2}
+            metalness={0.5}
+          />
+        </mesh>
+
+        {/* Vaporized Iron & Titanium Comet-like Evaporating Envelope */}
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.25, 20, 20]} />
+          <meshBasicMaterial color="#ea580c" transparent opacity={0.4} wireframe />
+        </mesh>
+
+        {(isPlanetSelected || isPlanetHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[planet.size * 1.5, planet.size * 1.75, 24]} />
+            <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#f97316'} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+
+        {(planetHovered || isPlanetSelected || isPlanetHighlighted) && (
+          <Html position={[0, planet.size + 5.0, 0]} center distanceFactor={28}>
+            <div className="px-3 py-1 rounded-full bg-amber-950/95 border-2 border-yellow-400 text-xs font-black text-amber-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5 animate-pulse">
+              🔥 {language === 'ar' ? planet.nameAr : planet.nameEn} (4,600 K - Hottest World)
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+};
+
 export const MilkyWayScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -816,6 +1398,65 @@ export const MilkyWayScene: React.FC = () => {
         <PSRJ1719DiamondSystem
           pulsar={CELESTIAL_BODIES.psr_j1719_1438}
           diamondPlanet={CELESTIAL_BODIES.psr_j1719_1438_b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Kepler-452 System ("Earth 2.0" & Sun-Twin Star) */}
+      {CELESTIAL_BODIES.kepler_452 && CELESTIAL_BODIES.kepler_452b && (
+        <Kepler452System
+          star={CELESTIAL_BODIES.kepler_452}
+          planet={CELESTIAL_BODIES.kepler_452b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Kepler-186 System (First Earth-Sized Habitable World) */}
+      {CELESTIAL_BODIES.kepler_186 && CELESTIAL_BODIES.kepler_186f && (
+        <Kepler186System
+          star={CELESTIAL_BODIES.kepler_186}
+          planet={CELESTIAL_BODIES.kepler_186f}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Kepler-16 Circumbinary System ("Tatooine" Dual Sun Planet) */}
+      {CELESTIAL_BODIES.kepler_16_ab && CELESTIAL_BODIES.kepler_16b && (
+        <Kepler16CircumbinarySystem
+          binarySuns={CELESTIAL_BODIES.kepler_16_ab}
+          planet={CELESTIAL_BODIES.kepler_16b}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Kepler-1649c System (Earth-Twin Habitable Planet) */}
+      {CELESTIAL_BODIES.kepler_1649c && (
+        <Kepler1649cSystem
+          planet={CELESTIAL_BODIES.kepler_1649c}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* KELT-9 System (Hottest Known Exoplanet 4,600 K) */}
+      {CELESTIAL_BODIES.kelt_9 && CELESTIAL_BODIES.kelt_9b && (
+        <KELT9System
+          star={CELESTIAL_BODIES.kelt_9}
+          planet={CELESTIAL_BODIES.kelt_9b}
           selectedId={selectedCosmicBodyId}
           highlightedElement={highlightedCosmicElementNum}
           onSelect={(id) => setSelectedCosmicBodyId(id)}

@@ -13,6 +13,7 @@ interface Props {
 export const SpaceSearchBox: React.FC<Props> = ({ isMobileModal, onCloseMobile }) => {
   const language = useQuantumStore((s) => s.language);
   const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
+  const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
 
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -60,6 +61,9 @@ export const SpaceSearchBox: React.FC<Props> = ({ isMobileModal, onCloseMobile }
   }, [query, bodiesList]);
 
   const handleSelect = (body: CelestialBody) => {
+    if (body.scaleLevel) {
+      setCosmicScaleLevel(body.scaleLevel);
+    }
     setSelectedCosmicBodyId(body.id);
     setQuery('');
     setIsOpen(false);

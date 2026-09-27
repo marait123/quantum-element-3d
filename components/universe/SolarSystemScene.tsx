@@ -588,6 +588,129 @@ const RealisticSaturn: React.FC<{
 };
 
 // ==========================================
+// REALISTIC PLUTO WITH NITROGEN HEART & CHARON
+// ==========================================
+const RealisticPluto: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  isHovered: boolean;
+  isHighlighted: boolean;
+  onClick: () => void;
+  onPointerOver: () => void;
+  onPointerOut: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
+  const plutoGroupRef = useRef<THREE.Group>(null);
+  const plutoMeshRef = useRef<THREE.Mesh>(null);
+  const charonOrbitRef = useRef<THREE.Group>(null);
+  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
+
+  useEffect(() => {
+    if (plutoGroupRef.current) {
+      registerCelestialObject('pluto', plutoGroupRef.current);
+    }
+    return () => {
+      unregisterCelestialObject('pluto');
+    };
+  }, []);
+
+  useFrame((_, delta) => {
+    if (plutoGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
+      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
+      const r = body.orbitalRadius;
+      plutoGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
+      // 17-degree orbital inclination
+      plutoGroupRef.current.position.y = Math.sin(orbitAngleRef.current) * (r * 0.28);
+      plutoGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
+    }
+    if (plutoMeshRef.current) {
+      plutoMeshRef.current.rotation.y += (body.rotationSpeed || 0.008) * delta * 60;
+    }
+    if (charonOrbitRef.current) {
+      charonOrbitRef.current.rotation.y += delta * 0.35;
+    }
+  });
+
+  const displayName = language === 'ar' ? body.nameAr : body.nameEn;
+
+  return (
+    <group ref={plutoGroupRef} position={body.position}>
+      <group
+        rotation={[2.08, 0, 0]} // 119.5° extreme retrograde axial tilt
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta && e.delta > 5) return;
+          e.stopPropagation();
+          onClick();
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onPointerOver();
+        }}
+        onPointerOut={() => onPointerOut()}
+      >
+        {/* Pluto Body with Tan/Terracotta Crust */}
+        <mesh ref={plutoMeshRef}>
+          <sphereGeometry args={[body.size, 36, 36]} />
+          <meshStandardMaterial
+            color="#d4a373"
+            roughness={0.85}
+            metalness={0.05}
+            emissive={isSelected ? '#a16207' : '#000000'}
+            emissiveIntensity={isSelected ? 0.35 : 0}
+          />
+        </mesh>
+
+        {/* Sputnik Planitia "Heart of Pluto" Nitrogen Ice Feature */}
+        <mesh position={[body.size * 0.55, -body.size * 0.1, body.size * 0.75]} rotation={[0.2, 0.4, 0]}>
+          <circleGeometry args={[body.size * 0.42, 24]} />
+          <meshStandardMaterial
+            color="#fef3c7"
+            roughness={0.4}
+            metalness={0.1}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        {/* Thin Atmospheric Blue Haze Rim */}
+        <mesh>
+          <sphereGeometry args={[body.size * 1.05, 24, 24]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.15} side={THREE.BackSide} />
+        </mesh>
+
+        {(isSelected || isHighlighted) && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[body.size * 1.4, body.size * 1.6, 32]} />
+            <meshBasicMaterial
+              color={isHighlighted ? '#fbbf24' : '#f59e0b'}
+              side={THREE.DoubleSide}
+              transparent
+              opacity={0.85}
+            />
+          </mesh>
+        )}
+
+        {(isHovered || isSelected || isHighlighted) && (
+          <Html position={[0, body.size + 0.9, 0]} center distanceFactor={26}>
+            <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-amber-500 shadow-xl backdrop-blur-md text-[11px] font-bold text-amber-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
+              {isHighlighted && <span className="text-amber-400">⚡</span>}
+              <span>🤎 {displayName}</span>
+            </div>
+          </Html>
+        )}
+      </group>
+
+      {/* Orbiting Moon Charon */}
+      <group ref={charonOrbitRef}>
+        <mesh position={[1.4, 0.15, 0]}>
+          <sphereGeometry args={[0.21, 20, 20]} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.9} />
+        </mesh>
+      </group>
+    </group>
+  );
+};
+
+// ==========================================
 // GENERIC ORBITING PLANET
 // ==========================================
 const StandardPlanet: React.FC<{
@@ -834,6 +957,7 @@ export const SolarSystemScene: React.FC = () => {
       <OrbitLine radius={42.0} color="#ca8a04" />
       <OrbitLine radius={51.0} color="#0891b2" />
       <OrbitLine radius={58.0} color="#2563eb" />
+      <OrbitLine radius={64.0} color="#a16207" />
 
       {/* Main Asteroid Belt */}
       <AsteroidBelt />
@@ -941,6 +1065,20 @@ export const SolarSystemScene: React.FC = () => {
         onPointerOut={() => setHoveredBodyId(null)}
         language={language}
       />
+
+      {/* Pluto Dwarf Planet & Charon */}
+      {CELESTIAL_BODIES.pluto && (
+        <RealisticPluto
+          body={CELESTIAL_BODIES.pluto}
+          isSelected={selectedCosmicBodyId === 'pluto'}
+          isHovered={hoveredBodyId === 'pluto'}
+          isHighlighted={isHighlighted(CELESTIAL_BODIES.pluto)}
+          onClick={() => setSelectedCosmicBodyId('pluto')}
+          onPointerOver={() => setHoveredBodyId('pluto')}
+          onPointerOut={() => setHoveredBodyId(null)}
+          language={language}
+        />
+      )}
 
       {/* Ultra-Realistic Deep Space Probes & Satellites */}
       <RealisticVoyager1

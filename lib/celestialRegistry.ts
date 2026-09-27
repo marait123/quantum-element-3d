@@ -42,6 +42,7 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   jupiter: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
   saturn: { elevation: 0.45, lateralAngle: Math.PI * 0.3 }, // Frames rings cleanly from above
   sun: { elevation: 0.3, lateralAngle: 0 },
+  pluto: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
 
   // Spacecraft & Satellites (Majestic 3/4 angle)
   voyager_1: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
@@ -80,10 +81,23 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   k2_18b: { elevation: 0.34, lateralAngle: Math.PI * 0.25 },
   hd_189733: { elevation: 0.3, lateralAngle: 0 },
   hd_189733_b: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+  pegasi_51: { elevation: 0.3, lateralAngle: 0 },
+  pegasi_51_b: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+  toi_700: { elevation: 0.3, lateralAngle: 0 },
+  toi_700_d: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
 
   // Galactic Exoplanets & Extreme Stars (Scale 3)
   kepler_22: { elevation: 0.3, lateralAngle: 0 },
   kepler_22b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  kepler_452: { elevation: 0.3, lateralAngle: 0 },
+  kepler_452b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  kepler_186: { elevation: 0.3, lateralAngle: 0 },
+  kepler_186f: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  kepler_16_ab: { elevation: 0.35, lateralAngle: 0 },
+  kepler_16b: { elevation: 0.35, lateralAngle: Math.PI * 0.3 },
+  kepler_1649c: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
+  kelt_9: { elevation: 0.35, lateralAngle: 0 },
+  kelt_9b: { elevation: 0.38, lateralAngle: Math.PI * 0.35 },
   wasp_12: { elevation: 0.3, lateralAngle: 0 },
   wasp_12b: { elevation: 0.38, lateralAngle: Math.PI * 0.35 },
   stephenson_2_18: { elevation: 0.35, lateralAngle: 0 },
@@ -113,6 +127,9 @@ export function calculateFramingDistance(bodyId: string): number {
   if (bodyId === 'saturn') margin = 4.2; // Massive ring system
   else if (bodyId === 'ton_618') margin = 3.6; // Incandescent accretion disk & relativistic jets
   else if (bodyId === 'wasp_12b') margin = 3.2; // Stretched egg shape & tidal streamer
+  else if (bodyId === 'kelt_9b') margin = 3.2; // Blazing hot vapor envelope
+  else if (bodyId === 'kepler_16_ab') margin = 3.4; // Binary suns pair
+  else if (bodyId === 'pluto') margin = 2.8; // Pluto & Charon system
   else if (body.type === 'spacecraft') margin = 3.6; // High-gain dish, RTG & sensor booms
   else if (body.type === 'galaxy') margin = 2.4; // Galactic spiral discs & outer arms
   else if (body.type === 'supercluster' || body.type === 'cosmic_structure') margin = 2.1;
