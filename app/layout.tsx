@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Cairo } from 'next/font/google';
 import './globals.css';
 
@@ -30,6 +30,15 @@ export const metadata: Metadata = {
     'عنصر كوانتوم',
     'الجدول الدوري ثلاثي الأبعاد',
   ],
+};
+
+// Phones: fill the whole screen under notches / home indicators (the HUD adds safe-area padding itself) and tint the
+// browser chrome to match the space background
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#020617',
 };
 
 export default function RootLayout({

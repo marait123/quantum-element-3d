@@ -23,6 +23,8 @@ export const NucleusScene: React.FC = () => {
   const selectNucleon = useQuantumStore((s) => s.selectNucleon);
 
   const [hoveredNucleon, setHoveredNucleon] = useState<NucleonPosition | null>(null);
+  // Touch has no hover: the first tap on a nucleon shows its info, a second tap on it dives into its quarks
+  const tappedNucleonRef = useRef<number | null>(null);
 
   const element = useMemo(() => {
     return ELEMENT_MAP[activeElementNum] || ELEMENT_MAP[6];
@@ -146,13 +148,22 @@ export const NucleusScene: React.FC = () => {
                 }}
                 onPointerOut={(e) => {
                   e.stopPropagation();
-                  if (hoveredNucleon?.index === nuc.index) {
+                  // A touch lifting off fires pointer-out: keep a tapped nucleon's info up
+                  if (hoveredNucleon?.index === nuc.index && tappedNucleonRef.current !== nuc.index) {
                     setHoveredNucleon(null);
                   }
                   document.body.style.cursor = 'default';
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (e.delta > 5) return; // a drag to orbit, not a tap
+                  const pointerType = (e.nativeEvent as PointerEvent).pointerType;
+                  if (pointerType === 'touch' && tappedNucleonRef.current !== nuc.index) {
+                    tappedNucleonRef.current = nuc.index;
+                    setHoveredNucleon(nuc);
+                    return;
+                  }
+                  tappedNucleonRef.current = null;
                   selectNucleon(nuc.index, nuc.type);
                   // Zoom right into Scale 4 (Quarks)
                   setScaleLevel(4);
@@ -196,7 +207,7 @@ export const NucleusScene: React.FC = () => {
           distanceFactor={15}
           style={{ pointerEvents: 'none' }}
         >
-          <div className="glass-panel-deep px-3.5 py-2.5 rounded-xl text-xs whitespace-nowrap shadow-2xl border border-sky-400/40 text-slate-100 flex flex-col gap-1 backdrop-blur-md animate-fade-in">
+          <div id="nucleon-tooltip" className="glass-panel-deep px-3.5 py-2.5 rounded-xl text-xs whitespace-nowrap shadow-2xl border border-sky-400/40 text-slate-100 flex flex-col gap-1 backdrop-blur-md animate-fade-in">
             <div className="flex items-center gap-2 font-bold text-sm">
               <span
                 className={`w-3 h-3 rounded-full ${

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
+import { useEscapeKey } from '@/lib/useEscapeKey';
 import {
   COSMIC_SCALE_VIDEOS,
   COSMIC_SUBTOPIC_VIDEOS,
@@ -24,6 +25,9 @@ export const UniverseCinemaModal: React.FC = () => {
     return COSMIC_SCALE_VIDEOS[cosmicScaleLevel as keyof CosmicScaleVideoMap] || COSMIC_SCALE_VIDEOS[1];
   }, [activeUniverseVideoKey, cosmicScaleLevel]);
 
+  const close = useCallback(() => setUniverseVideoModalOpen(false), [setUniverseVideoModalOpen]);
+  useEscapeKey(isUniverseVideoModalOpen, close);
+
   if (!isUniverseVideoModalOpen) return null;
 
   const title = language === 'ar' ? video.titleAr : video.titleEn;
@@ -31,22 +35,27 @@ export const UniverseCinemaModal: React.FC = () => {
   const highlights = language === 'ar' ? video.highlightsAr : video.highlightsEn;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl animate-fadeIn">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-xl animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[90dvh]">
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-800 bg-slate-950/60">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
               <Play className="w-4 h-4 fill-purple-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest block">
                 {language === 'ar' ? 'سينما الفضاء الكوني' : 'Cosmic Universe Cinema'}
               </span>
-              <h2 className="text-sm font-bold text-white truncate max-w-lg">{title}</h2>
+              <h2 className="text-sm font-bold text-white truncate">{title}</h2>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <a
               id="universe-youtube-direct-link"
               href={`https://www.youtube.com/watch?v=${video.id}`}
@@ -63,8 +72,9 @@ export const UniverseCinemaModal: React.FC = () => {
             <button
               id="close-universe-cinema-btn"
               type="button"
-              onClick={() => setUniverseVideoModalOpen(false)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              onClick={close}
+              className="p-1.5 coarse:p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
             >
               <X className="w-5 h-5" />
             </button>
@@ -72,7 +82,7 @@ export const UniverseCinemaModal: React.FC = () => {
         </div>
 
         {/* Video Player */}
-        <div className="relative w-full aspect-video bg-black">
+        <div className="relative w-full aspect-video max-h-[60dvh] shrink-0 bg-black">
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
             title={video.titleEn}

@@ -20,6 +20,26 @@ export const MobileElementStrip: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const activeBtnRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Publish the strip's height as --strip-h so the scale dock sits just above it (0 when hidden)
+  const isHidden = scaleLevel === 5;
+  useEffect(() => {
+    const el = rootRef.current;
+    const root = document.documentElement;
+    if (!el || isHidden) {
+      root.style.setProperty('--strip-h', '0px');
+      return;
+    }
+    const publish = () => root.style.setProperty('--strip-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.setProperty('--strip-h', '0px');
+    };
+  }, [isHidden]);
 
   // Auto-scroll strip to active element
   useEffect(() => {
@@ -36,9 +56,10 @@ export const MobileElementStrip: React.FC = () => {
   if (scaleLevel === 5) return null;
 
   return (
-    <div className="md:hidden absolute bottom-1 inset-x-0 z-20 pointer-events-auto flex flex-col gap-1 px-2 pb-1">
-      {/* Fast Jump Section Chips */}
-      <div className="flex items-center justify-center gap-1.5 overflow-x-auto py-0.5">
+    <div ref={rootRef} className="md:hidden absolute bottom-0 inset-x-0 z-20 pointer-events-auto flex flex-col gap-1 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)]">
+      {/* Fast Jump Section Chips (centred when they fit, scrolling when they don't) */}
+      <div className="overflow-x-auto no-scrollbar py-0.5">
+      <div className="flex items-center gap-1.5 w-max mx-auto">
         {RANGES.map((r) => {
           const isCurrentRange =
             activeElementNum >= r.start && activeElementNum <= r.end;
@@ -46,7 +67,7 @@ export const MobileElementStrip: React.FC = () => {
             <button
               key={r.label}
               onClick={() => setActiveElement(r.start)}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold transition whitespace-nowrap ${
+              className={`px-2.5 min-h-[30px] rounded-full text-[11px] font-mono font-bold transition whitespace-nowrap ${
                 isCurrentRange
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
                   : 'bg-slate-900/80 text-slate-300 border border-slate-700 hover:border-slate-500'
@@ -56,6 +77,7 @@ export const MobileElementStrip: React.FC = () => {
             </button>
           );
         })}
+      </div>
       </div>
 
       {/* Horizontal Scroll Strip */}

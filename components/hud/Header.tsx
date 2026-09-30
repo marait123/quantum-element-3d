@@ -14,6 +14,7 @@ import {
   Check,
   X,
   HelpCircle,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { TRANSLATIONS } from '@/data/translations';
@@ -47,6 +48,8 @@ export const Header: React.FC = () => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  // Phones: tour / sound / language / share live in one "more" menu so the header fits the screen
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
 
   const handleCopyLink = () => {
     if (typeof window === 'undefined') return;
@@ -72,11 +75,11 @@ export const Header: React.FC = () => {
     <>
       <header className="absolute top-0 inset-x-0 z-30 flex items-center justify-between p-3 md:p-4 pointer-events-none gap-2">
         {/* Brand & Subtitle + World Switcher */}
-        <div className="flex items-center gap-3 pointer-events-auto">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 pointer-events-auto">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-sky-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-cyan-500/25 border border-cyan-400/40 shrink-0">
             <Atom className="w-6 h-6 text-white animate-spin-slow" />
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden lg:block">
             <h1 className="text-base md:text-lg font-black tracking-tight bg-gradient-to-r from-cyan-300 via-sky-200 to-amber-200 bg-clip-text text-transparent">
               {t.brandTitle}
             </h1>
@@ -86,7 +89,7 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Top-Level World Switcher (Quantum Subatomic ⟷ Cosmic Universe) */}
-          <div className="ms-1 sm:ms-3">
+          <div className="lg:ms-3 min-w-0">
             <WorldSwitcher />
           </div>
         </div>
@@ -147,13 +150,14 @@ export const Header: React.FC = () => {
 
         {/* Right Controls: Search (Mobile), 118 Grid, Audio, Language Toggle, Share, Dossier */}
         {/* Right Controls: Consolidated System Utilities (Search Mobile, Tour, Audio, Language, Share) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+        <div className="relative flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
           {/* Mobile Search Trigger Button */}
           <button
             type="button"
             onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-            className="lg:hidden glass-button p-2 rounded-xl text-slate-200"
+            className="lg:hidden glass-button p-2 coarse:p-2.5 rounded-xl text-slate-200"
             title={language === 'ar' ? 'بحث' : 'Search'}
+            aria-label={language === 'ar' ? 'بحث' : 'Search'}
           >
             <Search className="w-4 h-4 text-sky-400" />
           </button>
@@ -163,7 +167,7 @@ export const Header: React.FC = () => {
             id="platform-tour-btn"
             type="button"
             onClick={() => setTutorialOpen(true, 0)}
-            className="glass-button px-2.5 py-1.5 rounded-xl bg-purple-600/25 border-purple-400/50 flex items-center gap-1.5 text-xs text-purple-200 font-semibold hover:bg-purple-600/40 hover:text-white transition shadow-lg shadow-purple-500/20 cursor-pointer"
+            className="hidden sm:flex glass-button px-2.5 py-1.5 coarse:min-h-10 rounded-xl bg-purple-600/25 border-purple-400/50 items-center gap-1.5 text-xs text-purple-200 font-semibold hover:bg-purple-600/40 hover:text-white transition shadow-lg shadow-purple-500/20 cursor-pointer"
             title={language === 'ar' ? 'دليل المنصة والتحكم (جولة تعريفية)' : 'Platform Guide & Controls Tour'}
           >
             <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
@@ -175,7 +179,7 @@ export const Header: React.FC = () => {
           {/* Audio Mute/Unmute */}
           <button
             onClick={toggleAudio}
-            className="glass-button p-2 rounded-xl text-slate-200 cursor-pointer"
+            className="hidden sm:block glass-button p-2 coarse:p-2.5 rounded-xl text-slate-200 cursor-pointer"
             title={isAudioMuted ? t.soundOff : t.soundOn}
             aria-label={isAudioMuted ? t.soundOff : t.soundOn}
           >
@@ -189,7 +193,7 @@ export const Header: React.FC = () => {
           {/* Bilingual Language Toggle */}
           <button
             onClick={toggleLanguage}
-            className="glass-button px-2.5 py-1.5 rounded-xl flex items-center gap-1 text-xs font-bold text-amber-300 cursor-pointer"
+            className="hidden sm:flex glass-button px-2.5 py-1.5 coarse:min-h-10 rounded-xl items-center gap-1 text-xs font-bold text-amber-300 cursor-pointer"
             title="Switch Language / تبديل اللغة"
           >
             <Globe className="w-3.5 h-3.5 text-amber-400" />
@@ -197,10 +201,10 @@ export const Header: React.FC = () => {
           </button>
 
           {/* Share / Copy Direct View Link */}
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <button
               onClick={handleCopyLink}
-              className={`glass-button px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+              className={`glass-button px-2.5 py-1.5 coarse:min-h-10 rounded-xl flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
                 isCopied
                   ? 'bg-emerald-600/40 border-emerald-400 text-emerald-200'
                   : 'text-sky-300 hover:text-white'
@@ -215,15 +219,78 @@ export const Header: React.FC = () => {
               </span>
             </button>
 
-            {/* Toast Notification */}
-            {isCopied && (
-              <div className="absolute top-full mt-2 end-0 px-3 py-1.5 rounded-xl bg-emerald-950/95 border border-emerald-500 text-[11px] font-bold text-emerald-200 shadow-2xl backdrop-blur-xl whitespace-nowrap animate-fadeIn z-50">
-                {language === 'ar'
-                  ? '🔗 تم نسخ رابط العرض! يمكنك مشاركته أو تحديث الصفحة.'
-                  : '🔗 View link copied! Share or refresh anytime.'}
-              </div>
-            )}
           </div>
+
+          {/* Phones: one "more" button holding tour, sound, language and share */}
+          <button
+            type="button"
+            onClick={() => setIsMoreOpen((o) => !o)}
+            className={`sm:hidden glass-button p-2.5 rounded-xl cursor-pointer ${isMoreOpen ? 'glass-button-active text-white' : 'text-slate-200'}`}
+            aria-label={language === 'ar' ? 'المزيد' : 'More'}
+            aria-expanded={isMoreOpen}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {isMoreOpen && (
+            <>
+              <button
+                type="button"
+                aria-label={language === 'ar' ? 'إغلاق القائمة' : 'Close menu'}
+                className="sm:hidden fixed inset-0 z-40 cursor-default"
+                onClick={() => setIsMoreOpen(false)}
+              />
+              <div className="sm:hidden absolute top-full mt-2 end-0 z-50 w-60 p-1.5 rounded-2xl bg-slate-950/95 border border-slate-700/80 shadow-2xl backdrop-blur-2xl animate-fadeIn">
+                {[
+                  {
+                    key: 'tour',
+                    icon: <HelpCircle className="w-4 h-4 text-purple-400" />,
+                    label: language === 'ar' ? 'دليل المنصة (جولة تعريفية)' : 'Platform tour',
+                    onClick: () => setTutorialOpen(true, 0),
+                  },
+                  {
+                    key: 'audio',
+                    icon: isAudioMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />,
+                    label: isAudioMuted ? t.soundOff : t.soundOn,
+                    onClick: toggleAudio,
+                  },
+                  {
+                    key: 'lang',
+                    icon: <Globe className="w-4 h-4 text-amber-400" />,
+                    label: language === 'en' ? 'العربية' : 'English',
+                    onClick: toggleLanguage,
+                  },
+                  {
+                    key: 'share',
+                    icon: <Share2 className="w-4 h-4 text-sky-300" />,
+                    label: language === 'ar' ? 'نسخ رابط العرض' : 'Copy view link',
+                    onClick: handleCopyLink,
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      item.onClick();
+                      setIsMoreOpen(false);
+                    }}
+                    className="w-full min-h-[44px] px-3 rounded-xl flex items-center gap-3 text-start text-sm font-semibold text-slate-200 hover:bg-slate-800/80 active:bg-slate-800 transition cursor-pointer"
+                  >
+                    {item.icon}
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Toast Notification (under the share button, or the "more" button on phones) */}
+          {isCopied && (
+            <div className="absolute top-full mt-2 end-0 w-max max-w-[calc(100vw-1.5rem)] px-3 py-1.5 rounded-xl bg-emerald-950/95 border border-emerald-500 text-[11px] font-bold text-emerald-200 shadow-2xl backdrop-blur-xl animate-fadeIn z-50">
+              {language === 'ar'
+                ? '🔗 تم نسخ رابط العرض! يمكنك مشاركته أو تحديث الصفحة.'
+                : '🔗 View link copied! Share or refresh anytime.'}
+            </div>
+          )}
         </div>
       </header>
 
@@ -243,7 +310,8 @@ export const Header: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMobileSearchOpen(false)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white"
+              className="p-1 coarse:p-2 rounded-lg text-slate-400 hover:text-white"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
             >
               <X className="w-4 h-4" />
             </button>

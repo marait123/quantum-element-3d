@@ -175,6 +175,38 @@ export const CONSTELLATIONS: Record<string, ConstellationDefinition> = {
     ],
   },
 
+  andromeda: {
+    id: 'andromeda',
+    nameEn: 'Andromeda (The Chained Princess)',
+    nameAr: 'المرأة المسلسلة (أندروميدا)',
+    latinName: 'Andromeda',
+    abbreviation: 'And',
+    familyEn: 'Perseus Family',
+    familyAr: 'عائلة فرساوس',
+    descriptionEn: 'A large northern constellation traced by a chain of bright stars from Alpheratz through Delta Andromedae and Mirach to Almach. It is the celestial home of the Andromeda Galaxy (M31): stepping from Mirach up through Mu and Nu Andromedae leads the eye straight to it — the most distant object most people can see with the naked eye.',
+    descriptionAr: 'كوكبة شمالية كبيرة ترسمها سلسلة من النجوم الساطعة من سُرّة الفرس مروراً بدلتا المرأة المسلسلة وميراخ وصولاً إلى عناق الأرض. وهي موطن مجرة أندروميدا (M31) في السماء: فالانتقال من ميراخ صعوداً عبر نجمَي ميو ونو المرأة المسلسلة يقود العين مباشرة إليها، وهي أبعد جرم يستطيع معظم الناس رؤيته بالعين المجردة.',
+    loreEn: 'In Greek mythology Andromeda was the daughter of King Cepheus and Queen Cassiopeia, chained to a rock as an offering to the sea monster Cetus and rescued by Perseus — all of whom are neighbouring constellations. Arab astronomers called her al-Mar’a al-Musalsala (the chained woman), and in his Book of Fixed Stars (c. 964 CE) the Persian astronomer ʿAbd al-Rahman al-Sufi recorded the Andromeda Galaxy as a “small cloud” — the earliest known written record of it.',
+    loreAr: 'في الأساطير الإغريقية كانت أندروميدا ابنة الملك قيفاوس والملكة ذات الكرسي، رُبطت بالسلاسل إلى صخرة قرباناً لوحش البحر قيطس فأنقذها فرساوس، وكلهم كوكبات متجاورة في السماء. سمّاها الفلكيون العرب "المرأة المسلسلة"، وفي "كتاب صور الكواكب الثابتة" (نحو عام 964م) وصف الفلكي عبد الرحمن الصوفي مجرة أندروميدا بأنها "لطخة سحابية صغيرة"، وهو أقدم سجل مكتوب معروف لها.',
+    centerPosition: [300, 700, -800],
+    boundingRadius: 320,
+    deepSkyObjects: ['andromeda_galaxy'],
+    stars: [
+      { id: 'alpheratz', nameEn: 'Alpheratz (Alpha And)', nameAr: 'سُرّة الفرس', position: [70, 720, -760], magnitude: 2.06, spectralType: 'B', color: '#bfdbfe' },
+      { id: 'delta_andromedae', nameEn: 'Delta Andromedae', nameAr: 'دلتا المرأة المسلسلة', position: [210, 705, -780], magnitude: 3.27, spectralType: 'K', color: '#fdba74' },
+      { id: 'mirach', nameEn: 'Mirach (Beta And)', nameAr: 'ميراخ (بيتا المرأة المسلسلة)', position: [360, 695, -800], magnitude: 2.05, spectralType: 'M', color: '#f87171' },
+      { id: 'almach', nameEn: 'Almach (Gamma And)', nameAr: 'عناق الأرض', position: [590, 680, -840], magnitude: 2.26, spectralType: 'K', color: '#fb923c' },
+      { id: 'mu_andromedae', nameEn: 'Mu Andromedae', nameAr: 'ميو المرأة المسلسلة', position: [380, 790, -830], magnitude: 3.86, spectralType: 'A', color: '#e0f2fe' },
+      { id: 'nu_andromedae', nameEn: 'Nu Andromedae', nameAr: 'نو المرأة المسلسلة', position: [395, 860, -845], magnitude: 4.53, spectralType: 'B', color: '#93c5fd' },
+    ],
+    lines: [
+      ['alpheratz', 'delta_andromedae'],
+      ['delta_andromedae', 'mirach'],
+      ['mirach', 'almach'],
+      ['mirach', 'mu_andromedae'],
+      ['mu_andromedae', 'nu_andromedae'],
+    ],
+  },
+
   canis_major: {
     id: 'canis_major',
     nameEn: 'Canis Major (The Greater Dog)',

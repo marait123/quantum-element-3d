@@ -2,16 +2,13 @@
 
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
-import {
-  CometComaVertexShader,
-  CometComaFragmentShader,
-  CometTailVertexShader,
-  CometTailFragmentShader,
-} from './shaders/cometShaders';
+import { simClock } from '@/lib/simClock';
+import { getCoronaTexture } from '@/components/universe/rendering/celestialMaterials';
+import { rockGeometry } from './rockGeometry';
 
 interface RealisticCometProps {
   body: CelestialBody;
@@ -22,120 +19,144 @@ interface RealisticCometProps {
   icon: string;
 }
 
-export const RealisticComet: React.FC<RealisticCometProps> = ({
-  body,
-  isSelected,
-  isHighlighted,
-  onSelect,
-  language,
-  icon,
-}) => {
+// Halley: a real Keplerian ellipse (retrograde, i = 162°) solved on the shared clock. The real 75-year period is
+// shown in 150 s so a perihelion passage can actually be watched ("motion speeded up"); eccentricity is reduced
+// from 0.967 so perihelion stays outside the (enlarged) Sun.
+const HALLEY = { a: 21, e: 0.74, periodSeconds: 150, inclination: (162 * Math.PI) / 180, node: (58.4 * Math.PI) / 180, argPeri: (111.3 * Math.PI) / 180 };
+// ʻOumuamua: hyperbolic (e ≈ 1.2) escape, now far outbound; no coma or tail was ever observed
+const OUMUAMUA = { a: 30, e: 1.2, h0: 1.7, rate: 0.0006, inclination: (122.7 * Math.PI) / 180, node: (24.6 * Math.PI) / 180 };
+
+const TAIL_PARTICLES = 700;
+
+function solveKepler(M: number, e: number) {
+  let E = M;
+  for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  return E;
+}
+
+export const RealisticComet: React.FC<RealisticCometProps> = ({ body, isSelected, isHighlighted, onSelect, language, icon }) => {
   const rootRef = useRef<THREE.Group>(null);
   const tailGroupRef = useRef<THREE.Group>(null);
   const nucleusRef = useRef<THREE.Mesh>(null);
-  const comaMatRef = useRef<THREE.ShaderMaterial>(null);
-  const ionTailMatRef = useRef<THREE.ShaderMaterial>(null);
-  const dustTailMatRef = useRef<THREE.ShaderMaterial>(null);
+  const comaRef = useRef<THREE.Sprite>(null);
   const [hovered, setHovered] = useState(false);
-
   const isOumuamua = body.id === 'oumuamua';
-  const orbitAngleRef = useRef<number>(Math.random() * Math.PI * 2);
 
   useEffect(() => {
-    if (rootRef.current) {
-      registerCelestialObject(body.id, rootRef.current);
-    }
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
     return () => unregisterCelestialObject(body.id);
   }, [body.id]);
 
-  const comaUniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uComaColor: {
-        value: isOumuamua ? new THREE.Color('#b45309') : new THREE.Color('#38bdf8'),
-      },
-      uSublimationIntensity: { value: 1.0 },
-    }),
-    [isOumuamua]
+  const nucleus = useMemo(
+    () =>
+      isOumuamua
+        ? // ~400 m × 40 m, reddish (space-weathered organics), tumbling
+          rockGeometry({ radius: body.size * 0.5, seed: 77, detail: 3, relief: 0.05, craters: 2, stretch: [2.6, 0.32, 0.42], color: '#8a4b33', albedoJitter: 0.15 })
+        : // Halley's nucleus: 15 × 8 km peanut, one of the darkest surfaces in the Solar System (~4% albedo)
+          rockGeometry({ radius: body.size * 0.22, seed: 1986, detail: 4, relief: 0.12, craters: 8, shape: 'bilobed', stretch: [1.7, 0.95, 0.95], color: '#2b2825', albedoJitter: 0.35 }),
+    [isOumuamua, body.size]
   );
+  useEffect(() => () => nucleus.dispose(), [nucleus]);
 
-  const ionTailUniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uTailColor: { value: new THREE.Color('#0284c7') }, // Fluorescent electric blue CO+
-      uTailType: { value: 0.0 },                        // Ion tail
-      uLengthFalloff: { value: 1.0 },
-    }),
-    []
-  );
-
-  const dustTailUniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uTailColor: { value: new THREE.Color('#f59e0b') }, // Golden solar dust
-      uTailType: { value: 1.0 },                        // Dust tail
-      uLengthFalloff: { value: 0.85 },
-    }),
-    []
-  );
-
-  useFrame(({ clock }, delta) => {
-    const t = clock.getElapsedTime();
-
-    if (comaMatRef.current) comaMatRef.current.uniforms.uTime.value = t;
-    if (ionTailMatRef.current) ionTailMatRef.current.uniforms.uTime.value = t;
-    if (dustTailMatRef.current) dustTailMatRef.current.uniforms.uTime.value = t;
-
-    // Orbital dynamics
-    if (rootRef.current) {
-      if (!isOumuamua) {
-        // Halley's Comet: Highly eccentric orbit (e ~ 0.75) around Sun at [0,0,0]
-        orbitAngleRef.current += (body.orbitalSpeed || 0.035) * delta * 0.8;
-        const a = body.orbitalRadius || 21.0;
-        const e = 0.65;
-        const r = (a * (1 - e * e)) / (1 + e * Math.cos(orbitAngleRef.current));
-
-        const x = Math.cos(orbitAngleRef.current) * r;
-        const z = Math.sin(orbitAngleRef.current) * r;
-        const y = Math.sin(orbitAngleRef.current * 0.8) * 4.0; // 18 degree inclination
-        rootRef.current.position.set(x, y, z);
-
-        // Sun vector points away from origin (Sun is at 0,0,0)
-        const sunDir = new THREE.Vector3(x, y, z).normalize();
-        if (tailGroupRef.current) {
-          // Orient tail directly away from the Sun
-          tailGroupRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), sunDir);
-        }
-
-        // Sublimation increases closer to perihelion
-        const distToSun = Math.max(r, 6.0);
-        const subInt = clampVal((18.0 / distToSun) * 1.2, 0.4, 1.8);
-        if (comaMatRef.current) comaMatRef.current.uniforms.uSublimationIntensity.value = subInt;
-      } else {
-        // 'Oumuamua: Hyperbolic passage through inner system
-        const oumuamuaX = 12.0 + Math.sin(t * 0.02) * 5.0;
-        const oumuamuaY = 7.5 + Math.cos(t * 0.015) * 2.0;
-        const oumuamuaZ = 9.0 - (t * 0.5) % 30.0;
-        rootRef.current.position.set(oumuamuaX, oumuamuaY, oumuamuaZ);
-
-        if (tailGroupRef.current) {
-          const sunDir = new THREE.Vector3(oumuamuaX, oumuamuaY, oumuamuaZ).normalize();
-          tailGroupRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), sunDir);
-        }
+  // Tails as soft particles in a local frame: +x points away from the Sun, −z is "behind" along the orbit
+  const tails = useMemo(() => {
+    if (isOumuamua) return null;
+    const make = (kind: 'ion' | 'dust') => {
+      const pos = new Float32Array(TAIL_PARTICLES * 3);
+      const col = new Float32Array(TAIL_PARTICLES * 3);
+      const c = new THREE.Color(kind === 'ion' ? '#6fb6ff' : '#f2dfb0');
+      let seed = kind === 'ion' ? 3 : 9;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < TAIL_PARTICLES; i++) {
+        const s = Math.pow(rnd(), kind === 'ion' ? 1.2 : 0.9); // 0 at the head, 1 at the tip
+        const len = body.size * (kind === 'ion' ? 16 : 11);
+        const spread = body.size * (kind === 'ion' ? 0.25 + s * 0.5 : 0.4 + s * 2.4);
+        const x = s * len;
+        // Dust curves back along the orbit (particles lag behind); ions stream straight out
+        const curve = kind === 'dust' ? -Math.pow(s, 1.7) * len * 0.35 : 0;
+        const y = (rnd() - 0.5) * spread * (kind === 'dust' ? 0.35 : 1);
+        const z = curve + (rnd() - 0.5) * spread;
+        pos.set([x, y, z], i * 3);
+        const fade = Math.pow(1 - s, kind === 'ion' ? 1.4 : 1.1);
+        col.set([c.r * fade, c.g * fade, c.b * fade], i * 3);
       }
-    }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return geo;
+    };
+    return { ion: make('ion'), dust: make('dust') };
+  }, [isOumuamua, body.size]);
+  useEffect(() => () => {
+    tails?.ion.dispose();
+    tails?.dust.dispose();
+  }, [tails]);
 
-    // Nucleus tumbling
+  const _pos = useMemo(() => new THREE.Vector3(), []);
+  const _prev = useMemo(() => new THREE.Vector3(), []);
+  const _x = useMemo(() => new THREE.Vector3(), []);
+  const _y = useMemo(() => new THREE.Vector3(), []);
+  const _z = useMemo(() => new THREE.Vector3(), []);
+  const _m = useMemo(() => new THREE.Matrix4(), []);
+  const _rot = useMemo(() => new THREE.Euler(), []);
+
+  // Position in the orbit plane, then tilted by node/inclination (scene axes: ecliptic x → x, y → −z)
+  const orbitPosition = (t: number, out: THREE.Vector3) => {
+    if (isOumuamua) {
+      const H = OUMUAMUA.h0 + t * OUMUAMUA.rate;
+      const px = -OUMUAMUA.a * (Math.cosh(H) - OUMUAMUA.e);
+      const py = OUMUAMUA.a * Math.sqrt(OUMUAMUA.e ** 2 - 1) * Math.sinh(H);
+      out.set(px, 0, -py);
+      _rot.set(OUMUAMUA.inclination, OUMUAMUA.node, 0);
+    } else {
+      const M = (2 * Math.PI * t) / HALLEY.periodSeconds + 2.4;
+      const E = solveKepler(M % (2 * Math.PI), HALLEY.e);
+      const px = HALLEY.a * (Math.cos(E) - HALLEY.e);
+      const py = HALLEY.a * Math.sqrt(1 - HALLEY.e ** 2) * Math.sin(E);
+      out.set(px, 0, -py).applyAxisAngle(_y.set(0, 1, 0), HALLEY.argPeri);
+      _rot.set(HALLEY.inclination, HALLEY.node, 0);
+    }
+    return out.applyEuler(_rot);
+  };
+
+  useFrame((_, delta) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const t = simClock.time;
+    orbitPosition(t, root.position);
+
     if (nucleusRef.current) {
-      nucleusRef.current.rotation.x += delta * (body.rotationSpeed || 0.05);
-      nucleusRef.current.rotation.y += delta * (body.rotationSpeed || 0.05) * 1.5;
+      const spin = (body.rotationSpeed || 0.05) * delta * simClock.scale;
+      nucleusRef.current.rotation.x += spin * (isOumuamua ? 0.6 : 1);
+      nucleusRef.current.rotation.y += spin * 1.5;
+    }
+    if (isOumuamua || !tailGroupRef.current) return;
+
+    // Tail frame: x away from the Sun, z along the direction of motion (so the dust tail lags behind)
+    const r = root.position.length();
+    _x.copy(root.position).normalize();
+    orbitPosition(t - 0.5, _prev);
+    _z.copy(root.position).sub(_prev).normalize(); // velocity
+    _y.crossVectors(_z, _x).normalize();
+    _z.crossVectors(_x, _y).normalize();
+    _m.makeBasis(_x, _y, _z);
+    tailGroupRef.current.quaternion.setFromRotationMatrix(_m);
+    // Activity: sublimation ~ 1/r² — tails grow and brighten near perihelion
+    const activity = THREE.MathUtils.clamp(Math.pow(12 / Math.max(r, 5), 2), 0.08, 1.6);
+    tailGroupRef.current.scale.set(0.3 + activity * 0.7, 1, 1);
+    tailGroupRef.current.visible = activity > 0.1;
+    if (comaRef.current) {
+      const s = body.size * (0.9 + activity * 1.4);
+      comaRef.current.scale.set(s, s, 1);
+      (comaRef.current.material as THREE.SpriteMaterial).opacity = 0.12 + activity * 0.25;
     }
   });
+
+  const glow = getCoronaTexture();
 
   return (
     <group
       ref={rootRef}
-      position={body.position}
       onClick={(e: ThreeEvent<MouseEvent>) => {
         if (e.delta && e.delta > 5) return;
         e.stopPropagation();
@@ -144,95 +165,47 @@ export const RealisticComet: React.FC<RealisticCometProps> = ({
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* 1. Nucleus (Irregular stony/icy body) */}
-      <mesh ref={nucleusRef}>
-        {isOumuamua ? (
-          // Extreme 10:1 elongation cigar shape
-          <cylinderGeometry args={[body.size * 0.12, body.size * 0.12, body.size * 1.8, 12]} />
-        ) : (
-          // Irregular peanut / potato nucleus
-          <dodecahedronGeometry args={[body.size * 0.28, 1]} />
-        )}
-        <meshStandardMaterial
-          color={isOumuamua ? '#78350f' : '#334155'}
-          roughness={0.95}
-        />
+      {/* Nucleus */}
+      <mesh ref={nucleusRef} geometry={nucleus}>
+        <meshStandardMaterial vertexColors roughness={0.97} metalness={0} />
       </mesh>
 
-      {/* 2. Sublimating Gas Coma Sphere */}
-      <mesh>
-        <sphereGeometry args={[body.size * (isOumuamua ? 0.6 : 1.3), 32, 32]} />
-        <shaderMaterial
-          ref={comaMatRef}
-          vertexShader={CometComaVertexShader}
-          fragmentShader={CometComaFragmentShader}
-          uniforms={comaUniforms}
-          transparent
-          depthWrite={false}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
+      {!isOumuamua && tails && (
+        <>
+          {/* Coma: the glowing gas cloud around the nucleus (camera-facing) */}
+          <sprite ref={comaRef} raycast={() => null}>
+            <spriteMaterial map={glow} color="#bfe8ff" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </sprite>
+          <group ref={tailGroupRef}>
+            {/* Ion (plasma) tail: straight, blue, exactly anti-sunward */}
+            <points geometry={tails.ion} raycast={() => null}>
+              <pointsMaterial map={glow} size={body.size * 0.9} vertexColors transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </points>
+            {/* Dust tail: broad, yellowish, curved back along the orbit */}
+            <points geometry={tails.dust} raycast={() => null}>
+              <pointsMaterial map={glow} size={body.size * 1.4} vertexColors transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </points>
+          </group>
+        </>
+      )}
 
-      {/* 3. Dual Tails System (Oriented away from the Sun) */}
-      <group ref={tailGroupRef}>
-        {/* Type I Ion (Plasma) Tail: Narrow, straight, long electric blue */}
-        <mesh position={[body.size * 6.0, 0, 0]}>
-          <planeGeometry args={[body.size * 12.0, body.size * 0.9]} />
-          <shaderMaterial
-            ref={ionTailMatRef}
-            vertexShader={CometTailVertexShader}
-            fragmentShader={CometTailFragmentShader}
-            uniforms={ionTailUniforms}
-            transparent
-            depthWrite={false}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-
-        {/* Type II Dust Tail: Broad, curved, golden amber dust */}
-        <mesh position={[body.size * 4.8, 0, body.size * 0.8]} rotation={[0, -0.22, 0]}>
-          <planeGeometry args={[body.size * 9.5, body.size * 2.2]} />
-          <shaderMaterial
-            ref={dustTailMatRef}
-            vertexShader={CometTailVertexShader}
-            fragmentShader={CometTailFragmentShader}
-            uniforms={dustTailUniforms}
-            transparent
-            depthWrite={false}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-      </group>
-
-      {/* Selection Ring */}
       {(isSelected || isHighlighted) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.5, body.size * 1.7, 32]} />
-          <meshBasicMaterial
-            color={isHighlighted ? '#fbbf24' : '#38bdf8'}
-            side={THREE.DoubleSide}
-            transparent
-            opacity={0.85}
-          />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+          <ringGeometry args={[body.size * 1.42, body.size * 1.46, 96]} />
+          <meshBasicMaterial color={isHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} transparent opacity={0.45} />
         </mesh>
       )}
 
-      {/* Tag */}
       {(hovered || isSelected || isHighlighted) && (
         <Html position={[0, body.size * 1.6 + 1.5, 0]} center distanceFactor={body.size * 15}>
           <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl flex items-center gap-1.5 pointer-events-none">
             {isHighlighted && <span className="text-amber-400">⚡</span>}
-            <span>{icon} {language === 'ar' ? body.nameAr : body.nameEn}</span>
+            <span>
+              {icon} {language === 'ar' ? body.nameAr : body.nameEn}
+            </span>
           </div>
         </Html>
       )}
     </group>
   );
 };
-
-function clampVal(val: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, val));
-}

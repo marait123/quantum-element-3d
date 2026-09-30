@@ -18,6 +18,11 @@ async function runE2ETests() {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
   });
+  // These tests exercise the subatomic world: pre-set the remembered world and mark the guided tour as seen, so
+  // neither the first-visit chooser nor the tour overlay blocks the clicks
+  await context.addInitScript(() => {
+    try { localStorage.setItem('science_lab_world', 'subatomic'); localStorage.setItem('science_lab_tutorial_completed', 'true'); } catch {}
+  });
 
   const page = await context.newPage();
 
@@ -76,7 +81,9 @@ async function runE2ETests() {
 
     // 4. Test 118 Grid Sheet Modal
     console.log('4. Testing 118 Element Grid Sheet Modal...');
-    const gridBtn = page.getByTitle('118 Grid ▦');
+    // The grid lives in the Science Tools dock, which may start collapsed
+    const gridBtn = page.locator('#grid-118-btn');
+    if (!(await gridBtn.isVisible())) await page.locator('#science-tools-dock > button').first().click();
     await gridBtn.click();
     await page.waitForSelector('text=Complete 118 Element Sheet', { timeout: 5000 });
     console.log('   ✓ 118 Element Sheet modal opened.');

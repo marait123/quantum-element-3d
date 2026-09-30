@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
+import { useIsCompact } from '@/lib/useMediaQuery';
 import { TRANSLATIONS } from '@/data/translations';
 import {
   Database,
@@ -44,6 +45,17 @@ export const ScienceToolsDock: React.FC = () => {
   const setVideoModalOpen = useQuantumStore((s) => s.setVideoModalOpen);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Phones: start collapsed (the expanded panel would cover a third of the scene) and collapse again after a tool
+  // is picked, since every tool opens a full-screen panel anyway
+  const isCompact = useIsCompact();
+  React.useEffect(() => {
+    if (isCompact) setIsCollapsed(true);
+  }, [isCompact]);
+  const anyToolOpen =
+    isCosmicDatabaseOpen || isCosmicElementDrawerOpen || isUniverseVideoModalOpen || isDossierOpen || isGridModalOpen || isVideoModalOpen;
+  React.useEffect(() => {
+    if (isCompact && anyToolOpen) setIsCollapsed(true);
+  }, [isCompact, anyToolOpen]);
 
   const t = TRANSLATIONS[language]?.scienceHub || TRANSLATIONS.en.scienceHub;
 
@@ -65,16 +77,17 @@ export const ScienceToolsDock: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsCollapsed(false)}
-          className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 border border-sky-500/40 text-sky-300 shadow-xl backdrop-blur-xl text-xs font-bold transition-all cursor-pointer group hover:border-sky-400"
+          className="flex items-center gap-2 px-3 py-2 coarse:min-h-10 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 border border-sky-500/40 text-sky-300 shadow-xl backdrop-blur-xl text-xs font-bold transition-all cursor-pointer group hover:border-sky-400"
           title={t.expand}
+          aria-label={t.title}
         >
           <FlaskConical className="w-4 h-4 text-cyan-400 group-hover:rotate-12 transition-transform" />
-          <span className="font-sans">{t.title}</span>
+          <span className="font-sans hidden sm:inline">{t.title}</span>
           <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-180" />
         </button>
       ) : (
         /* Full Science Tools Command Panel */
-        <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-slate-950/88 border border-slate-800/80 shadow-2xl backdrop-blur-2xl w-48 sm:w-56 animate-fadeIn">
+        <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-slate-950/95 border border-slate-800/80 shadow-2xl backdrop-blur-2xl w-48 sm:w-56 animate-fadeIn">
           {/* Header with Title and Collapse Button */}
           <div className="flex items-center justify-between px-2 py-1 border-b border-slate-800/60 pb-1.5 mb-0.5">
             <div className="flex items-center gap-1.5 text-slate-300 text-[11px] font-bold tracking-wide">
@@ -84,8 +97,9 @@ export const ScienceToolsDock: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCollapsed(true)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="p-1 coarse:p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
               title={t.collapse}
+              aria-label={t.collapse}
             >
               <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </button>
@@ -99,7 +113,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="cosmic-database-btn"
                 type="button"
                 onClick={() => setCosmicDatabaseOpen(!isCosmicDatabaseOpen)}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isCosmicDatabaseOpen
                     ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/60 shadow-lg shadow-cyan-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -120,7 +134,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="cosmic-elements-btn"
                 type="button"
                 onClick={() => setCosmicElementDrawerOpen(!isCosmicElementDrawerOpen)}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isCosmicElementDrawerOpen
                     ? 'bg-amber-500/20 text-amber-200 border border-amber-400/60 shadow-lg shadow-amber-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -143,7 +157,7 @@ export const ScienceToolsDock: React.FC = () => {
                 onClick={() => {
                   setUniverseVideoModalOpen(true, scaleVideoKeys[cosmicScaleLevel - 1]);
                 }}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isUniverseVideoModalOpen
                     ? 'bg-rose-500/20 text-rose-200 border border-rose-400/60 shadow-lg shadow-rose-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -164,7 +178,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="scientific-dossier-btn"
                 type="button"
                 onClick={() => setDossierOpen(!isDossierOpen)}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isDossierOpen
                     ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/60 shadow-lg shadow-indigo-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -188,7 +202,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="grid-118-btn"
                 type="button"
                 onClick={() => setGridModalOpen(true)}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isGridModalOpen
                     ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/60 shadow-lg shadow-cyan-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -209,7 +223,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="quantum-cinema-btn"
                 type="button"
                 onClick={() => setVideoModalOpen(true, 'scale')}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isVideoModalOpen
                     ? 'bg-rose-500/20 text-rose-200 border border-rose-400/60 shadow-lg shadow-rose-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
@@ -230,7 +244,7 @@ export const ScienceToolsDock: React.FC = () => {
                 id="subatomic-dossier-btn"
                 type="button"
                 onClick={() => setDossierOpen(!isDossierOpen)}
-                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full px-2.5 py-2 coarse:min-h-11 rounded-xl flex items-center justify-between text-xs font-semibold transition-all cursor-pointer ${
                   isDossierOpen
                     ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/60 shadow-lg shadow-indigo-500/20'
                     : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'

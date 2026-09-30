@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { worldPositionAt, hasFrame } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+import { rockGeometry, RockOptions } from './rockGeometry';
 
 interface RealisticAsteroidProps {
   body: CelestialBody;
@@ -36,14 +39,35 @@ export const RealisticAsteroid: React.FC<RealisticAsteroidProps> = ({
     return () => unregisterCelestialObject(body.id);
   }, [body.id]);
 
+  // Shapes and colours from the real bodies
+  const geometry = useMemo(() => {
+    const opts: Record<string, Omit<RockOptions, 'radius'>> = {
+      // Ceres: round dwarf planet, dark grey, with Occator crater's bright salt (sodium carbonate) deposits
+      ceres: {
+        seed: 1, detail: 5, relief: 0.03, craters: 30, craterSize: [0.05, 0.2], color: '#5d5a57', albedoJitter: 0.15,
+        brightSpot: { dir: [0.9, 0.35, 0.1], size: 0.09, color: '#f4f6f8' },
+      },
+      // Bennu: 490 m spinning-top rubble pile, one of the darkest objects known (4% albedo), boulder-strewn
+      bennu_asteroid: { seed: 2, detail: 4, relief: 0.1, craters: 10, shape: 'spinning-top', color: '#2e2b28', albedoJitter: 0.5 },
+      // Apophis: elongated, probably bilobed ~450 m stony (Sq-type) asteroid
+      apophis_asteroid: { seed: 3, detail: 4, relief: 0.08, craters: 8, shape: 'bilobed', stretch: [1.8, 0.9, 0.9], color: '#8a7f70', albedoJitter: 0.3 },
+      // 16 Psyche: metal-rich M-type, irregular (~280 × 230 × 190 km)
+      psyche_asteroid: { seed: 4, detail: 4, relief: 0.12, craters: 12, stretch: [1.18, 0.82, 0.95], color: '#9a958d', albedoJitter: 0.2 },
+    };
+    const o = opts[body.id] ?? { seed: 9, color: '#6b6560' };
+    return rockGeometry({ radius: body.size, ...o });
+  }, [body.id, body.size]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
   const isCeres = body.id === 'ceres';
   const isPsyche = body.id === 'psyche_asteroid';
-  const isBennu = body.id === 'bennu_asteroid';
-  const isApophis = body.id === 'apophis_asteroid';
 
   useFrame((_, delta) => {
     // 1. Orbital motion
-    if (rootRef.current && body.orbitalRadius && body.orbitalSpeed) {
+    if (rootRef.current && hasFrame(body.id)) {
+      // Real period and inclination from the frame graph (lib/frames.ts)
+      worldPositionAt(body.id, simClock.time, rootRef.current.position);
+    } else if (rootRef.current && body.orbitalRadius && body.orbitalSpeed) {
       orbitAngleRef.current += body.orbitalSpeed * delta * 0.9;
       rootRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
       rootRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
@@ -71,48 +95,20 @@ export const RealisticAsteroid: React.FC<RealisticAsteroidProps> = ({
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Asteroid Mesh with Authentic Topology */}
-      <mesh ref={meshRef}>
-        {isCeres ? (
-          // Spherical dwarf planet (hydrostatic equilibrium)
-          <sphereGeometry args={[body.size, 32, 32]} />
-        ) : isBennu ? (
-          // Diamond / spinning-top faceted octahedron
-          <octahedronGeometry args={[body.size, 1]} />
-        ) : isApophis ? (
-          // Elongated peanut
-          <capsuleGeometry args={[body.size * 0.45, body.size * 1.1, 8, 16]} />
-        ) : (
-          // Irregular 16 Psyche
-          <dodecahedronGeometry args={[body.size, 1]} />
-        )}
-
-        <meshStandardMaterial
-          color={isPsyche ? '#e2e8f0' : isCeres ? '#64748b' : '#475569'}
-          metalness={isPsyche ? 0.9 : 0.15}
-          roughness={isPsyche ? 0.25 : 0.88}
-        />
-
-        {/* Ceres Occator Crater Bright Sodium Carbonate Salt Spots */}
-        {isCeres && (
-          <group position={[body.size * 0.85, body.size * 0.4, 0]}>
-            <mesh>
-              <sphereGeometry args={[body.size * 0.14, 12, 12]} />
-              <meshBasicMaterial color="#f8fafc" />
-            </mesh>
-          </group>
-        )}
+      {/* Real shapes and surfaces (see ROCKS): cratered, with albedo variation */}
+      <mesh ref={meshRef} geometry={geometry}>
+        <meshStandardMaterial vertexColors metalness={isPsyche ? 0.55 : 0} roughness={isPsyche ? 0.45 : 0.95} />
       </mesh>
 
       {/* Selection Ring */}
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.45, body.size * 1.65, 32]} />
+          <ringGeometry args={[body.size * 1.55, body.size * 1.59, 96]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
             transparent
-            opacity={0.85}
+            opacity={0.45}
           />
         </mesh>
       )}

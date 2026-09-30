@@ -22,6 +22,8 @@ export const QuarkScene: React.FC = () => {
   const setScaleLevel = useQuantumStore((s) => s.setScaleLevel);
 
   const [hoveredQuark, setHoveredQuark] = useState<number | null>(null);
+  // Touch has no hover: the first tap on a quark shows its info, a second tap on it dives to the Planck scale
+  const tappedQuarkRef = useRef<number | null>(null);
 
   // Bag mesh ref for MIT bag breathing animation
   const bagRef = useRef<THREE.Mesh>(null);
@@ -193,11 +195,20 @@ export const QuarkScene: React.FC = () => {
               }}
               onPointerOut={(e) => {
                 e.stopPropagation();
-                if (hoveredQuark === q.id) setHoveredQuark(null);
+                // A touch lifting off fires pointer-out: keep a tapped quark's info up
+                if (hoveredQuark === q.id && tappedQuarkRef.current !== q.id) setHoveredQuark(null);
                 document.body.style.cursor = 'default';
               }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (e.delta > 5) return; // a drag to orbit, not a tap
+                const pointerType = (e.nativeEvent as PointerEvent).pointerType;
+                if (pointerType === 'touch' && tappedQuarkRef.current !== q.id) {
+                  tappedQuarkRef.current = q.id;
+                  setHoveredQuark(q.id);
+                  return;
+                }
+                tappedQuarkRef.current = null;
                 // Plunge into Planck scale string inside this quark!
                 setScaleLevel(5);
               }}

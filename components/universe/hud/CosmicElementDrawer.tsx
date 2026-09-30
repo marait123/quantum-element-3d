@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
+import { useIsCompact } from '@/lib/useMediaQuery';
 import { ELEMENTS } from '@/data/elementsData';
 import { getCosmicNucleosynthesis, CELESTIAL_BODIES, CosmicScaleLevel } from '@/data/universeData';
 import { X, Search, Sparkles, MapPin, Atom, Compass, ArrowRight } from 'lucide-react';
@@ -14,6 +15,8 @@ export const CosmicElementDrawer: React.FC = () => {
   const setCosmicScaleLevel = useQuantumStore((s) => s.setCosmicScaleLevel);
   const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
   const language = useQuantumStore((s) => s.language);
+  // Phones: the drawer is full-screen, so close it after a "fly there" action or the flight happens out of sight
+  const isCompact = useIsCompact();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNum, setSelectedNum] = useState<number>(highlightedCosmicElementNum || 79); // Default to Gold (79)
@@ -53,6 +56,7 @@ export const CosmicElementDrawer: React.FC = () => {
       if (body) {
         setCosmicScaleLevel(body.scaleLevel as CosmicScaleLevel);
         setSelectedCosmicBodyId(body.id);
+        if (isCompact) setCosmicElementDrawerOpen(false);
       }
     }
   };
@@ -195,8 +199,9 @@ export const CosmicElementDrawer: React.FC = () => {
                   onClick={() => {
                     setCosmicScaleLevel(body.scaleLevel as CosmicScaleLevel);
                     setSelectedCosmicBodyId(body.id);
+                    if (isCompact) setCosmicElementDrawerOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 transition-colors text-left group"
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 transition-colors text-start group"
                 >
                   <div className="flex items-center gap-2.5">
                     <div

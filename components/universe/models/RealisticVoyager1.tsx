@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { hasFrame, worldPositionAt } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+import { getGoldFoilTexture, parabolicDishGeometry, useSpacecraftEnvMap } from './spacecraftKit';
 
 interface RealisticVoyagerProps {
   body: CelestialBody;
@@ -14,317 +17,203 @@ interface RealisticVoyagerProps {
   language: 'en' | 'ar';
 }
 
-export const RealisticVoyagerProbe: React.FC<RealisticVoyagerProps> = ({
-  body,
-  isSelected,
-  onSelect,
-  language,
-}) => {
-  const probeRootRef = useRef<THREE.Group>(null);
-  const scanPlatformRef = useRef<THREE.Group>(null);
+// Built in metres from the real Voyager spacecraft: 3.66 m high-gain dish on a ten-sided bus (1.78 m across),
+// a 2.3 m science boom with the scan platform (cameras, IRIS, UVS, PPS) plus the cosmic-ray and LECP instruments,
+// three RTGs on the opposite boom, a 13 m magnetometer Astromast and two 10 m plasma-wave antennas in a V.
+// The dish is kept pointed back at Earth/the Sun.
+const METRE = 0.07;
 
-  // Register with global runtime celestial registry for live camera follow
+export const RealisticVoyagerProbe: React.FC<RealisticVoyagerProps> = ({ body, isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const scanRef = useRef<THREE.Group>(null);
+  const envMap = useSpacecraftEnvMap();
+  const isV2 = body.id === 'voyager_2';
+
   useEffect(() => {
-    if (probeRootRef.current) {
-      registerCelestialObject(body.id, probeRootRef.current);
-    }
-    return () => {
-      unregisterCelestialObject(body.id);
-    };
+    if (rootRef.current) registerCelestialObject(body.id, rootRef.current);
+    return () => unregisterCelestialObject(body.id);
   }, [body.id]);
 
-  useFrame(({ clock }, delta) => {
-    if (!probeRootRef.current) return;
-    // Slow authentic interstellar cruise stabilization rotation
-    probeRootRef.current.rotation.y += delta * 0.05;
-    probeRootRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.2) * 0.04;
+  const mats = useMemo(
+    () => ({
+      dish: new THREE.MeshStandardMaterial({ color: '#f2f2ee', roughness: 0.6, metalness: 0.05, envMap, envMapIntensity: 0.5, side: THREE.DoubleSide }),
+      blanket: new THREE.MeshStandardMaterial({ color: '#1b1d22', roughness: 0.75, metalness: 0.3, envMap }),
+      silver: new THREE.MeshStandardMaterial({ color: '#c3c9d1', roughness: 0.3, metalness: 0.9, envMap }),
+      foil: new THREE.MeshStandardMaterial({ map: getGoldFoilTexture(), roughness: 0.35, metalness: 0.85, envMap }),
+      record: new THREE.MeshStandardMaterial({ color: '#e0b94a', roughness: 0.2, metalness: 1, envMap, envMapIntensity: 1.4 }),
+      boom: new THREE.MeshStandardMaterial({ color: '#9ca3ad', roughness: 0.45, metalness: 0.7, envMap }),
+      rtg: new THREE.MeshStandardMaterial({ color: '#3a3d44', roughness: 0.5, metalness: 0.6, envMap }),
+      lens: new THREE.MeshStandardMaterial({ color: '#0a0c10', roughness: 0.1, metalness: 0.5 }),
+    }),
+    [envMap]
+  );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
 
-    // Scan platform subtle calibration sweep
-    if (scanPlatformRef.current) {
-      scanPlatformRef.current.rotation.y = Math.sin(clock.getElapsedTime() * 0.4) * 0.15;
+  const dish = useMemo(() => parabolicDishGeometry(1.83, 0.55, 48, 14), []);
+  const magPoints = useMemo(() => {
+    // Astromast: a triangular lattice mast, 13 m long; drawn as three longerons with diagonal battens
+    const pts: THREE.Vector3[] = [];
+    const n = 26;
+    const r = 0.12;
+    for (let i = 0; i < n; i++) {
+      const y0 = (i / n) * 13;
+      const y1 = ((i + 1) / n) * 13;
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2;
+        const b = ((k + 1) / 3) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, y0, Math.sin(a) * r), new THREE.Vector3(Math.cos(a) * r, y1, Math.sin(a) * r));
+        pts.push(new THREE.Vector3(Math.cos(a) * r, y0, Math.sin(a) * r), new THREE.Vector3(Math.cos(b) * r, y1, Math.sin(b) * r));
+      }
     }
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }, []);
+  useEffect(() => () => {
+    dish.dispose();
+    magPoints.dispose();
+  }, [dish, magPoints]);
+
+  const _toSun = useMemo(() => new THREE.Vector3(), []);
+  const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+
+  useFrame(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (hasFrame(body.id)) worldPositionAt(body.id, simClock.time, root.position);
+    else root.position.set(...body.position);
+    // High-gain antenna (+y) points home
+    _toSun.copy(root.position).negate().normalize();
+    root.quaternion.setFromUnitVectors(_up, _toSun);
+    if (scanRef.current) scanRef.current.rotation.y = Math.sin(simClock.time * 0.1) * 0.3;
   });
 
   return (
     <group
-      ref={probeRootRef}
-      position={body.position}
+      ref={rootRef}
       onClick={(e) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
     >
-      {/* ================================================================= */}
-      {/* 1. 3.7M HIGH-GAIN PARABOLIC ANTENNA (HGA)                         */}
-      {/* ================================================================= */}
-      {/* Main Parabolic Dish Shell (Pointing toward Earth in deep space) */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[1.5, 0.32, 0.48, 48, 2, true]} />
-        <meshStandardMaterial
-          color="#f1f5f9"
-          roughness={0.28}
-          metalness={0.65}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Dish Outer Rim Torus */}
-      <mesh position={[0, 0.24, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[1.5, 0.035, 16, 48]} />
-        <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.3} />
-      </mesh>
-
-      {/* Parabolic Dish Back Support Ribs */}
-      {Array.from({ length: 8 }).map((_, i) => {
-        const angle = (i / 8) * Math.PI * 2;
-        return (
-          <mesh
-            key={`rib-${i}`}
-            position={[Math.cos(angle) * 0.9, -0.05, Math.sin(angle) * 0.9]}
-            rotation={[0, -angle, Math.PI / 6]}
-          >
-            <boxGeometry args={[0.025, 0.06, 1.2]} />
-            <meshStandardMaterial color="#64748b" metalness={0.85} roughness={0.35} />
-          </mesh>
-        );
-      })}
-
-      {/* Sub-Reflector Feed Horn Assembly (Tripod Struts) */}
-      <group position={[0, 0.58, 0]}>
-        {/* Sub-reflector dish */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.18, 0.05, 0.08, 24]} />
-          <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.2} />
+      <group scale={METRE}>
+        {/* High-gain antenna: 3.66 m paraboloid, white, with the sub-reflector on a tripod */}
+        <mesh position={[0, 0.5, 0]} geometry={dish} material={mats.dish} />
+        <mesh position={[0, 1.55, 0]} material={mats.silver}>
+          <cylinderGeometry args={[0.22, 0.22, 0.05, 20]} />
         </mesh>
-        {/* Central waveguide feed */}
-        <mesh position={[0, -0.22, 0]}>
-          <cylinderGeometry args={[0.04, 0.04, 0.38, 12]} />
-          <meshStandardMaterial color="#e2e8f0" metalness={0.7} />
-        </mesh>
-        {/* Tripod support legs */}
-        {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle, i) => (
-          <mesh
-            key={`tripod-${i}`}
-            position={[Math.cos(angle) * 0.48, -0.25, Math.sin(angle) * 0.48]}
-            rotation={[Math.sin(angle) * 0.45, 0, Math.cos(angle) * 0.45]}
-          >
-            <cylinderGeometry args={[0.015, 0.015, 0.72, 8]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.85} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* ================================================================= */}
-      {/* 2. 10-SIDED DECAGONAL BUS CHASSIS (GOLD FOIL MLI BLANKET)        */}
-      {/* ================================================================= */}
-      <mesh position={[0, -0.35, 0]}>
-        <cylinderGeometry args={[0.82, 0.85, 0.5, 10]} />
-        <meshStandardMaterial
-          color="#d97706"
-          emissive="#b45309"
-          emissiveIntensity={0.25}
-          metalness={0.94}
-          roughness={0.18}
-        />
-      </mesh>
-      {/* Bus Structural Aluminum Frame Rings */}
-      <mesh position={[0, -0.1, 0]}>
-        <cylinderGeometry args={[0.86, 0.86, 0.04, 10]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.3} />
-      </mesh>
-      <mesh position={[0, -0.6, 0]}>
-        <cylinderGeometry args={[0.86, 0.86, 0.04, 10]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.3} />
-      </mesh>
-
-      {/* ================================================================= */}
-      {/* 3. THE GOLDEN RECORD (VOYAGER INTERSTELLAR MESSAGE)               */}
-      {/* ================================================================= */}
-      <group position={[0.78, -0.35, 0.28]} rotation={[0, Math.PI / 4, 0]}>
-        {/* Gold Aluminum Cover Disk */}
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <cylinderGeometry args={[0.38, 0.38, 0.02, 36]} />
-          <meshStandardMaterial
-            color="#fbbf24"
-            emissive="#ca8a04"
-            emissiveIntensity={0.45}
-            metalness={0.98}
-            roughness={0.06}
-          />
-        </mesh>
-        {/* Phonograph Grooves and Pulsar Map Calibration Rings */}
-        <mesh position={[0.015, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <ringGeometry args={[0.1, 0.36, 32]} />
-          <meshBasicMaterial color="#b45309" transparent opacity={0.4} side={THREE.DoubleSide} />
-        </mesh>
-        {/* Pulsar Lines Representation */}
-        <mesh position={[0.018, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <ringGeometry args={[0.22, 0.24, 24]} />
-          <meshBasicMaterial color="#fef08a" />
-        </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 4. 13-METER ASTROMAST MAGNETOMETER BOOM & SENSORS                 */}
-      {/* ================================================================= */}
-      <group position={[-0.8, -0.35, 0]} rotation={[0, 0, -Math.PI / 7]}>
-        {/* Triangular Lattice Astromast Truss */}
-        <mesh position={[-1.6, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.045, 0.045, 3.2, 3]} />
-          <meshStandardMaterial color="#64748b" metalness={0.88} roughness={0.3} />
-        </mesh>
-        {/* Mid-span Low-Field Magnetometer Canister */}
-        <mesh position={[-1.4, 0.06, 0]}>
-          <cylinderGeometry args={[0.08, 0.08, 0.22, 16]} />
-          <meshStandardMaterial color="#e2e8f0" metalness={0.75} roughness={0.2} />
-        </mesh>
-        {/* Tip High-Field Magnetometer Sensor Canister */}
-        <mesh position={[-3.25, 0, 0]}>
-          <sphereGeometry args={[0.11, 16, 16]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.8} roughness={0.15} />
-        </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 5. RTG BOOM (3 STACKED NUCLEAR THERMOELECTRIC GENERATORS)         */}
-      {/* ================================================================= */}
-      <group position={[0.85, -0.5, -0.4]} rotation={[0, -Math.PI / 6, Math.PI / 6]}>
-        {/* Structural Deployment Boom */}
-        <mesh position={[0.65, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <boxGeometry args={[0.08, 1.3, 0.08]} />
-          <meshStandardMaterial color="#475569" metalness={0.85} />
-        </mesh>
-
-        {/* 3 SNAP-19 Multi-Hundred Watt RTG Cylinders */}
-        {[-0.26, 0, 0.26].map((offset, idx) => (
-          <group key={`rtg-${idx}`} position={[1.35 + offset, 0, 0]} rotation={[0, 0, 0]}>
-            {/* Core Cylinder */}
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.13, 0.13, 0.45, 18]} />
-              <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.4} />
+        {[0, 1, 2].map((i) => {
+          const a = (i / 3) * Math.PI * 2;
+          return (
+            <mesh key={i} position={[Math.cos(a) * 0.35, 1.05, Math.sin(a) * 0.35]} rotation={[Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35]} material={mats.boom}>
+              <cylinderGeometry args={[0.02, 0.02, 1.1, 5]} />
             </mesh>
-            {/* Heat Dissipation Radiator Fins */}
-            {Array.from({ length: 6 }).map((_, finIdx) => (
-              <mesh
-                key={`fin-${finIdx}`}
-                rotation={[(finIdx / 6) * Math.PI, 0, 0]}
-              >
-                <boxGeometry args={[0.02, 0.36, 0.42]} />
-                <meshStandardMaterial color="#334155" metalness={0.8} />
-              </mesh>
-            ))}
+          );
+        })}
+
+        {/* Ten-sided bus (electronics), black and silver thermal blankets */}
+        <mesh position={[0, 0, 0]} material={mats.blanket}>
+          <cylinderGeometry args={[0.89, 0.89, 0.47, 10]} />
+        </mesh>
+        <mesh position={[0, 0.26, 0]} material={mats.silver}>
+          <cylinderGeometry args={[0.92, 0.92, 0.04, 10]} />
+        </mesh>
+        {/* Propellant tank below the bus */}
+        <mesh position={[0, -0.45, 0]} material={mats.foil}>
+          <sphereGeometry args={[0.36, 20, 14]} />
+        </mesh>
+        {/* The Golden Record on the outside of the bus */}
+        <mesh position={[0.88, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={mats.record}>
+          <cylinderGeometry args={[0.155, 0.155, 0.02, 32]} />
+        </mesh>
+
+        {/* Science boom (2.3 m) with the scan platform at the end, cosmic-ray and LECP instruments along it */}
+        <group position={[isV2 ? -0.9 : 0.9, -0.1, 0.4]} rotation={[0, 0, isV2 ? 0.1 : -0.1]}>
+          <mesh position={[0, 0, 1.15]} rotation={[Math.PI / 2, 0, 0]} material={mats.boom}>
+            <cylinderGeometry args={[0.05, 0.05, 2.3, 8]} />
+          </mesh>
+          <mesh position={[0, 0.15, 0.9]} material={mats.foil}>
+            <boxGeometry args={[0.35, 0.3, 0.3]} />
+          </mesh>
+          <mesh position={[0, -0.12, 1.5]} material={mats.silver}>
+            <cylinderGeometry args={[0.15, 0.12, 0.3, 12]} />
+          </mesh>
+          <group ref={scanRef} position={[0, -0.25, 2.35]}>
+            <mesh material={mats.blanket}>
+              <boxGeometry args={[0.55, 0.3, 0.45]} />
+            </mesh>
+            {/* Narrow-angle and wide-angle cameras */}
+            <mesh position={[0.12, 0, 0.45]} rotation={[Math.PI / 2, 0, 0]} material={mats.silver}>
+              <cylinderGeometry args={[0.1, 0.1, 0.6, 16]} />
+            </mesh>
+            <mesh position={[0.12, 0, 0.76]} rotation={[Math.PI / 2, 0, 0]} material={mats.lens}>
+              <cylinderGeometry args={[0.085, 0.085, 0.02, 16]} />
+            </mesh>
+            <mesh position={[-0.14, 0.02, 0.35]} rotation={[Math.PI / 2, 0, 0]} material={mats.silver}>
+              <cylinderGeometry args={[0.07, 0.07, 0.4, 12]} />
+            </mesh>
+            {/* IRIS infrared interferometer (a small telescope) */}
+            <mesh position={[0, 0.25, 0.2]} rotation={[Math.PI / 2, 0, 0]} material={mats.silver}>
+              <cylinderGeometry args={[0.2, 0.2, 0.35, 16]} />
+            </mesh>
           </group>
-        ))}
-      </group>
+        </group>
 
-      {/* ================================================================= */}
-      {/* 6. SCIENCE INSTRUMENT SCAN PLATFORM                               */}
-      {/* ================================================================= */}
-      <group ref={scanPlatformRef} position={[-0.65, -0.65, 0.7]}>
-        {/* Articulated Azimuth-Elevation Gimbal Mount */}
-        <mesh>
-          <sphereGeometry args={[0.12, 16, 16]} />
-          <meshStandardMaterial color="#475569" metalness={0.9} />
-        </mesh>
+        {/* RTG boom with three finned radioisotope generators, opposite the science boom */}
+        <group position={[isV2 ? 0.9 : -0.9, -0.15, -0.3]}>
+          <mesh position={[0, 0, -1.0]} rotation={[Math.PI / 2, 0, 0]} material={mats.boom}>
+            <cylinderGeometry args={[0.04, 0.04, 2.0, 8]} />
+          </mesh>
+          {[0, 1, 2].map((i) => (
+            <group key={i} position={[0, 0, -0.9 - i * 0.55]} rotation={[Math.PI / 2, 0, 0]}>
+              <mesh material={mats.rtg}>
+                <cylinderGeometry args={[0.2, 0.2, 0.5, 16]} />
+              </mesh>
+              {Array.from({ length: 6 }, (_, k) => (
+                <mesh key={k} rotation={[0, (k / 6) * Math.PI, 0]} material={mats.rtg}>
+                  <boxGeometry args={[0.62, 0.48, 0.02]} />
+                </mesh>
+              ))}
+            </group>
+          ))}
+        </group>
 
-        {/* Narrow-Angle Telephoto Camera Barrel */}
-        <mesh position={[0.15, -0.15, 0.12]} rotation={[Math.PI / 4, 0, 0]}>
-          <cylinderGeometry args={[0.07, 0.09, 0.38, 16]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.2} />
-        </mesh>
-        {/* Optical Glass Lens */}
-        <mesh position={[0.15, -0.28, 0.25]}>
-          <circleGeometry args={[0.065, 16]} />
-          <meshStandardMaterial color="#0284c7" emissive="#0284c7" emissiveIntensity={0.6} />
-        </mesh>
-
-        {/* Wide-Angle Camera Barrel */}
-        <mesh position={[-0.15, -0.12, 0.08]} rotation={[Math.PI / 4, 0, 0]}>
-          <cylinderGeometry args={[0.085, 0.085, 0.24, 16]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.8} />
-        </mesh>
-
-        {/* Infrared Radiometer & Spectrometer (IRIS) Housing */}
-        <mesh position={[0, 0.15, 0.1]}>
-          <boxGeometry args={[0.22, 0.18, 0.28]} />
-          <meshStandardMaterial
-            color="#ca8a04"
-            emissive="#ca8a04"
-            emissiveIntensity={0.2}
-            metalness={0.95}
-          />
-        </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 7. DUAL 10-METER PLASMA WAVE ANTENNA (PWS) WHIPS                  */}
-      {/* ================================================================= */}
-      <group position={[0, -0.6, 0]}>
-        {/* Left Beryllium-Copper Dipole Whip */}
-        <mesh position={[-1.2, -0.8, 0]} rotation={[0, 0, -Math.PI / 3]}>
-          <cylinderGeometry args={[0.008, 0.008, 2.5, 6]} />
-          <meshBasicMaterial color="#f59e0b" />
-        </mesh>
-        {/* Right Beryllium-Copper Dipole Whip */}
-        <mesh position={[1.2, -0.8, 0]} rotation={[0, 0, Math.PI / 3]}>
-          <cylinderGeometry args={[0.008, 0.008, 2.5, 6]} />
-          <meshBasicMaterial color="#f59e0b" />
-        </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 8. ATTITUDE CONTROL HYDRAZINE THRUSTER PODS                       */}
-      {/* ================================================================= */}
-      {[0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2].map((angle, i) => (
-        <group
-          key={`thruster-${i}`}
-          position={[Math.cos(angle) * 0.88, -0.35, Math.sin(angle) * 0.88]}
-          rotation={[0, -angle, 0]}
-        >
-          <mesh rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.02, 0.045, 0.08, 8]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} />
+        {/* 13 m magnetometer Astromast (triangular lattice) with its two sensors */}
+        <group position={[0, -0.1, -0.7]} rotation={[-Math.PI / 2 + 0.25, 0, isV2 ? 0.6 : -0.6]}>
+          <lineSegments geometry={magPoints}>
+            <lineBasicMaterial color="#b9c0c9" transparent opacity={0.85} />
+          </lineSegments>
+          <mesh position={[0, 6.5, 0]} material={mats.foil}>
+            <boxGeometry args={[0.18, 0.18, 0.18]} />
+          </mesh>
+          <mesh position={[0, 13, 0]} material={mats.foil}>
+            <boxGeometry args={[0.2, 0.2, 0.2]} />
           </mesh>
         </group>
-      ))}
 
-      {/* ================================================================= */}
-      {/* 9. SELECTION AURA & BILLBOARD HUD BADGE                           */}
-      {/* ================================================================= */}
-      {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.0, 2.15, 32]} />
-          <meshBasicMaterial
-            color={body.id === 'voyager_2' ? '#10b981' : '#f59e0b'}
-            transparent
-            opacity={0.65}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      )}
+        {/* Two 10 m plasma-wave / planetary-radio antennas forming a V */}
+        {[1, -1].map((s) => (
+          <mesh key={s} position={[s * 1.6, -2.4, -2.0]} rotation={[0.8, 0, s * 0.55]} material={mats.boom}>
+            <cylinderGeometry args={[0.012, 0.012, 10, 4]} />
+          </mesh>
+        ))}
+      </group>
 
-      <Html position={[0, 2.2, 0]} center distanceFactor={28}>
+      <Html position={[0, 0.3, 0]} center>
         <div
           className={`px-3 py-1.5 rounded-full bg-slate-950/90 backdrop-blur-md border ${
             isSelected
-              ? body.id === 'voyager_2'
+              ? isV2
                 ? 'border-emerald-400 ring-2 ring-emerald-400 shadow-emerald-500/30 text-emerald-200'
                 : 'border-amber-400 ring-2 ring-amber-400 shadow-amber-500/30 text-amber-200'
-              : body.id === 'voyager_2'
+              : isV2
                 ? 'border-emerald-500/40 text-emerald-300'
                 : 'border-amber-500/40 text-amber-300'
-          } text-[11px] font-bold whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer transition-transform hover:scale-105`}
+          } text-[11px] font-bold whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer pointer-events-auto transition-transform hover:scale-105`}
           onClick={onSelect}
         >
           <span className="text-sm">🛰️</span>
           <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
-          <span
-            className={`text-[9px] px-1.5 py-0.5 rounded ${
-              body.id === 'voyager_2'
-                ? 'bg-emerald-500/20 text-emerald-200'
-                : 'bg-amber-500/20 text-amber-200'
-            }`}
-          >
+          <span className={`text-[9px] px-1.5 py-0.5 rounded ${isV2 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
             {language === 'ar' ? 'بين النجوم' : 'Interstellar'}
           </span>
         </div>
@@ -332,5 +221,3 @@ export const RealisticVoyagerProbe: React.FC<RealisticVoyagerProps> = ({
     </group>
   );
 };
-
-export const RealisticVoyager1 = RealisticVoyagerProbe;

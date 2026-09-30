@@ -57,17 +57,13 @@ export const ResearchDrawer: React.FC = () => {
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
       />
 
-      {/* Slide-over panel: slides in from right in LTR, from left in RTL */}
-      <div
-        className={`absolute inset-y-0 ${
-          language === 'ar' ? 'start-0' : 'end-0'
-        } w-full max-w-2xl glass-panel-deep shadow-2xl border-s border-white/10 flex flex-col z-50`}
-      >
+      {/* Slide-over panel: on the end edge, which is the right in LTR and the left in RTL */}
+      <div className="absolute inset-y-0 end-0 w-full max-w-2xl glass-panel-deep shadow-2xl border-s border-white/10 flex flex-col z-50 animate-slideInRight">
         {/* Drawer Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-700/60 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="p-4 sm:p-5 border-b border-slate-700/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-lg"
+              className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-lg"
               style={{ backgroundColor: catMeta.hex }}
             >
               {element.sym}
@@ -89,8 +85,9 @@ export const ResearchDrawer: React.FC = () => {
 
           <button
             onClick={() => setOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="shrink-0 p-2 coarse:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title={t.closeDossier}
+            aria-label={t.closeDossier}
           >
             <X className="w-5 h-5" />
           </button>

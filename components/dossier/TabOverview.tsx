@@ -43,13 +43,21 @@ export const TabOverview: React.FC<Props> = ({ element, language }) => {
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             {/* Image Container with Hover Zoom */}
             <div className="w-full sm:w-48 h-40 sm:h-36 rounded-xl overflow-hidden border border-white/20 relative shrink-0 bg-slate-900 shadow-xl">
-              <img
-                src={elementImg.url}
-                alt={element.nameEn}
-                referrerPolicy="no-referrer"
-                onError={() => setImageError(true)}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
+              <a
+                href={elementImg.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full h-full cursor-zoom-in"
+                title={language === 'ar' ? 'فتح الصورة كاملة في علامة تبويب جديدة' : 'Open the full image in a new tab'}
+              >
+                <img
+                  src={elementImg.url}
+                  alt={element.nameEn}
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageError(true)}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              </a>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
               <div className="absolute bottom-1.5 start-2 text-[10px] font-mono text-cyan-200 font-bold drop-shadow">
                 {element.sym} • {element.mass.toFixed(2)} u

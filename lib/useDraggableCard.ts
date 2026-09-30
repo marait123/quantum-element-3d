@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useIsCompact, matchesQuery, COMPACT_QUERY } from './useMediaQuery';
 
 interface DraggableOptions {
   initialX?: number;
@@ -24,10 +25,23 @@ export function useDraggableCard(options: DraggableOptions = {}) {
   const dragStartRef = useRef({ pointerX: 0, pointerY: 0, cardX: initialX, cardY: initialY });
   const isPointerDownRef = useRef(false);
 
-  const isMobile = useCallback(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth < 768;
-  }, []);
+  // Phone layouts (narrow, or short landscape) don't drag cards; reactive so rotating the phone updates it
+  const isCompact = useIsCompact();
+  const isMobile = useCallback(() => matchesQuery(COMPACT_QUERY), []);
+
+  // Keep a dragged card on screen after the window is resized or the device rotated
+  useEffect(() => {
+    const clamp = () =>
+      setPos((p) => {
+        const maxX = Math.max(10, window.innerWidth - cardWidth - 10);
+        const maxY = Math.max(10, window.innerHeight - Math.min(cardHeight, window.innerHeight * 0.5) - 10);
+        const x = Math.min(Math.max(10, p.x), maxX);
+        const y = Math.min(Math.max(10, p.y), maxY);
+        return x === p.x && y === p.y ? p : { x, y };
+      });
+    window.addEventListener('resize', clamp);
+    return () => window.removeEventListener('resize', clamp);
+  }, [cardWidth, cardHeight]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (disabledOnMobile && isMobile()) return;
@@ -95,6 +109,6 @@ export function useDraggableCard(options: DraggableOptions = {}) {
     setPos,
     isDragging,
     handlePointerDown,
-    isMobile: isMobile(),
+    isMobile: isCompact,
   };
 }

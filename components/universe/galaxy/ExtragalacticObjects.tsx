@@ -2,12 +2,42 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 import { RealisticBlackHole } from '../blackhole/RealisticBlackHole';
 import { RealisticPulsar } from '../pulsar/RealisticPulsar';
+import { PooledPointLight } from '@/components/universe/rendering/LightPool';
+import { getGlowPointTexture } from '@/lib/planetTextures';
+import { softenPointSprites } from '@/components/universe/rendering/softPointSprites';
+import { StarBody } from '@/components/universe/rendering/StarBody';
+import {
+  SupergiantStar,
+  HotStar,
+  GlowShell,
+  GlowSprite,
+  createGasStreamMaterial,
+  createAccretionDiskMaterial,
+  useAnimatedShader,
+} from '@/components/universe/rendering/StellarExtras';
+import { ExoplanetSurface, getExoplanetLook } from '@/components/universe/exoplanet/RealisticExoplanet';
+import { systemOrbitAngle } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+
+// Effective temperatures (K) of the catalogued stars drawn here (surface colour comes from these)
+const STAR_KELVIN: Record<string, number> = {
+  s_doradus: 20000, // LBV prototype, ~20,000 K in its hot phase
+  ae_andromedae: 22000, // LBV
+  af_andromedae: 28000, // LBV
+  m33_var_b: 18000, // LBV
+  m33_var_c: 12000, // LBV, swings between ~8,000 and ~20,000 K
+  hd_5980: 35000, // very hot WR/LBV multiple system
+  m31_rv: 3000, // after its 1988 red-nova outburst it looked like a cool M supergiant
+  m31_2014_ds1: 4500, // the yellow supergiant before it faded behind its own dust
+  woh_g64: 3400, // red supergiant in its egg-shaped dust cocoon (VLTI/GRAVITY 2024)
+  vfts_352: 42000, // two touching O stars
+};
 
 // ----------------------------------------------------
 // 1. M31* Core Black Hole with P1 & P2 Double Nucleus
@@ -19,6 +49,9 @@ export const M31CoreBlackHoleSystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, onSelect, language }) => {
   const p1DiskRef = useRef<THREE.Group>(null);
+  // The black hole sits at this group's origin (it places itself at body.position, which would double the offset
+  // and put M31* ~98,000 units away from Andromeda)
+  const localBody = React.useMemo<CelestialBody>(() => ({ ...body, position: [0, 0, 0] }), [body]);
 
   useFrame(({ clock }) => {
     if (p1DiskRef.current) {
@@ -30,7 +63,7 @@ export const M31CoreBlackHoleSystem: React.FC<{
     <group position={body.position}>
       {/* Primary M31* Realistic Supermassive Black Hole */}
       <RealisticBlackHole
-        body={body}
+        body={localBody}
         shadowRadius={body.size * 0.42}
         innerDiskRadius={body.size * 0.48}
         outerDiskRadius={body.size * 1.45}
@@ -49,13 +82,18 @@ export const M31CoreBlackHoleSystem: React.FC<{
 
       {/* Hubble P1 Stellar Cluster: Eccentric Keplarian disk of old stars orbiting 5 ly away */}
       <group ref={p1DiskRef} position={[body.size * 0.55, body.size * 0.15, 0]}>
-        <mesh>
-          <sphereGeometry args={[body.size * 0.22, 16, 16]} />
-          <meshBasicMaterial color="#fef08a" transparent opacity={0.65} />
-        </mesh>
+        <GlowSprite size={body.size * 0.7} color="#ffd9a0" opacity={0.75} />
         <points>
           <sphereGeometry args={[body.size * 0.35, 12, 12]} />
-          <pointsMaterial size={body.size * 0.02} color="#fef08a" transparent opacity={0.5} />
+          <pointsMaterial
+            ref={softenPointSprites}
+            size={body.size * 0.02}
+            map={getGlowPointTexture()}
+            color="#fef08a"
+            transparent
+            opacity={0.5}
+            depthWrite={false}
+          />
         </points>
       </group>
     </group>
@@ -72,7 +110,7 @@ export const HubbleV1Cepheid: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Group>(null);
   const coronaRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -111,34 +149,20 @@ export const HubbleV1Cepheid: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#fef08a" intensity={4.5} distance={body.size * 5} />
+      <PooledPointLight color="#fef08a" intensity={4.5} distance={body.size * 5} />
 
-      {/* Pulsating F-Type Supergiant Core */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[body.size, 32, 32]} />
-        <meshStandardMaterial
-          color="#fef08a"
-          emissive="#eab308"
-          emissiveIntensity={1.3}
-          roughness={0.3}
-        />
-      </mesh>
+      {/* Pulsating yellow supergiant (F8-G0 Ib, ~6,000 K) */}
+      <group ref={coreRef}>
+        <StarBody radius={body.size} kelvin={6000} spots={0.4} brightness={1.4} glowScale={2.2} glowOpacity={0.5} segments={64} />
+      </group>
 
-      {/* Radiant Stellar Corona */}
-      <mesh ref={coronaRef}>
-        <sphereGeometry args={[body.size * 1.3, 24, 24]} />
-        <meshBasicMaterial
-          color="#fde047"
-          transparent
-          opacity={0.35}
-          side={THREE.BackSide}
-        />
-      </mesh>
+      {/* Glow that breathes with the pulsation */}
+      <GlowShell ref={coronaRef} radius={body.size * 1.3} color="#ffe2a6" strength={0.45} power={2.4} />
 
       {/* Interactive Selection Ring */}
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.4, body.size * 1.55, 36]} />
+          <ringGeometry args={[body.size * 1.4, body.size * 1.435, 128]} />
           <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -226,13 +250,10 @@ export const MayallIIGlobularCluster: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#fef08a" intensity={3.5} distance={body.size * 3} />
+      <PooledPointLight color="#fef08a" intensity={3.5} distance={body.size * 3} />
 
-      {/* Central Intermediate-Mass Black Hole Accretion Core */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.12, 16, 16]} />
-        <meshBasicMaterial color="#fef08a" transparent opacity={0.9} />
-      </mesh>
+      {/* Dense unresolved core (where the suspected intermediate-mass black hole sits) */}
+      <GlowSprite size={body.size * 0.55} color="#ffe8b8" opacity={0.85} />
 
       {/* 300,000 Ancient Stars Point Cloud */}
       <points>
@@ -241,7 +262,9 @@ export const MayallIIGlobularCluster: React.FC<{
           <bufferAttribute attach="attributes-color" args={[colors, 3]} />
         </bufferGeometry>
         <pointsMaterial
+          ref={softenPointSprites}
           size={body.size * 0.025}
+          map={getGlowPointTexture()}
           vertexColors
           transparent
           opacity={0.88}
@@ -252,7 +275,7 @@ export const MayallIIGlobularCluster: React.FC<{
 
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.1, body.size * 1.25, 36]} />
+          <ringGeometry args={[body.size * 1.1, body.size * 1.135, 128]} />
           <meshBasicMaterial color="#f59e0b" side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -284,7 +307,7 @@ export const PA99N2ExoplanetSystem: React.FC<{
 }> = ({ star, planet, selectedId, onSelect, language }) => {
   const systemRef = useRef<THREE.Group>(null);
   const planetOrbitRef = useRef<THREE.Group>(null);
-  const planetMeshRef = useRef<THREE.Mesh>(null);
+  const planetMeshRef = useRef<THREE.Group>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -298,7 +321,8 @@ export const PA99N2ExoplanetSystem: React.FC<{
 
   useFrame((_, delta) => {
     if (planetOrbitRef.current) {
-      planetOrbitRef.current.rotation.y += delta * (planet.orbitalSpeed || 0.04);
+      // Period unknown (found by microlensing): an illustrative rate on the shared clock
+      planetOrbitRef.current.rotation.y = systemOrbitAngle(planet.id, simClock.time, planet.orbitalSpeed || 0.04);
     }
     if (planetMeshRef.current) {
       planetMeshRef.current.rotation.y += delta * (planet.rotationSpeed || 0.02);
@@ -320,16 +344,9 @@ export const PA99N2ExoplanetSystem: React.FC<{
         onPointerOver={() => setHoveredId(star.id)}
         onPointerOut={() => setHoveredId(null)}
       >
-        <pointLight color="#f87171" intensity={3.5} distance={star.size * 6} />
-        <mesh>
-          <sphereGeometry args={[star.size, 32, 32]} />
-          <meshStandardMaterial
-            color="#f87171"
-            emissive="#ef4444"
-            emissiveIntensity={1.2}
-            roughness={0.4}
-          />
-        </mesh>
+        <PooledPointLight color="#f87171" intensity={3.5} distance={star.size * 6} />
+        {/* K/M red giant, ~3,900 K */}
+        <StarBody radius={star.size} kelvin={3900} spots={1} brightness={1.5} glowScale={2.4} glowOpacity={0.5} segments={64} />
         {(hoveredId === star.id || isStarSelected) && (
           <Html position={[0, star.size * 1.3, 0]} center distanceFactor={star.size * 5}>
             <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-red-400 text-xs font-bold text-red-200 whitespace-nowrap shadow-xl">
@@ -348,7 +365,7 @@ export const PA99N2ExoplanetSystem: React.FC<{
       {/* Orbiting Planet Container */}
       <group ref={planetOrbitRef}>
         <group position={[planet.orbitalRadius!, 0, 0]}>
-          <mesh
+          <group
             ref={planetMeshRef}
             onClick={(e: ThreeEvent<MouseEvent>) => {
               if (e.delta && e.delta > 5) return;
@@ -358,13 +375,9 @@ export const PA99N2ExoplanetSystem: React.FC<{
             onPointerOver={() => setHoveredId(planet.id)}
             onPointerOut={() => setHoveredId(null)}
           >
-            <sphereGeometry args={[planet.size, 32, 32]} />
-            <meshStandardMaterial
-              color="#38bdf8"
-              roughness={0.5}
-              metalness={0.1}
-            />
-          </mesh>
+            {/* 6.34 Jupiter masses: a Jupiter-like giant lit by its red giant */}
+            <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={systemRef} hostKelvin={3900} />
+          </group>
 
           {/* Gravitational Microlensing Light Ring Indicator */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -400,14 +413,22 @@ export const M33X7BinarySystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, blackHole, selectedId, onSelect, language }) => {
   const binaryRef = useRef<THREE.Group>(null);
+  const starRef = useRef<THREE.Group>(null);
+  const blackHoleRef = useRef<THREE.Group>(null);
   const streamRef = useRef<THREE.Mesh>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const streamMaterial = React.useMemo(() => createGasStreamMaterial('#93c5fd', '#e0f2fe', 1.3), []);
+  useAnimatedShader(streamMaterial);
+  const diskMaterial = React.useMemo(
+    () => createAccretionDiskMaterial(blackHole.size * 0.45, blackHole.size * 1.25, '#f0f9ff', '#1d4ed8', 1.6),
+    [blackHole.size]
+  );
+  useAnimatedShader(diskMaterial);
 
+  // Each body on its own group: selecting one frames (and follows) that body, not the system centre
   useEffect(() => {
-    if (binaryRef.current) {
-      registerCelestialObject(star.id, binaryRef.current);
-      registerCelestialObject(blackHole.id, binaryRef.current);
-    }
+    if (starRef.current) registerCelestialObject(star.id, starRef.current);
+    if (blackHoleRef.current) registerCelestialObject(blackHole.id, blackHoleRef.current);
     return () => {
       unregisterCelestialObject(star.id);
       unregisterCelestialObject(blackHole.id);
@@ -417,7 +438,7 @@ export const M33X7BinarySystem: React.FC<{
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (binaryRef.current) {
-      binaryRef.current.rotation.y = t * 0.15;
+      binaryRef.current.rotation.y = systemOrbitAngle('m33_x7_black_hole', simClock.time, 0.15); // 3.45-day orbit
     }
     if (streamRef.current) {
       const pulse = 1.0 + Math.sin(t * 3.0) * 0.1;
@@ -430,6 +451,7 @@ export const M33X7BinarySystem: React.FC<{
       <group ref={binaryRef}>
         {/* Roche-Lobe Distorted 70 M_Sun Blue O-Supergiant */}
         <group
+          ref={starRef}
           position={[-blackHole.orbitalRadius! * 0.35, 0, 0]}
           onClick={(e: ThreeEvent<MouseEvent>) => {
             if (e.delta && e.delta > 5) return;
@@ -439,17 +461,11 @@ export const M33X7BinarySystem: React.FC<{
           onPointerOver={() => setHoveredId(star.id)}
           onPointerOut={() => setHoveredId(null)}
         >
-          <pointLight color="#60a5fa" intensity={6.0} distance={star.size * 5} />
-          {/* Egg/Teardrop distorted geometry */}
-          <mesh scale={[1.35, 1.0, 1.0]}>
-            <sphereGeometry args={[star.size, 32, 32]} />
-            <meshStandardMaterial
-              color="#93c5fd"
-              emissive="#3b82f6"
-              emissiveIntensity={1.4}
-              roughness={0.25}
-            />
-          </mesh>
+          <PooledPointLight color="#60a5fa" intensity={6.0} distance={star.size * 5} />
+          {/* O7-8 III, ~35,000 K, pulled into a teardrop by the black hole's tides */}
+          <group scale={[1.35, 1.0, 1.0]}>
+            <HotStar radius={star.size} kelvin={35000} brightness={1.9} glowScale={2.3} glowOpacity={0.55} segments={64} />
+          </group>
           {(hoveredId === star.id || selectedId === star.id) && (
             <Html position={[0, star.size * 1.3, 0]} center distanceFactor={star.size * 5}>
               <div className="px-3 py-1 rounded-full bg-blue-950/95 border border-blue-400 text-xs font-bold text-blue-200 whitespace-nowrap shadow-xl">
@@ -460,13 +476,13 @@ export const M33X7BinarySystem: React.FC<{
         </group>
 
         {/* Mass-Transfer Accretion Stream */}
-        <mesh ref={streamRef} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[star.size * 0.12, star.size * 0.25, blackHole.orbitalRadius!, 16]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.65} />
+        <mesh ref={streamRef} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={streamMaterial} raycast={() => null}>
+          <cylinderGeometry args={[star.size * 0.12, star.size * 0.25, blackHole.orbitalRadius!, 24, 1, true]} />
         </mesh>
 
         {/* 15.65 M_Sun Black Hole with Energetic Accretion Disk */}
         <group
+          ref={blackHoleRef}
           position={[blackHole.orbitalRadius! * 0.65, 0, 0]}
           onClick={(e: ThreeEvent<MouseEvent>) => {
             if (e.delta && e.delta > 5) return;
@@ -482,9 +498,8 @@ export const M33X7BinarySystem: React.FC<{
             <meshBasicMaterial color="#000000" />
           </mesh>
           {/* Accretion Disk */}
-          <mesh rotation={[-Math.PI / 3, 0, 0]}>
-            <ringGeometry args={[blackHole.size * 0.45, blackHole.size * 1.25, 36]} />
-            <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.85} />
+          <mesh rotation={[-Math.PI / 3, 0, 0]} material={diskMaterial}>
+            <ringGeometry args={[blackHole.size * 0.45, blackHole.size * 1.25, 96, 4]} />
           </mesh>
           {(hoveredId === blackHole.id || selectedId === blackHole.id) && (
             <Html position={[0, blackHole.size * 1.2, 0]} center distanceFactor={blackHole.size * 5}>
@@ -511,7 +526,8 @@ export const SDoradusHypergiant: React.FC<{
   isSelected: boolean;
   onSelect: () => void;
   language: 'en' | 'ar';
-}> = ({ body, isSelected, onSelect, language }) => {
+  badge?: string;
+}> = ({ body, isSelected, onSelect, language, badge = '1M L☉ LBV' }) => {
   const rootRef = useRef<THREE.Group>(null);
   const shellRef1 = useRef<THREE.Mesh>(null);
   const shellRef2 = useRef<THREE.Mesh>(null);
@@ -548,34 +564,20 @@ export const SDoradusHypergiant: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#93c5fd" intensity={5.0} distance={body.size * 6} />
+      <PooledPointLight color="#93c5fd" intensity={5.0} distance={body.size * 6} />
 
-      {/* Pulsating Hypergiant Core */}
-      <mesh>
-        <sphereGeometry args={[body.size, 32, 32]} />
-        <meshStandardMaterial
-          color="#93c5fd"
-          emissive="#3b82f6"
-          emissiveIntensity={1.3}
-          roughness={0.2}
-        />
-      </mesh>
+      {/* Hot, unstable hypergiant photosphere (luminous blue variable) */}
+      <HotStar radius={body.size} kelvin={STAR_KELVIN[body.id] ?? 20000} brightness={1.9} glowScale={2.6} glowOpacity={0.55} segments={64} />
 
-      {/* Inner Circumstellar Eruption Shell */}
-      <mesh ref={shellRef1}>
-        <sphereGeometry args={[body.size * 1.35, 24, 24]} />
-        <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} wireframe />
-      </mesh>
+      {/* Wind-blown eruption shell: a clumpy, limb-brightened bubble */}
+      <GlowShell ref={shellRef1} radius={body.size * 1.35} mode="rim" color="#8ec5ff" strength={0.55} power={2.6} noise={0.6} noiseScale={3} />
 
-      {/* Outer Historic Great Eruption Dust Envelope */}
-      <mesh ref={shellRef2}>
-        <sphereGeometry args={[body.size * 1.8, 20, 20]} />
-        <meshBasicMaterial color="#fb7185" transparent opacity={0.18} side={THREE.BackSide} />
-      </mesh>
+      {/* Older ejected nebula of nitrogen-rich gas and dust, glowing in H-alpha */}
+      <GlowShell ref={shellRef2} radius={body.size * 1.8} color="#fb7185" strength={0.22} power={1.8} noise={0.75} noiseScale={2} />
 
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.4, body.size * 1.55, 36]} />
+          <ringGeometry args={[body.size * 1.4, body.size * 1.435, 128]} />
           <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -586,7 +588,7 @@ export const SDoradusHypergiant: React.FC<{
             <span>🌟</span>
             <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">
-              1M L☉ LBV
+              {badge}
             </span>
           </div>
         </Html>
@@ -608,22 +610,24 @@ export const SMCX1PulsarSystem: React.FC<{
   const binaryRef = useRef<THREE.Group>(null);
   const streamRef = useRef<THREE.Mesh>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const streamMaterial = React.useMemo(() => createGasStreamMaterial('#93c5fd', '#a5f3fc', 1.2), []);
+  useAnimatedShader(streamMaterial);
 
+  const starRef = useRef<THREE.Group>(null);
+  // RealisticPulsar places itself at body.position: it sits inside this system's group, so it gets a local origin
+  const localPulsar = React.useMemo<CelestialBody>(() => ({ ...pulsar, position: [0, 0, 0] }), [pulsar]);
+
+  // The donor star on its own group (RealisticPulsar registers the pulsar itself), so selecting either one
+  // frames that body rather than the system centre
   useEffect(() => {
-    if (binaryRef.current) {
-      registerCelestialObject(star.id, binaryRef.current);
-      registerCelestialObject(pulsar.id, binaryRef.current);
-    }
-    return () => {
-      unregisterCelestialObject(star.id);
-      unregisterCelestialObject(pulsar.id);
-    };
-  }, [star.id, pulsar.id]);
+    if (starRef.current) registerCelestialObject(star.id, starRef.current);
+    return () => unregisterCelestialObject(star.id);
+  }, [star.id]);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (binaryRef.current) {
-      binaryRef.current.rotation.y = t * 0.18;
+      binaryRef.current.rotation.y = systemOrbitAngle('smc_x1_pulsar', simClock.time, 0.18); // 3.89-day orbit
     }
   });
 
@@ -632,6 +636,7 @@ export const SMCX1PulsarSystem: React.FC<{
       <group ref={binaryRef}>
         {/* Sk 160 B0 Ib Supergiant Donor */}
         <group
+          ref={starRef}
           position={[-pulsar.orbitalRadius! * 0.4, 0, 0]}
           onClick={(e: ThreeEvent<MouseEvent>) => {
             if (e.delta && e.delta > 5) return;
@@ -641,16 +646,9 @@ export const SMCX1PulsarSystem: React.FC<{
           onPointerOver={() => setHoveredId(star.id)}
           onPointerOut={() => setHoveredId(null)}
         >
-          <pointLight color="#93c5fd" intensity={5.0} distance={star.size * 5} />
-          <mesh>
-            <sphereGeometry args={[star.size, 32, 32]} />
-            <meshStandardMaterial
-              color="#93c5fd"
-              emissive="#3b82f6"
-              emissiveIntensity={1.2}
-              roughness={0.3}
-            />
-          </mesh>
+          <PooledPointLight color="#93c5fd" intensity={5.0} distance={star.size * 5} />
+          {/* Sk 160: B0 Ib supergiant, ~25,000 K */}
+          <HotStar radius={star.size} kelvin={25000} brightness={1.9} glowScale={2.4} glowOpacity={0.55} segments={64} />
           {(hoveredId === star.id || selectedId === star.id) && (
             <Html position={[0, star.size * 1.3, 0]} center distanceFactor={star.size * 5}>
               <div className="px-3 py-1 rounded-full bg-blue-950/95 border border-blue-400 text-xs font-bold text-blue-200 whitespace-nowrap shadow-xl">
@@ -661,15 +659,14 @@ export const SMCX1PulsarSystem: React.FC<{
         </group>
 
         {/* Mass transfer stream */}
-        <mesh ref={streamRef} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[star.size * 0.08, star.size * 0.2, pulsar.orbitalRadius!, 12]} />
-          <meshBasicMaterial color="#22d3ee" transparent opacity={0.6} />
+        <mesh ref={streamRef} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={streamMaterial} raycast={() => null}>
+          <cylinderGeometry args={[star.size * 0.08, star.size * 0.2, pulsar.orbitalRadius!, 24, 1, true]} />
         </mesh>
 
         {/* 0.71-second Pulsar */}
         <group position={[pulsar.orbitalRadius! * 0.6, 0, 0]}>
           <RealisticPulsar
-            body={pulsar}
+            body={localPulsar}
             beamColor="#22d3ee"
             beamLength={pulsar.size * 4.5}
             beamRadius={pulsar.size * 0.35}
@@ -681,6 +678,363 @@ export const SMCX1PulsarSystem: React.FC<{
           />
         </group>
       </group>
+    </group>
+  );
+};
+
+// Shared click/hover/registry wiring for the Andromeda companions below
+const useSelectableBody = (bodyId: string, onSelect: () => void) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(bodyId, rootRef.current);
+    return () => unregisterCelestialObject(bodyId);
+  }, [bodyId]);
+
+  const handlers = {
+    onClick: (e: ThreeEvent<MouseEvent>) => {
+      if (e.delta && e.delta > 5) return;
+      e.stopPropagation();
+      onSelect();
+    },
+    onPointerOver: () => setHovered(true),
+    onPointerOut: () => setHovered(false),
+  };
+  return { rootRef, hovered, handlers };
+};
+
+const BodyLabel: React.FC<{
+  body: CelestialBody;
+  language: 'en' | 'ar';
+  icon: string;
+  badge: string;
+  height: number;
+  accent: string;
+}> = ({ body, language, icon, badge, height, accent }) => (
+  <Html position={[0, height, 0]} center distanceFactor={body.size * 5}>
+    <div
+      className="px-3.5 py-1.5 rounded-full bg-slate-950/95 border-2 text-xs font-black text-slate-100 whitespace-nowrap shadow-2xl flex items-center gap-1.5 backdrop-blur-md"
+      style={{ borderColor: accent }}
+    >
+      <span>{icon}</span>
+      <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 font-bold" style={{ color: accent }}>
+        {badge}
+      </span>
+    </div>
+  </Html>
+);
+
+// ----------------------------------------------------
+// NGC 206 — Andromeda's great star cloud (young stellar association in the disk)
+// ----------------------------------------------------
+// Loose young star cloud / cluster (NGC 206, NGC 1850, NGC 602…)
+export const StarCloud: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+  badge: string;
+  // star colours: [main, secondary]; hot young clusters are blue-white
+  palette?: [string, string];
+}> = ({ body, isSelected, onSelect, language, badge, palette = ['#bfdbfe', '#e0f2fe'] }) => {
+  const { rootRef, hovered, handlers } = useSelectableBody(body.id, onSelect);
+
+  // A loose, flattened cloud of hot blue-white stars (an association, not a bound cluster)
+  const [positions, colors] = React.useMemo(() => {
+    const count = 1800;
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      const r = Math.sqrt(Math.random()) * body.size;
+      const theta = Math.random() * Math.PI * 2;
+      pos[i * 3] = Math.cos(theta) * r * 1.3;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * body.size * 0.25;
+      pos[i * 3 + 2] = Math.sin(theta) * r * 0.8;
+      c.set(Math.random() < 0.8 ? palette[0] : palette[1]);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    return [pos, col];
+  }, [body.size, palette]);
+
+  return (
+    <group ref={rootRef} position={body.position} {...handlers}>
+      <PooledPointLight color={body.color} intensity={3.0} distance={body.size * 4} />
+      <points>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+          <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          ref={softenPointSprites}
+          size={body.size * 0.035}
+          map={getGlowPointTexture()}
+          vertexColors
+          transparent
+          opacity={0.9}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </points>
+      {/* Invisible pick volume so the sparse cloud is easy to hover and click */}
+      <mesh>
+        <sphereGeometry args={[body.size, 16, 16]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 1.4, body.size * 1.435, 128]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {(hovered || isSelected) && (
+        <BodyLabel body={body} language={language} icon="✨" badge={badge} height={body.size * 1.2} accent="#60a5fa" />
+      )}
+    </group>
+  );
+};
+
+// ----------------------------------------------------
+// M31N 2008-12a — white dwarf + companion erupting about once a year inside its nova super-remnant
+// ----------------------------------------------------
+export const RecurrentNovaSystem: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, isSelected, onSelect, language }) => {
+  const { rootRef, hovered, handlers } = useSelectableBody(body.id, onSelect);
+  const flashRef = useRef<THREE.Mesh>(null);
+  const orbitRef = useRef<THREE.Group>(null);
+  const diskMaterial = React.useMemo(
+    () => createAccretionDiskMaterial(body.size * 0.16, body.size * 0.42, '#f0f9ff', '#0e7490', 1.3),
+    [body.size]
+  );
+  useAnimatedShader(diskMaterial);
+
+  useFrame(({ clock }, delta) => {
+    // Time is compressed: one "year" between eruptions takes ~12 s on screen
+    const cycle = (clock.getElapsedTime() % 12) / 12;
+    const flash = cycle < 0.08 ? Math.sin((cycle / 0.08) * Math.PI) : 0;
+    if (flashRef.current) {
+      const s = 0.6 + flash * 2.2;
+      flashRef.current.scale.set(s, s, s);
+      (flashRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + flash * 0.75;
+    }
+    if (orbitRef.current) orbitRef.current.rotation.y += delta * 0.6;
+  });
+
+  return (
+    <group ref={rootRef} position={body.position} {...handlers}>
+      <PooledPointLight color="#bae6fd" intensity={3.0} distance={body.size * 6} />
+      <group ref={orbitRef}>
+        {/* Massive white dwarf (hot, ~30,000 K) with its accretion disk */}
+        <group position={[body.size * 0.35, 0, 0]}>
+          <HotStar radius={body.size * 0.14} kelvin={30000} brightness={2.5} glowScale={3} glowOpacity={0.8} spin={0.3} />
+        </group>
+        <mesh position={[body.size * 0.35, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} material={diskMaterial}>
+          <ringGeometry args={[body.size * 0.16, body.size * 0.42, 96, 4]} />
+        </mesh>
+        {/* Evolved companion star (a red giant / red clump star, ~4,500 K) feeding it hydrogen */}
+        <group position={[-body.size * 0.45, 0, 0]}>
+          <StarBody radius={body.size * 0.3} kelvin={4500} spots={1} brightness={1.5} glowScale={2} glowOpacity={0.45} />
+        </group>
+      </group>
+      {/* Thermonuclear eruption flash */}
+      <mesh ref={flashRef} position={[body.size * 0.35, 0, 0]}>
+        <sphereGeometry args={[body.size * 0.5, 20, 20]} />
+        <meshBasicMaterial color="#e0f2fe" transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      {/* Nova super-remnant inflated by past eruptions: a limb-brightened bubble, imaged in H-alpha */}
+      <GlowShell radius={body.size * 2.2} mode="rim" color="#fb7185" strength={0.4} power={3} noise={0.5} noiseScale={3} />
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 2.3, body.size * 2.335, 128]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {(hovered || isSelected) && (
+        <BodyLabel body={body} language={language} icon="💫" badge="Erupts ~every year" height={body.size * 2.4} accent="#38bdf8" />
+      )}
+    </group>
+  );
+};
+
+// ----------------------------------------------------
+// Giant Stellar Stream — tidal debris arcing out through Andromeda's halo
+// ----------------------------------------------------
+const STREAM_STAR_SIZE = 28;
+export const GiantStellarStream: React.FC<{
+  body: CelestialBody;
+  // Curve through the halo in world coordinates; body.position is its midpoint
+  curve: [[number, number, number], [number, number, number], [number, number, number]];
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ body, curve, isSelected, onSelect, language }) => {
+  const { rootRef, hovered, handlers } = useSelectableBody(body.id, onSelect);
+  const glowTexture = React.useMemo(() => getGlowPointTexture(), []);
+
+  const [positions, colors] = React.useMemo(() => {
+    const origin = new THREE.Vector3(...body.position);
+    const path = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(...curve[0]).sub(origin),
+      new THREE.Vector3(...curve[1]).sub(origin),
+      new THREE.Vector3(...curve[2]).sub(origin)
+    );
+    const count = 4000;
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const p = new THREE.Vector3();
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      const t = Math.random();
+      path.getPoint(t, p);
+      // Narrow where it leaves the galaxy, fanning out and thinning towards the far end
+      const width = body.size * (0.05 + 0.12 * t);
+      p.x += (Math.random() - 0.5) * width;
+      p.y += (Math.random() - 0.5) * width;
+      p.z += (Math.random() - 0.5) * width;
+      pos.set([p.x, p.y, p.z], i * 3);
+      c.set(Math.random() < 0.75 ? '#ddd6fe' : '#fde68a');
+      const dim = 1 - 0.6 * t;
+      col.set([c.r * dim, c.g * dim, c.b * dim], i * 3);
+    }
+    return [pos, col];
+  }, [body.position, body.size, curve]);
+
+  return (
+    <group ref={rootRef} position={body.position} {...handlers}>
+      {/* Diffuse and spread over a huge area: clicks on compact objects seen through it go to them first */}
+      <points userData={{ pickLast: true }}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+          <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+        </bufferGeometry>
+        {/* Small round sprites: big untextured squares would fill the screen near Andromeda's centre */}
+        <pointsMaterial
+          ref={softenPointSprites}
+          size={STREAM_STAR_SIZE}
+          map={glowTexture}
+          alphaTest={0.01}
+          vertexColors
+          transparent
+          opacity={0.6}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </points>
+      {(hovered || isSelected) && (
+        <BodyLabel body={body} language={language} icon="🌠" badge="Tidal debris · found 2001" height={body.size * 0.2} accent="#a78bfa" />
+      )}
+    </group>
+  );
+};
+
+// ----------------------------------------------------
+// Bright knot of plasma in a relativistic jet (M87's HST-1)
+// ----------------------------------------------------
+export const JetKnot: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+  badge: string;
+}> = ({ body, isSelected, onSelect, language, badge }) => {
+  const { rootRef, hovered, handlers } = useSelectableBody(body.id, onSelect);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    // Slow flicker of the synchrotron glow
+    const s = 1 + Math.sin(clock.getElapsedTime() * 1.7) * 0.08;
+    glowRef.current?.scale.set(s, s, s);
+  });
+
+  return (
+    <group ref={rootRef} position={body.position} {...handlers}>
+      <PooledPointLight color={body.emissiveColor ?? body.color} intensity={3.0} distance={body.size * 5} />
+      <mesh>
+        <sphereGeometry args={[body.size * 0.35, 24, 24]} />
+        <meshBasicMaterial color="#f0f9ff" />
+      </mesh>
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[body.size, 24, 24]} />
+        <meshBasicMaterial color={body.emissiveColor ?? body.color} transparent opacity={0.35} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * 1.3, body.size * 1.335, 128]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {(hovered || isSelected) && (
+        <BodyLabel body={body} language={language} icon="⚡" badge={badge} height={body.size * 1.4} accent="#38bdf8" />
+      )}
+    </group>
+  );
+};
+
+// ----------------------------------------------------
+// Generic catalogued star (colours from the data), optionally inside a dust cocoon or as a touching pair
+// ----------------------------------------------------
+export const CatalogStar: React.FC<{
+  body: CelestialBody;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+  badge: string;
+  dustShell?: boolean; // shed dust around a dying giant (WOH G64, M31-2014-DS1)
+  contactBinary?: boolean; // two stars touching (VFTS 352)
+}> = ({ body, isSelected, onSelect, language, badge, dustShell = false, contactBinary = false }) => {
+  const { rootRef, hovered, handlers } = useSelectableBody(body.id, onSelect);
+  const spinRef = useRef<THREE.Group>(null);
+  const emissive = body.emissiveColor ?? body.color;
+
+  useFrame((_, delta) => {
+    if (spinRef.current) spinRef.current.rotation.y += delta * (contactBinary ? 0.9 : 0.05);
+  });
+
+  const starRadius = contactBinary ? body.size * 0.55 : body.size;
+  const kelvin = STAR_KELVIN[body.id];
+  // Stars hidden in their own dust look dimmer and redder
+  const brightness = dustShell && body.id === 'm31_2014_ds1' ? 0.8 : kelvin && kelvin < 4000 ? 1.45 : 1.8;
+  return (
+    <group ref={rootRef} position={body.position} {...handlers}>
+      <PooledPointLight color={emissive} intensity={3.0} distance={body.size * 5} />
+      <group ref={spinRef}>
+        {(contactBinary ? [-0.5, 0.5] : [0]).map((x) => (
+          <group key={x} position={[x * body.size * 0.95, 0, 0]}>
+            {kelvin && kelvin < 4000 ? (
+              <SupergiantStar radius={starRadius} kelvin={kelvin} brightness={brightness} cellScale={1.5} glowScale={2.2} glowOpacity={0.45} />
+            ) : kelvin && kelvin >= 9000 ? (
+              <HotStar radius={starRadius} kelvin={kelvin} brightness={brightness} glowScale={2.4} glowOpacity={0.5} segments={64} />
+            ) : kelvin ? (
+              <StarBody radius={starRadius} kelvin={kelvin} spots={0.6} brightness={brightness} glowScale={2.4} glowOpacity={0.5} segments={64} />
+            ) : (
+              <StarBody radius={starRadius} color={body.color} brightness={brightness} glowScale={2.4} glowOpacity={0.5} />
+            )}
+          </group>
+        ))}
+        {contactBinary && (
+          // Shared envelope of hot gas bridging the two stars
+          <GlowShell radius={starRadius * 1.05} scale={[1.9, 1, 1]} color="#bfe3ff" strength={0.7} power={1.6} />
+        )}
+      </group>
+      {dustShell && (
+        // Clumpy, egg-shaped cocoon of dust the star has shed
+        <GlowShell radius={body.size * 2.2} scale={[1.35, 1, 1]} color="#b4461c" strength={1.1} power={1.5} noise={0.8} noiseScale={2.2} />
+      )}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[body.size * (dustShell ? 3.1 : 1.6), body.size * (dustShell ? 3.25 : 1.75), 48]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {(hovered || isSelected) && (
+        <BodyLabel body={body} language={language} icon="⭐" badge={badge} height={body.size * (dustShell ? 2.6 : 1.6)} accent="#fbbf24" />
+      )}
     </group>
   );
 };

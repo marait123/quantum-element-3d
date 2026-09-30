@@ -1,11 +1,21 @@
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { worldPositionAt } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+import {
+  getGoldFoilTexture,
+  getSolarCellTexture,
+  getSunshieldTexture,
+  hexSegmentGeometry,
+  parabolicDishGeometry,
+  useSpacecraftEnvMap,
+} from './spacecraftKit';
 
 interface RealisticJWSTProps {
   body: CelestialBody;
@@ -14,263 +24,213 @@ interface RealisticJWSTProps {
   language: 'en' | 'ar';
 }
 
-export const RealisticJWST: React.FC<RealisticJWSTProps> = ({
-  body,
-  isSelected,
-  onSelect,
-  language,
-}) => {
-  const jwstRootRef = useRef<THREE.Group>(null);
+// Built in metres from the real observatory: sunshield 21.2 × 14.2 m (five Kapton layers), 6.5 m primary mirror of
+// 18 gold-coated beryllium hexagons (1.32 m flat-to-flat), secondary mirror 7.2 m in front on three struts,
+// deployable tower between the spacecraft bus and the telescope. The long axis of the shield runs along the
+// telescope's line of sight (+z); the Sun is always below the shield (−y).
+const METRE = 0.03;
+const SEGMENT = 1.32;
+const GAP = 0.07;
+const FOCAL = 7.8; // primary focal length (f/1.2)
 
-  // Register with global runtime celestial registry for live camera follow
+const SHIELD_OUTLINE: [number, number][] = [
+  [0, 10.6],
+  [7.1, 3.2],
+  [7.1, -3.2],
+  [0, -10.6],
+  [-7.1, -3.2],
+  [-7.1, 3.2],
+];
+
+export const RealisticJWST: React.FC<RealisticJWSTProps> = ({ body, isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+  const envMap = useSpacecraftEnvMap();
+
   useEffect(() => {
-    if (jwstRootRef.current) {
-      registerCelestialObject('jwst', jwstRootRef.current);
-    }
-    return () => {
-      unregisterCelestialObject('jwst');
-    };
+    if (rootRef.current) registerCelestialObject('jwst', rootRef.current);
+    return () => unregisterCelestialObject('jwst');
   }, []);
 
-  useFrame(({ clock }, delta) => {
-    if (!jwstRootRef.current) return;
-    // Gentle space stabilization drift
-    jwstRootRef.current.rotation.y += delta * 0.06;
-    jwstRootRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.25) * 0.03;
-  });
+  const mats = useMemo(() => {
+    const shield = getSunshieldTexture();
+    return {
+      shieldSun: new THREE.MeshStandardMaterial({ map: shield, color: '#d9cdea', metalness: 0.75, roughness: 0.35, envMap, side: THREE.DoubleSide }),
+      shieldCold: new THREE.MeshStandardMaterial({ map: shield, color: '#c8c3d6', metalness: 0.85, roughness: 0.3, envMap, side: THREE.DoubleSide, transparent: true, opacity: 0.96 }),
+      gold: new THREE.MeshPhysicalMaterial({ color: '#f5c451', metalness: 1, roughness: 0.14, envMap, envMapIntensity: 1.6, clearcoat: 0.3 }),
+      backplane: new THREE.MeshStandardMaterial({ color: '#1a1c22', metalness: 0.4, roughness: 0.6 }),
+      strut: new THREE.MeshStandardMaterial({ color: '#2b2e36', metalness: 0.6, roughness: 0.4, envMap }),
+      foil: new THREE.MeshStandardMaterial({ map: getGoldFoilTexture(), metalness: 0.85, roughness: 0.35, envMap }),
+      silver: new THREE.MeshStandardMaterial({ color: '#cfd5dd', metalness: 0.85, roughness: 0.3, envMap }),
+      cells: new THREE.MeshStandardMaterial({ map: getSolarCellTexture(), metalness: 0.35, roughness: 0.3, envMap }),
+      white: new THREE.MeshStandardMaterial({ color: '#eef0f3', roughness: 0.55, metalness: 0.1, envMap, side: THREE.DoubleSide }),
+      black: new THREE.MeshStandardMaterial({ color: '#07080b', roughness: 0.95 }),
+    };
+  }, [envMap]);
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
 
-  // Calculate coordinates for the 18 iconic hexagonal primary mirror segments
-  // In a hexagonal grid: 1 central hole (omitted), 6 in inner ring, 12 in outer ring
-  const mirrorSegments = useMemo(() => {
-    const segs: [number, number][] = [];
-    const r = 0.245; // Hexagon segment radius
-    const dx = r * Math.sqrt(3);
-    const dy = r * 1.5;
+  // Sunshield membranes: the kite outline; lower (sun-side) layers slightly larger, gaps widening outwards
+  const shieldGeometries = useMemo(
+    () =>
+      [0, 1, 2, 3, 4].map((i) => {
+        const k = 1 - i * 0.025;
+        const shape = new THREE.Shape(SHIELD_OUTLINE.map(([x, z]) => new THREE.Vector2(x * k, z * k)));
+        const geo = new THREE.ShapeGeometry(shape);
+        geo.rotateX(Math.PI / 2); // lie in the xz plane
+        return geo;
+      }),
+    []
+  );
 
-    // Rings layout
+  // Primary mirror: 18 hexagons (a hexagon of radius 2 minus the centre), each on the paraboloid, tipped to the focus
+  const segments = useMemo(() => {
+    const out: { x: number; y: number; z: number; rx: number; ry: number }[] = [];
+    const w = SEGMENT + GAP;
     for (let q = -2; q <= 2; q++) {
-      const r1 = Math.max(-2, -q - 2);
-      const r2 = Math.min(2, -q + 2);
-      for (let s = r1; s <= r2; s++) {
-        // Skip center hole (optical Cassegrain port)
+      for (let s = Math.max(-2, -q - 2); s <= Math.min(2, -q + 2); s++) {
         if (q === 0 && s === 0) continue;
-        const x = dx * (s + q / 2);
-        const y = dy * q;
-        segs.push([x, y]);
+        const x = w * (s + q / 2);
+        const y = ((w * Math.sqrt(3)) / 2) * q;
+        const d2 = x * x + y * y;
+        out.push({ x, y, z: -d2 / (4 * FOCAL), rx: Math.atan(y / (2 * FOCAL)), ry: -Math.atan(x / (2 * FOCAL)) });
       }
     }
-    return segs; // Exactly 18 hexagonal segments!
+    return out;
   }, []);
+  const hexGeo = useMemo(() => hexSegmentGeometry(SEGMENT, 0.06), []);
+  const hga = useMemo(() => parabolicDishGeometry(0.3, 0.1, 24, 8), []);
+  useEffect(
+    () => () => {
+      shieldGeometries.forEach((g) => g.dispose());
+      hexGeo.dispose();
+      hga.dispose();
+    },
+    [shieldGeometries, hexGeo, hga]
+  );
+
+  const _toSun = useMemo(() => new THREE.Vector3(), []);
+  const _down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
+  const _q = useMemo(() => new THREE.Quaternion(), []);
+  const _spin = useMemo(() => new THREE.Quaternion(), []);
+
+  useFrame(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    // Halo orbit around Sun–Earth L2, moving with Earth (frame graph)
+    worldPositionAt('jwst', simClock.time, root.position);
+    // Keep the sunshield (its −y face) turned to the Sun at the origin; roll slowly about that axis as it
+    // repoints between targets within its field of regard
+    _toSun.copy(root.position).negate().normalize();
+    _q.setFromUnitVectors(_down, _toSun);
+    _spin.setFromAxisAngle(_toSun, simClock.time * 0.03);
+    root.quaternion.copy(_spin).multiply(_q);
+  });
+
+  const showLabel = hovered || isSelected;
+  const mirrorY = 4.3;
 
   return (
     <group
-      ref={jwstRootRef}
-      position={body.position}
+      ref={rootRef}
       onClick={(e) => {
+        if (e.delta && e.delta > 5) return;
         e.stopPropagation();
         onSelect();
       }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
     >
-      {/* ================================================================= */}
-      {/* 1. 5-LAYER TENSIONED SUNSHIELD (KAPTON MEMBRANE SYSTEM)          */}
-      {/* ================================================================= */}
-      {/* 5 Distinct Layers with Spacers & Spreaders */}
-      {[-0.12, -0.06, 0.0, 0.06, 0.12].map((yOffset, layerIdx) => {
-        const isSunFacing = layerIdx <= 1;
-        const scaleFac = 1 - Math.abs(yOffset) * 0.35;
-        return (
-          <group key={`sunshield-layer-${layerIdx}`} position={[0, yOffset - 0.45, 0]}>
-            {/* Diamond Kite Membrane */}
-            <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
-              <planeGeometry args={[3.2 * scaleFac, 2.0 * scaleFac]} />
-              <meshStandardMaterial
-                color={isSunFacing ? '#fbcfe8' : '#e2e8f0'} // Sun-facing pink/silver Kapton sheen
-                metalness={0.92}
-                roughness={0.12}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-          </group>
-        );
-      })}
-
-      {/* Sunshield Perimeter Tensioning Booms & Edge Spreaders */}
-      <mesh position={[0, -0.45, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <boxGeometry args={[3.4, 0.06, 0.06]} />
-        <meshStandardMaterial color="#475569" metalness={0.85} roughness={0.3} />
-      </mesh>
-      <mesh position={[0, -0.45, 0]} rotation={[0, -Math.PI / 4, 0]}>
-        <boxGeometry args={[2.2, 0.06, 0.06]} />
-        <meshStandardMaterial color="#475569" metalness={0.85} roughness={0.3} />
-      </mesh>
-
-      {/* ================================================================= */}
-      {/* 2. PRIMARY MIRROR ASSEMBLY (18 GOLD BERYLLIUM HEXAGONS)           */}
-      {/* ================================================================= */}
-      {/* Mirror Backplane Graphite Support Tower */}
-      <mesh position={[0, 0.25, -0.06]}>
-        <cylinderGeometry args={[0.9, 0.9, 0.12, 6]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.65} metalness={0.8} />
-      </mesh>
-
-      {/* 18 Individual Hexagonal Segments */}
-      <group position={[0, 0.25, 0]}>
-        {mirrorSegments.map(([x, y], idx) => (
-          <group key={`hex-mirror-${idx}`} position={[x, y, 0]}>
-            {/* Gold Hex Mirror Surface */}
-            <mesh rotation={[0, 0, Math.PI / 6]}>
-              <circleGeometry args={[0.138, 6]} />
-              <meshStandardMaterial
-                color="#fbbf24"
-                emissive="#d97706"
-                emissiveIntensity={0.52}
-                metalness={0.98}
-                roughness={0.03}
-              />
-            </mesh>
-            {/* Hex Segment Bevel Border */}
-            <mesh rotation={[0, 0, Math.PI / 6]} position={[0, 0, -0.005]}>
-              <circleGeometry args={[0.142, 6]} />
-              <meshBasicMaterial color="#78350f" />
-            </mesh>
-          </group>
+      <group scale={METRE}>
+        {/* ---- Sunshield: five membranes, sun-facing layer at the bottom ---- */}
+        {shieldGeometries.map((geo, i) => (
+          <mesh key={i} geometry={geo} position={[0, i * 0.16, 0]} material={i === 0 ? mats.shieldSun : mats.shieldCold} />
         ))}
-
-        {/* Central Cassegrain Light Baffle Hole */}
-        <mesh position={[0, 0, 0.01]}>
-          <circleGeometry args={[0.08, 16]} />
-          <meshBasicMaterial color="#020617" />
+        {/* Spreader bars along the long axis and the mid-booms across */}
+        <mesh position={[0, 0.35, 0]} material={mats.strut}>
+          <boxGeometry args={[0.12, 0.12, 21]} />
         </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 3. SECONDARY MIRROR ASSEMBLY (SMA) & TRIPOD SUPPORT STRUTS        */}
-      {/* ================================================================= */}
-      {/* Secondary Mirror Assembly Head */}
-      <group position={[0, 0.25, 1.35]}>
-        {/* Mirror Housing Conical Baffle */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.11, 0.08, 0.14, 24]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.2} />
+        <mesh position={[0, 0.35, 0]} material={mats.strut}>
+          <boxGeometry args={[14.2, 0.1, 0.1]} />
         </mesh>
-        {/* Gold Secondary Mirror (Facing Primary Mirror) */}
-        <mesh position={[0, 0, -0.07]}>
-          <circleGeometry args={[0.075, 24]} />
-          <meshStandardMaterial
-            color="#fbbf24"
-            emissive="#ca8a04"
-            emissiveIntensity={0.5}
-            metalness={0.98}
-            roughness={0.03}
-          />
-        </mesh>
-      </group>
-
-      {/* 3 Deployable Composite Graphite Tubular Struts */}
-      {/* Top Strut */}
-      <mesh position={[0, 0.78, 0.68]} rotation={[-Math.PI / 4.8, 0, 0]}>
-        <cylinderGeometry args={[0.018, 0.018, 1.55, 8]} />
-        <meshStandardMaterial color="#334155" metalness={0.8} />
-      </mesh>
-      {/* Bottom Left Strut */}
-      <mesh position={[-0.62, -0.22, 0.68]} rotation={[Math.PI / 7.2, 0, -Math.PI / 5.2]}>
-        <cylinderGeometry args={[0.018, 0.018, 1.55, 8]} />
-        <meshStandardMaterial color="#334155" metalness={0.8} />
-      </mesh>
-      {/* Bottom Right Strut */}
-      <mesh position={[0.62, -0.22, 0.68]} rotation={[Math.PI / 7.2, 0, Math.PI / 5.2]}>
-        <cylinderGeometry args={[0.018, 0.018, 1.55, 8]} />
-        <meshStandardMaterial color="#334155" metalness={0.8} />
-      </mesh>
-
-      {/* ================================================================= */}
-      {/* 4. INTEGRATED SCIENCE INSTRUMENT MODULE (ISIM) & RADIATORS        */}
-      {/* ================================================================= */}
-      <group position={[0, 0.25, -0.32]}>
-        {/* ISIM Black Carbon-Fiber Enclosure */}
-        <mesh>
-          <boxGeometry args={[0.85, 0.75, 0.38]} />
-          <meshStandardMaterial color="#090d16" roughness={0.7} metalness={0.5} />
-        </mesh>
-        {/* Cryocooler MIRI Heat Exchanger Radiators */}
-        <mesh position={[0, 0.42, 0]}>
-          <boxGeometry args={[0.95, 0.08, 0.42]} />
-          <meshStandardMaterial color="#475569" metalness={0.9} />
-        </mesh>
-      </group>
-
-      {/* ================================================================= */}
-      {/* 5. SPACECRAFT BUS, SOLAR ARRAY & HIGH-GAIN DISH                   */}
-      {/* ================================================================= */}
-      <group position={[0, -0.72, 0]}>
-        {/* Aluminum Honeycomb Main Bus Chassis */}
-        <mesh>
-          <boxGeometry args={[0.9, 0.35, 0.9]} />
-          <meshStandardMaterial color="#ca8a04" metalness={0.95} roughness={0.15} />
+        {/* Momentum trim flap at the aft end */}
+        <mesh position={[0, -0.2, -11.3]} rotation={[0.5, 0, 0]} material={mats.shieldSun}>
+          <boxGeometry args={[2.2, 0.02, 1.4]} />
         </mesh>
 
-        {/* Deployable 5-Panel Solar Array with Blue Photovoltaic Cells */}
-        <group position={[0, -0.15, -0.85]} rotation={[Math.PI / 6, 0, 0]}>
-          <mesh>
-            <boxGeometry args={[1.6, 0.03, 0.75]} />
-            <meshStandardMaterial
-              color="#1e3a8a"
-              emissive="#1d4ed8"
-              emissiveIntensity={0.25}
-              metalness={0.85}
-              roughness={0.2}
-            />
+        {/* ---- Spacecraft bus under the shield (warm side): solar array, high-gain antenna, star trackers ---- */}
+        <group position={[0, -1.1, -1.5]}>
+          <mesh material={mats.foil}>
+            <boxGeometry args={[2.0, 1.4, 2.6]} />
           </mesh>
-          {/* Solar Cell Grid Lines */}
-          {[-0.5, 0, 0.5].map((xOffset, i) => (
-            <mesh key={`grid-${i}`} position={[xOffset, 0.02, 0]}>
-              <boxGeometry args={[0.015, 0.01, 0.74]} />
-              <meshBasicMaterial color="#93c5fd" />
-            </mesh>
+          {/* Single solar array panel, facing the Sun */}
+          <mesh position={[0, -0.6, -3.4]} rotation={[-0.25, 0, 0]} material={mats.cells}>
+            <boxGeometry args={[2.1, 0.04, 5.9]} />
+          </mesh>
+          <mesh position={[0.4, -1.1, 1.0]} rotation={[Math.PI, 0, 0]} geometry={hga} material={mats.white} />
+          <mesh position={[-0.7, 0.8, 0.9]} material={mats.silver}>
+            <boxGeometry args={[0.25, 0.35, 0.25]} />
+          </mesh>
+        </group>
+        {/* Deployable tower assembly lifting the telescope clear of the shield */}
+        <mesh position={[0, 1.4, -1.5]} material={mats.strut}>
+          <cylinderGeometry args={[0.25, 0.25, 2.2, 12]} />
+        </mesh>
+
+        {/* ---- Optical telescope element (cold side) ---- */}
+        <group position={[0, mirrorY, -1.2]} rotation={[0.15, 0, 0]}>
+          {/* Backplane and the instrument module (ISIM) behind the mirror */}
+          <mesh position={[0, 0, -0.45]} material={mats.backplane}>
+            <boxGeometry args={[5.2, 5.6, 0.5]} />
+          </mesh>
+          <mesh position={[0, -0.4, -1.4]} material={mats.black}>
+            <boxGeometry args={[2.2, 2.4, 1.4]} />
+          </mesh>
+          {/* 18 gold primary-mirror segments */}
+          {segments.map((s, i) => (
+            <mesh key={i} geometry={hexGeo} position={[s.x, s.y, s.z]} rotation={[s.rx, s.ry, 0]} material={mats.gold} />
           ))}
-        </group>
-
-        {/* Gimbaled High-Gain Antenna Dish */}
-        <group position={[0.55, 0, 0.55]} rotation={[Math.PI / 4, Math.PI / 4, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.22, 0.05, 0.08, 24]} />
-            <meshStandardMaterial color="#f8fafc" metalness={0.7} roughness={0.3} side={THREE.DoubleSide} />
+          {/* Aft optics subsystem baffle in the central hole */}
+          <mesh position={[0, 0, 0.35]} rotation={[Math.PI / 2, 0, 0]} material={mats.black}>
+            <cylinderGeometry args={[0.35, 0.45, 0.8, 16]} />
           </mesh>
+          {/* Secondary mirror on three struts, 7.2 m in front */}
+          <mesh position={[0, 0, 7.2]} material={mats.gold}>
+            <cylinderGeometry args={[0.37, 0.37, 0.1, 24]} />
+          </mesh>
+          {[0, 1, 2].map((i) => {
+            const a = (i / 3) * Math.PI * 2 + Math.PI / 2;
+            const base = new THREE.Vector3(Math.cos(a) * 3.1, Math.sin(a) * 3.1, 0);
+            const tip = new THREE.Vector3(0, 0, 7.2);
+            const mid = base.clone().add(tip).multiplyScalar(0.5);
+            const len = base.distanceTo(tip);
+            const dir = tip.clone().sub(base).normalize();
+            const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            return (
+              <mesh key={i} position={mid} quaternion={quat} material={mats.strut}>
+                <cylinderGeometry args={[0.05, 0.05, len, 6]} />
+              </mesh>
+            );
+          })}
         </group>
-
-        {/* Momentum Management Trim Flap */}
-        <mesh position={[0, -0.1, 0.75]} rotation={[-Math.PI / 8, 0, 0]}>
-          <boxGeometry args={[0.85, 0.02, 0.35]} />
-          <meshStandardMaterial color="#64748b" metalness={0.8} />
-        </mesh>
       </group>
 
-      {/* ================================================================= */}
-      {/* 6. SELECTION AURA & BILLBOARD HUD BADGE                           */}
-      {/* ================================================================= */}
-      {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.2, 2.35, 32]} />
-          <meshBasicMaterial color="#6366f1" transparent opacity={0.65} side={THREE.DoubleSide} />
-        </mesh>
+      {showLabel && (
+        <Html position={[0, 0.45, 0]} center>
+          <div
+            className={`px-3 py-1.5 rounded-full bg-slate-950/90 backdrop-blur-md border ${
+              isSelected ? 'border-indigo-400 ring-2 ring-indigo-400' : 'border-indigo-500/40'
+            } text-[11px] font-bold text-indigo-300 whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer pointer-events-auto`}
+            onClick={onSelect}
+          >
+            <span className="text-sm">🔭</span>
+            <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200">L2 Halo</span>
+          </div>
+        </Html>
       )}
-
-      <Html position={[0, 2.1, 0]} center distanceFactor={28}>
-        <div
-          className={`px-3 py-1.5 rounded-full bg-slate-950/90 backdrop-blur-md border ${
-            isSelected
-              ? 'border-indigo-400 ring-2 ring-indigo-400 shadow-indigo-500/30'
-              : 'border-indigo-500/40'
-          } text-[11px] font-bold text-indigo-300 whitespace-nowrap shadow-2xl flex items-center gap-2 cursor-pointer transition-transform hover:scale-105`}
-          onClick={onSelect}
-        >
-          <span className="text-sm">🔭</span>
-          <span>{language === 'ar' ? body.nameAr : body.nameEn}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200">
-            L2 Halo
-          </span>
-        </div>
-      </Html>
     </group>
   );
 };

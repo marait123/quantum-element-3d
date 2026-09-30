@@ -18,6 +18,11 @@ async function testVideoUX() {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
   });
+  // These tests exercise the subatomic world: pre-set the remembered world and mark the guided tour as seen, so
+  // neither the first-visit chooser nor the tour overlay blocks the clicks
+  await context.addInitScript(() => {
+    try { localStorage.setItem('science_lab_world', 'subatomic'); localStorage.setItem('science_lab_tutorial_completed', 'true'); } catch {}
+  });
 
   const page = await context.newPage();
 

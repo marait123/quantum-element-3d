@@ -1,3 +1,5 @@
+const plugin = require('tailwindcss/plugin');
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -40,11 +42,28 @@ module.exports = {
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'spin-slow': 'spin 12s linear infinite',
+        // Used by several panels and modals (were previously undefined, so they did nothing)
+        fadeIn: 'fadeIn 0.25s ease-out both',
+        'fade-in': 'fadeIn 0.25s ease-out both',
+        slideInRight: 'slideInEnd 0.3s ease-out both',
+        slideUp: 'slideUp 0.28s cubic-bezier(0.22, 1, 0.36, 1) both',
+      },
+      keyframes: {
+        fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
+        slideInEnd: { from: { opacity: '0', transform: 'translateX(24px)' }, to: { opacity: '1', transform: 'translateX(0)' } },
+        slideUp: { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
       },
       backdropBlur: {
         xs: '2px',
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `coarse:` — finger input (phones/tablets): larger tap targets without changing the desktop look
+    // `can-hover:` — real hover devices only, so hover effects don't stick after a tap
+    plugin(({ addVariant }) => {
+      addVariant('coarse', '@media (pointer: coarse)');
+      addVariant('can-hover', '@media (hover: hover)');
+    }),
+  ],
 }

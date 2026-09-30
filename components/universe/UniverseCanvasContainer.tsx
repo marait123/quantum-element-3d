@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useEffect, useMemo, Suspense } from 'react';
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import React, { useRef, useEffect, useMemo, useState, Suspense } from 'react';
+import { Canvas, useThree, useFrame, events as createPointerEvents } from '@react-three/fiber';
+import { OrbitControls, Stars, PerformanceMonitor } from '@react-three/drei';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -11,9 +11,20 @@ import { useQuantumStore } from '@/stores/useQuantumStore';
 import { COSMIC_SCALES, CELESTIAL_BODIES, CosmicScaleLevel } from '@/data/universeData';
 import {
   getCelestialWorldPosition,
+  getCelestialObject,
   calculateFramingCameraPosition,
   calculateFramingDistance,
 } from '@/lib/celestialRegistry';
+import { computeScaleVisibility, maskHas, ScaleVisibilityState, SCALE_LEVELS, navigationScale } from '@/lib/scaleVisibility';
+import {
+  GALAXY_INTERIORS,
+  INSIDE_RADII,
+  GalaxyViewLevel,
+  galaxyEntryPose,
+  starNeighbourhoodPose,
+  getStarNeighbourhood,
+  isInFeaturedSystem,
+} from '@/lib/galaxyInteriors';
 
 // Lazy-loaded 3D Cosmic Scale Scenes (loaded asynchronously into WebGL)
 const SolarSystemScene = React.lazy(() =>
@@ -33,8 +44,14 @@ const CosmicWebScene = React.lazy(() =>
 );
 
 import { SpeedMultiplierWidget } from './hud/SpeedMultiplierWidget';
+import { TimeControl } from './hud/TimeControl';
 import { ConstellationOverlay } from './constellations/ConstellationOverlay';
 import { ConstellationInspectorTooltip } from './hud/ConstellationInspectorTooltip';
+import { UniverseDebugProbe } from './debug/UniverseDebugProbe';
+import { LightPool } from './rendering/LightPool';
+import { LayerVisibilityProvider, isObjectRendered } from './rendering/LayerVisibility';
+import { isLowQuality } from '@/lib/deviceQuality';
+import { advanceSimClock } from '@/lib/simClock';
 
 // Unified Free-Flight Spaceship Controls with In-Place Look-Around & OrbitControls Integration
 // Module-level static scratch objects to eliminate per-frame GC allocations during navigation
@@ -54,6 +71,8 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
   const keysPressed = useRef<Record<string, boolean>>({});
   const isDraggingRef = useRef(false);
   const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Two fingers on the screen: pinching flies, so the one-finger look pauses
+  const pinchActiveRef = useRef(false);
 
   const movementSpeedMultiplier = useQuantumStore((s) => s.movementSpeedMultiplier);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -106,6 +125,7 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
 
     const handlePointerMove = (e: PointerEvent) => {
       if (!isDraggingRef.current) return;
+      if (pinchActiveRef.current) return;
       if (useQuantumStore.getState().selectedCosmicBodyId || isTweeningRef.current) {
         isDraggingRef.current = false;
         canvasElement.style.cursor = 'default';
@@ -160,6 +180,85 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
     };
   }, [gl, camera, controlsRef, isTweeningRef]);
 
+  // Touch gestures (phones/tablets). With nothing selected, a two-finger pinch flies forward/back along the gaze,
+  // with the same distance-aware step as the mouse wheel (while a body is selected, OrbitControls' pinch zooms on
+  // it). A double tap shows the selected body's card at once: iOS does not fire dblclick reliably for touch.
+  useEffect(() => {
+    const canvasElement = gl.domElement;
+    const root: HTMLElement = canvasElement.closest('[data-universe-root]') ?? canvasElement;
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinchDistance = 0;
+    let lastTap: { x: number; y: number; t: number } | null = null;
+    let tapStart: { x: number; y: number; t: number; id: number } | null = null;
+
+    const spread = () => {
+      const [a, b] = Array.from(touches.values());
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      tapStart = touches.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : null;
+      if (touches.size === 2) {
+        pinchActiveRef.current = true;
+        isDraggingRef.current = false;
+        pinchDistance = spread();
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || !pinchActiveRef.current) return;
+      const d = spread();
+      if (pinchDistance <= 0 || d <= 0) return;
+      const ratio = d / pinchDistance;
+      pinchDistance = d;
+      if (useQuantumStore.getState().selectedCosmicBodyId || isTweeningRef.current) return;
+      _scratchVecA.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      const currentDist = navigationScale(camera.position);
+      const adaptiveBaseSpeed = Math.min(Math.max(currentDist * 0.12, 1.8), 25000);
+      // Spreading the fingers flies forward; about one wheel tick per 25% change in finger spread
+      const step = Math.log(ratio) * 6 * adaptiveBaseSpeed * useQuantumStore.getState().movementSpeedMultiplier;
+      camera.position.addScaledVector(_scratchVecA, step);
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(camera.position).addScaledVector(_scratchVecA, 50.0);
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touches.delete(e.pointerId);
+      if (touches.size < 2) pinchActiveRef.current = false;
+      // A quick, still, single-finger touch is a tap; two taps close together are a double tap
+      if (tapStart && tapStart.id === e.pointerId && touches.size === 0) {
+        const now = performance.now();
+        const still = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10;
+        if (still && now - tapStart.t < 350) {
+          if (lastTap && now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+            lastTap = null;
+            // Let the second tap's selection land first (tapping a new body selects it)
+            setTimeout(() => useQuantumStore.getState().showCosmicCardNow(), 0);
+          } else {
+            lastTap = { x: e.clientX, y: e.clientY, t: now };
+          }
+        }
+      }
+      tapStart = null;
+    };
+
+    root.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      root.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      pinchActiveRef.current = false;
+    };
+  }, [gl, camera, controlsRef, isTweeningRef]);
+
   // Mouse wheel forward/backward cruise navigation in free space
   useEffect(() => {
     const canvasElement = gl.domElement;
@@ -170,7 +269,8 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
 
       // In free space, cruise forward or backward along current gaze vector
       _scratchVecA.set(0, 0, -1).applyQuaternion(camera.quaternion);
-      const currentDist = Math.max(camera.position.length(), 5);
+      // Step scales with the local environment (nearest body), not with distance from the Milky Way
+      const currentDist = navigationScale(camera.position);
       const adaptiveBaseSpeed = Math.min(Math.max(currentDist * 0.12, 1.8), 25000);
       const scrollStep = -Math.sign(e.deltaY) * adaptiveBaseSpeed * movementSpeedMultiplier * 1.5;
 
@@ -181,9 +281,12 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
       }
     };
 
-    canvasElement.addEventListener('wheel', handleWheel, { passive: true });
+    // Listen on the whole universe view: in-scene labels and map pins are DOM overlays next to the canvas, and
+    // scrolling over one of them must still fly the camera
+    const wheelTarget: HTMLElement = canvasElement.closest('[data-universe-root]') ?? canvasElement;
+    wheelTarget.addEventListener('wheel', handleWheel, { passive: true });
     return () => {
-      canvasElement.removeEventListener('wheel', handleWheel);
+      wheelTarget.removeEventListener('wheel', handleWheel);
     };
   }, [gl, camera, controlsRef, isTweeningRef, movementSpeedMultiplier]);
 
@@ -256,7 +359,8 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
         onUserFlight();
 
         // Adaptive speed scaling based on distance from center
-        const currentDist = Math.max(camera.position.length(), 5);
+        // Speed scales with the local environment (nearest body), not with distance from the Milky Way
+        const currentDist = navigationScale(camera.position);
         const adaptiveBaseSpeed = Math.min(Math.max(currentDist * 0.45, 3.5), 85000);
         const finalSpeed = adaptiveBaseSpeed * movementSpeedMultiplier * sprintFactor;
 
@@ -283,6 +387,39 @@ const FreeFlightControls: React.FC<FreeFlightProps> = ({ controlsRef, isTweening
   return null;
 };
 
+const ENTERABLE_GALAXY_IDS = Object.keys(GALAXY_INTERIORS);
+const HOME_REGION_RADIUS = 48000; // the Milky Way region ends at the Milky Way / Extragalactic boundary
+
+// The galaxy the camera is currently inside: the nearest enterable galaxy within INSIDE_RADII of its radius,
+// otherwise the Milky Way while in the home region
+function detectInsideGalaxy(cameraPosition: THREE.Vector3): string | null {
+  let best: string | null = null;
+  let bestRatio = Infinity;
+  for (const id of ENTERABLE_GALAXY_IDS) {
+    const body = CELESTIAL_BODIES[id];
+    const ratio = cameraPosition.distanceTo(_scratchVecC.set(...body.position)) / body.size;
+    if (ratio < INSIDE_RADII && ratio < bestRatio) {
+      best = id;
+      bestRatio = ratio;
+    }
+  }
+  if (best) return best;
+  return cameraPosition.length() < HOME_REGION_RADIUS ? 'milky_way_galaxy' : null;
+}
+
+// Level inside another galaxy (dock highlight): the featured system when it (or its planet) is selected, the star
+// neighbourhood when the camera is near it, otherwise the whole galaxy
+function detectGalaxyViewLevel(
+  insideId: string | null,
+  cameraPosition: THREE.Vector3,
+  selectedId: string | null
+): GalaxyViewLevel | null {
+  if (!insideId || insideId === 'milky_way_galaxy') return null;
+  if (isInFeaturedSystem(insideId, selectedId)) return 1;
+  const { centre, radius } = getStarNeighbourhood(insideId);
+  return cameraPosition.distanceTo(centre) < radius * 4 ? 2 : 3;
+}
+
 // Universe Camera and Target Transition Manager
 const UniverseCameraManager: React.FC = () => {
   const { camera } = useThree();
@@ -295,13 +432,20 @@ const UniverseCameraManager: React.FC = () => {
   const setSelectedCosmicBodyId = useQuantumStore((s) => s.setSelectedCosmicBodyId);
   const scaleNavigationRequest = useQuantumStore((s) => s.scaleNavigationRequest);
   const continuousZoomRequest = useQuantumStore((s) => s.continuousZoomRequest);
+  const galaxyEntryRequest = useQuantumStore((s) => s.galaxyEntryRequest);
+  const setInsideGalaxyId = useQuantumStore((s) => s.setInsideGalaxyId);
+  const setGalaxyViewLevel = useQuantumStore((s) => s.setGalaxyViewLevel);
 
-  const prevScaleRef = useRef(cosmicScaleLevel);
+  const setVisibleScaleMask = useQuantumStore((s) => s.setVisibleScaleMask);
+  const size = useThree((s) => s.size);
+
+  const visibilityRef = useRef<ScaleVisibilityState | null>(null);
+  const handledRequestTsRef = useRef({ scale: 0, galaxy: 0 });
+  const flightKindRef = useRef<'selection' | 'scale' | 'zoom' | 'entry' | null>(null);
   const isTweeningRef = useRef(false);
   const isInitialMountRef = useRef(true);
   const isTrackingRef = useRef(false);
   const lastTargetPosRef = useRef<THREE.Vector3>(new THREE.Vector3());
-  const lastActiveBodyIdRef = useRef<string | null>(selectedCosmicBodyId);
 
   // Real-time continuous zoom distance tracker and HUD synchronization + Live Orbit Following
   useFrame(() => {
@@ -325,95 +469,35 @@ const UniverseCameraManager: React.FC = () => {
       }
     }
 
-    // 2. Real-time continuous zoom distance tracker, body proximity lock, and scale synchronization
-    if (isTweeningRef.current || isInitialMountRef.current) return;
+    // 2. Scale layer visibility + HUD scale (rules in lib/scaleVisibility.ts). Evaluated every frame, also
+    //    during camera tweens, so what is shown always matches where the camera actually is.
+    const vis = computeScaleVisibility(
+      {
+        cameraPosition: camera.position,
+        selectedBodyId: selectedCosmicBodyId,
+        viewportHeight: size.height,
+        fovDeg: (camera as THREE.PerspectiveCamera).fov ?? 48,
+      },
+      visibilityRef.current
+    );
+    visibilityRef.current = vis;
+    setVisibleScaleMask(vis.mask);
 
-    // A. If an object is actively selected, synchronize its scale level and clear adjacent scale:
-    if (selectedCosmicBodyId) {
-      lastActiveBodyIdRef.current = selectedCosmicBodyId;
-      const body = CELESTIAL_BODIES[selectedCosmicBodyId];
-      if (body) {
-        if (body.scaleLevel !== prevScaleRef.current) {
-          prevScaleRef.current = body.scaleLevel;
-          setCosmicScaleLevel(body.scaleLevel);
-        }
-        setAdjacentCosmicScaleLevel(null);
-      }
-      return;
+    // Which galaxy the camera is inside (HUD location chip) and, inside another galaxy, which of its levels
+    const insideId = detectInsideGalaxy(camera.position);
+    setInsideGalaxyId(insideId);
+    setGalaxyViewLevel(detectGalaxyViewLevel(insideId, camera.position, selectedCosmicBodyId));
+
+    // The HUD keeps showing a flight's destination until the camera lands (including the frame between a
+    // dock/galaxy request and the flight actually starting)
+    const st = useQuantumStore.getState();
+    const flightPending =
+      (st.scaleNavigationRequest?.timestamp ?? 0) !== handledRequestTsRef.current.scale ||
+      (st.galaxyEntryRequest?.timestamp ?? 0) !== handledRequestTsRef.current.galaxy;
+    if (!isTweeningRef.current && !isInitialMountRef.current && !flightPending) {
+      setCosmicScaleLevel(vis.hudLevel);
+      setAdjacentCosmicScaleLevel(vis.adjacent);
     }
-
-    // B. Proximity Sphere of Influence check for recently visited or nearby off-center bodies:
-    // (Prevents TON 618 from dropping to Scale 4, Kepler/WASP stars from dropping to Scale 2, etc.)
-    if (lastActiveBodyIdRef.current) {
-      const lastBody = CELESTIAL_BODIES[lastActiveBodyIdRef.current];
-      if (lastBody) {
-        _scratchVecA.set(...lastBody.position);
-        const distToLast = camera.position.distanceTo(_scratchVecA);
-        let influenceRadius = Math.max(lastBody.size * 5.0, 50.0);
-        if (lastActiveBodyIdRef.current === 'ton_618') {
-          influenceRadius = 140000; // Colossal gravitational & cosmic web accretion domain
-        } else if (lastBody.scaleLevel === 3) {
-          influenceRadius = 16000; // Milky Way local stellar / nebular cluster domain
-        } else if (lastBody.scaleLevel === 2) {
-          influenceRadius = 1500; // Stellar neighborhood domain
-        }
-
-        if (distToLast < influenceRadius) {
-          // Retain the celestial body's scale realm while within its sphere of influence
-          if (lastBody.scaleLevel !== prevScaleRef.current) {
-            prevScaleRef.current = lastBody.scaleLevel;
-            setCosmicScaleLevel(lastBody.scaleLevel);
-          }
-          setAdjacentCosmicScaleLevel(null);
-          return;
-        }
-      }
-    }
-
-    // C. Global deep-space navigation with Hysteresis and Continuous Zoom Transition Buffers:
-    const currentDist = camera.position.length();
-
-    let detectedLevel: 1 | 2 | 3 | 4 | 5 = prevScaleRef.current;
-    let adjacentLevel: CosmicScaleLevel | null = null;
-
-    if (currentDist < 85) {
-      detectedLevel = 1;
-      adjacentLevel = null;
-    } else if (currentDist < 125) {
-      // Scale 1 <-> 2 Transition Zone
-      detectedLevel = currentDist < 105 ? 1 : 2;
-      adjacentLevel = detectedLevel === 1 ? 2 : 1;
-    } else if (currentDist < 1900) {
-      detectedLevel = 2;
-      adjacentLevel = null;
-    } else if (currentDist < 2500) {
-      // Scale 2 <-> 3 Transition Zone
-      detectedLevel = currentDist < 2200 ? 2 : 3;
-      adjacentLevel = detectedLevel === 2 ? 3 : 2;
-    } else if (currentDist < 42000) {
-      detectedLevel = 3;
-      adjacentLevel = null;
-    } else if (currentDist < 54000) {
-      // Scale 3 <-> 4 Transition Zone
-      detectedLevel = currentDist < 48000 ? 3 : 4;
-      adjacentLevel = detectedLevel === 3 ? 4 : 3;
-    } else if (currentDist < 155000) {
-      detectedLevel = 4;
-      adjacentLevel = null;
-    } else if (currentDist < 195000) {
-      // Scale 4 <-> 5 Transition Zone (Extragalactic <-> Cosmic Web)
-      detectedLevel = currentDist < 175000 ? 4 : 5;
-      adjacentLevel = detectedLevel === 4 ? 5 : 4;
-    } else {
-      detectedLevel = 5;
-      adjacentLevel = null;
-    }
-
-    if (detectedLevel !== prevScaleRef.current) {
-      prevScaleRef.current = detectedLevel;
-      setCosmicScaleLevel(detectedLevel);
-    }
-    setAdjacentCosmicScaleLevel(adjacentLevel);
 
     // 3. Dynamic adaptive zoom sensitivity:
     // Fluidly traverses across 5 orders of magnitude (from 1 unit at Earth to 500,000 at Cosmic Web)
@@ -426,6 +510,13 @@ const UniverseCameraManager: React.FC = () => {
   useEffect(() => {
     if (!selectedCosmicBodyId) {
       isTrackingRef.current = false;
+      // Deselecting mid-flight to a body (Escape, WASD breakaway, clicking empty space) hands control back
+      // immediately instead of letting the camera keep flying to the old target. Other flights (scale dock,
+      // galaxy entry) are not tied to a selection and keep going.
+      if (isTweeningRef.current && flightKindRef.current === 'selection') {
+        gsap.killTweensOf(camera.position);
+        isTweeningRef.current = false;
+      }
       // CRITICAL: When deselected, NEVER snap the camera away! User stays exactly where they are!
       if (controlsRef.current) {
         _scratchVecA.set(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -458,10 +549,12 @@ const UniverseCameraManager: React.FC = () => {
       }
       lastTargetPosRef.current.copy(liveTargetPos);
       isTrackingRef.current = true;
+      useQuantumStore.getState().setArrivedCosmicBodyId(selectedCosmicBodyId);
       return;
     }
 
     isTweeningRef.current = true;
+    flightKindRef.current = 'selection';
     isTrackingRef.current = false;
     gsap.killTweensOf(camera.position);
 
@@ -494,6 +587,9 @@ const UniverseCameraManager: React.FC = () => {
         }
         isTweeningRef.current = false;
         isTrackingRef.current = true;
+        // Only if this is still the selection (a newer selection restarts the wait)
+        const st = useQuantumStore.getState();
+        if (st.selectedCosmicBodyId === selectedCosmicBodyId) st.setArrivedCosmicBodyId(selectedCosmicBodyId);
       },
     });
   }, [selectedCosmicBodyId, camera]);
@@ -520,6 +616,7 @@ const UniverseCameraManager: React.FC = () => {
   // Smooth camera glide ONLY when user explicitly clicks a scale milestone in HUD dock
   useEffect(() => {
     if (!scaleNavigationRequest) return;
+    handledRequestTsRef.current.scale = scaleNavigationRequest.timestamp;
 
     isTrackingRef.current = false;
     const { level } = scaleNavigationRequest;
@@ -529,6 +626,7 @@ const UniverseCameraManager: React.FC = () => {
     const targetPos = new THREE.Vector3(...scaleConfig.cameraTarget);
 
     isTweeningRef.current = true;
+    flightKindRef.current = 'scale';
     gsap.killTweensOf(camera.position);
 
     gsap.to(camera.position, {
@@ -553,6 +651,48 @@ const UniverseCameraManager: React.FC = () => {
     });
   }, [scaleNavigationRequest, camera]);
 
+  // Enter a galaxy: fly to a vantage point inside it (like the Milky Way scale's view of our own galaxy), then
+  // hand control back in free flight so the user can look around and fly through it
+  useEffect(() => {
+    if (!galaxyEntryRequest) return;
+    handledRequestTsRef.current.galaxy = galaxyEntryRequest.timestamp;
+    const { id } = galaxyEntryRequest;
+    // Deselect first so the selection's follow/orbit doesn't fight the flight (entry always ends in free flight)
+    if (useQuantumStore.getState().selectedCosmicBodyId) setSelectedCosmicBodyId(null);
+    const entryPos = new THREE.Vector3();
+    const entryTarget = new THREE.Vector3();
+    if (galaxyEntryRequest.level === 2) starNeighbourhoodPose(id, entryPos, entryTarget);
+    else galaxyEntryPose(id, getCelestialObject(id), entryPos, entryTarget);
+
+    isTrackingRef.current = false;
+    isTweeningRef.current = true;
+    flightKindRef.current = 'entry';
+    gsap.killTweensOf(camera.position);
+
+    gsap.to(camera.position, {
+      x: entryPos.x,
+      y: entryPos.y,
+      z: entryPos.z,
+      duration: 2.2,
+      ease: 'power3.inOut',
+      onUpdate: () => {
+        if (controlsRef.current) {
+          controlsRef.current.target.lerp(entryTarget, 0.15);
+          controlsRef.current.update();
+        }
+      },
+      onComplete: () => {
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(entryTarget);
+          controlsRef.current.update();
+        }
+        isTweeningRef.current = false;
+        // Free flight inside the galaxy (selection would pin the camera to orbiting a single body)
+        if (useQuantumStore.getState().selectedCosmicBodyId) setSelectedCosmicBodyId(null);
+      },
+    });
+  }, [galaxyEntryRequest, camera, setSelectedCosmicBodyId]);
+
   // Continuous Smooth Dolly Zoom (dock buttons +/- and continuous zoom triggers)
   useEffect(() => {
     if (!continuousZoomRequest || !controlsRef.current) return;
@@ -569,6 +709,7 @@ const UniverseCameraManager: React.FC = () => {
     const targetPos = target.clone().add(toCam.normalize().multiplyScalar(newDist));
 
     isTweeningRef.current = true;
+    flightKindRef.current = 'zoom';
     gsap.killTweensOf(camera.position);
 
     gsap.to(camera.position, {
@@ -645,53 +786,198 @@ const WebGlFirstFrameNotifier: React.FC = () => {
   return null;
 };
 
+const SCALE_SCENES: Record<CosmicScaleLevel, React.LazyExoticComponent<React.FC>> = {
+  1: SolarSystemScene,
+  2: StellarNeighborhoodScene,
+  3: MilkyWayScene,
+  4: ExtragalacticScene,
+  5: CosmicWebScene,
+};
+
+const PRELOAD_START_DELAY_MS = 1200;
+const PRELOAD_INTERVAL_MS = 700;
+
+// Uploads textures and compiles shaders of a hidden layer ahead of time, so its first appearance doesn't stall.
+// Works because the point-light count is constant (LightPool): programs compiled now are the ones used later.
+function prewarmLayer(gl: THREE.WebGLRenderer, group: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene) {
+  group.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.material) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      for (const value of Object.values(mat)) {
+        if (value && (value as THREE.Texture).isTexture) gl.initTexture(value as THREE.Texture);
+      }
+    }
+  });
+  const wasVisible = group.visible;
+  group.visible = true; // compile() only walks visible objects; the traversal is synchronous
+  try {
+    if (gl.compileAsync) void gl.compileAsync(group, camera, scene);
+    else gl.compile(group, camera, scene);
+  } finally {
+    group.visible = wasVisible;
+  }
+}
+
+/**
+ * One cosmic scale scene. Mounted the first time it is needed (or preloaded in the background) and then kept
+ * alive: showing/hiding only flips `visible`, so transitions never remount geometry, recompile shaders, re-run
+ * Suspense or churn the celestial registry. Its own Suspense boundary keeps a loading chunk from blanking the
+ * other layers.
+ */
+const ScaleLayer: React.FC<{ level: CosmicScaleLevel; preload: boolean }> = ({ level, preload }) => {
+  const visible = useQuantumStore((s) => maskHas(s.visibleScaleMask, level));
+  const [mounted, setMounted] = useState(visible);
+  const groupRef = useRef<THREE.Group>(null);
+  const prewarmedRef = useRef(false);
+  const { gl, camera, scene } = useThree();
+
+  useEffect(() => {
+    if ((visible || preload) && !mounted) setMounted(true);
+  }, [visible, preload, mounted]);
+
+  // Once preloaded content has resolved (lazy chunk loaded, children present), prewarm it while hidden
+  useFrame(() => {
+    const g = groupRef.current;
+    if (prewarmedRef.current || !g || g.visible) {
+      if (g?.visible) prewarmedRef.current = true; // rendered for real: nothing left to warm
+      return;
+    }
+    if (g.children.length === 0 || g.children[0].children.length === 0) return;
+    prewarmedRef.current = true;
+    try {
+      prewarmLayer(gl, g, camera, scene);
+    } catch (err) {
+      console.warn(`Scale ${level} prewarm skipped:`, err);
+    }
+  });
+
+  if (!mounted && !visible) return null;
+  const Scene = SCALE_SCENES[level];
+  return (
+    <group ref={groupRef} name={`universe-scale-${level}`} visible={visible}>
+      <LayerVisibilityProvider visible={visible}>
+        <Suspense fallback={null}>
+          <Scene />
+        </Suspense>
+      </LayerVisibilityProvider>
+    </group>
+  );
+};
+
+// Pointer events ignore hidden objects (three's raycaster doesn't check `visible`), so hidden layers and LoD
+// groups can't be hovered or clicked and never pop up labels.
+// From inside an enterable galaxy its own disk, halo and bulge surround the camera and fill the whole view. They
+// must not be pickable there: a click between stars would select the galaxy itself (whose framing is outside it,
+// so the camera flew out), and a disk plane in front of a star would steal the click meant for that star.
+const _pickGalaxyCentre = new THREE.Vector3();
+function isShellOfGalaxyAroundCamera(obj: THREE.Object3D, camera: THREE.Camera): boolean {
+  for (let o: THREE.Object3D | null = obj; o; o = o.parent) {
+    const id = o.userData.galaxyId as string | undefined;
+    if (!id) continue;
+    const body = CELESTIAL_BODIES[id];
+    if (!body || !(id in GALAXY_INTERIORS)) return false;
+    return camera.position.distanceTo(o.getWorldPosition(_pickGalaxyCentre)) < body.size * INSIDE_RADII;
+  }
+  return false;
+}
+
+// Diffuse features (objects with userData.pickLast, e.g. M31's Giant Stellar Stream) are only picked when nothing
+// compact is under the pointer, so a star seen through them stays clickable.
+// Phones: while the object card is open as a bottom sheet (covering the lower ~46% of the screen), shift the
+// rendered view so the object the camera frames sits in the middle of the visible area above the sheet instead
+// of under its top edge. A view offset moves the image without moving the camera, and raycasting/projection use
+// the same matrix, so taps and labels stay aligned.
+const SimClockDriver: React.FC = () => {
+  useFrame((_, delta) => advanceSimClock(delta));
+  return null;
+};
+
+const SHEET_VIEW_SHIFT = 0.22; // fraction of the screen height
+const SheetViewOffset: React.FC = () => {
+  const { camera, size } = useThree();
+  const shift = useRef(0);
+  useFrame((_, delta) => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const target = useQuantumStore.getState().isCardSheetOpen ? SHEET_VIEW_SHIFT : 0;
+    if (target === 0 && shift.current === 0) return;
+    shift.current += (target - shift.current) * Math.min(1, delta * 6);
+    if (target === 0 && shift.current < 0.001) {
+      shift.current = 0;
+      cam.clearViewOffset();
+      return;
+    }
+    cam.setViewOffset(size.width, size.height, 0, shift.current * size.height, size.width, size.height);
+  });
+  return null;
+};
+
+const visibleOnlyEvents: typeof createPointerEvents = (store) => ({
+  ...createPointerEvents(store),
+  filter: (hits, state) => {
+    const kept = hits.filter(
+      (hit) => isObjectRendered(hit.object) && !isShellOfGalaxyAroundCamera(hit.object, state.camera)
+    );
+    const last = kept.filter((hit) => hit.object.userData.pickLast);
+    return last.length ? [...kept.filter((hit) => !hit.object.userData.pickLast), ...last] : kept;
+  },
+});
+
 export const UniverseCanvasContainer: React.FC = () => {
   const cosmicScaleLevel = useQuantumStore((s) => s.cosmicScaleLevel);
-  const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
-  const scaleNavigationRequest = useQuantumStore((s) => s.scaleNavigationRequest);
+  const isCanvasReady = useQuantumStore((s) => s.isCanvasReady);
+  // Rendering quality tier (phones: lower pixel ratio, no MSAA, thinner star fields; see lib/deviceQuality.ts)
+  const lowQuality = useMemo(() => isLowQuality(), []);
+  const [maxDpr, setMaxDpr] = useState(() => (isLowQuality() ? 1.25 : 1.5));
 
-  const adjacentCosmicScaleLevel = useQuantumStore((s) => s.adjacentCosmicScaleLevel);
+  // A single click selects and flies to an object, and its card follows once the camera has arrived. A double
+  // click (on the object or its label) shows the card straight away. Native listener: in-scene labels are DOM
+  // overlays rendered by a separate React root, so React's onDoubleClick on this div would miss them.
+  const universeRootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = universeRootRef.current;
+    if (!root) return;
+    const onDoubleClick = () => useQuantumStore.getState().showCosmicCardNow();
+    root.addEventListener('dblclick', onDoubleClick);
+    return () => root.removeEventListener('dblclick', onDoubleClick);
+  }, []);
 
   // Synchronously compute initial scale camera parameters on frame 0
   const initialScaleConfig = useMemo(() => {
     return COSMIC_SCALES.find((s) => s.level === cosmicScaleLevel) || COSMIC_SCALES[0];
   }, []);
 
-  // Hierarchical Scale LoD Culling with Flight Window Overlap
-  const activeScales = useMemo(() => {
-    const current = cosmicScaleLevel;
-    const targetScale = scaleNavigationRequest?.level ?? (
-      selectedCosmicBodyId ? CELESTIAL_BODIES[selectedCosmicBodyId]?.scaleLevel : undefined
-    );
-
-    // If transitioning between different scale tiers, mount the transit window
-    if (targetScale !== undefined && targetScale !== current) {
-      const minScale = Math.min(current, targetScale);
-      const maxScale = Math.max(current, targetScale);
-      return {
-        showScale1: minScale <= 1 && maxScale >= 1,
-        showScale2: minScale <= 2 && maxScale >= 2,
-        showScale3: minScale <= 3 && maxScale >= 3,
-        showScale4: minScale <= 4 && maxScale >= 4,
-        showScale5: minScale <= 5 && maxScale >= 5,
-      };
-    }
-
-    // Mount active scale and neighboring scale during continuous zoom transition buffer:
-    const adj = adjacentCosmicScaleLevel;
-    return {
-      showScale1: current === 1 || adj === 1,
-      showScale2: current === 2 || adj === 2,
-      showScale3: current === 3 || adj === 3,
-      showScale4: current === 4 || adj === 4,
-      showScale5: current === 5 || adj === 5,
+  // After the first frame, quietly mount the remaining layers (nearest scales first) so later transitions
+  // are instant. Hidden layers cost no draw calls; they are prewarmed once and then idle.
+  const [preloadCount, setPreloadCount] = useState(0);
+  const preloadOrder = useMemo(
+    () => [...SCALE_LEVELS].sort((a, b) => Math.abs(a - cosmicScaleLevel) - Math.abs(b - cosmicScaleLevel)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  useEffect(() => {
+    if (!isCanvasReady) return;
+    let count = 0;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      interval = setInterval(() => {
+        count++;
+        setPreloadCount(count);
+        if (count >= SCALE_LEVELS.length && interval) clearInterval(interval);
+      }, PRELOAD_INTERVAL_MS);
+    }, PRELOAD_START_DELAY_MS);
+    return () => {
+      clearTimeout(start);
+      if (interval) clearInterval(interval);
     };
-  }, [cosmicScaleLevel, adjacentCosmicScaleLevel, selectedCosmicBodyId, scaleNavigationRequest]);
+  }, [isCanvasReady]);
 
   return (
-    <div className="w-full h-full relative select-none overflow-hidden bg-[#020617]">
+    <div ref={universeRootRef} data-universe-root className="w-full h-full relative select-none overflow-hidden bg-[#020617]">
       <Canvas
         performance={{ min: 0.5 }}
+        events={visibleOnlyEvents}
         camera={{
           position: initialScaleConfig.cameraPosition,
           fov: 48,
@@ -700,19 +986,30 @@ export const UniverseCanvasContainer: React.FC = () => {
         }}
         gl={{
           logarithmicDepthBuffer: true,
-          antialias: true,
+          antialias: !lowQuality,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
         }}
-        dpr={[1, 1.5]}
+        dpr={[1, maxDpr]}
       >
+        {/* Shared simulation clock: advanced first each frame, read by everything that moves (lib/simClock.ts) */}
+        <SimClockDriver />
+
+        {/* If frames get slow (phones), drop to a 1:1 pixel ratio. Only the pixel ratio changes, so nothing recompiles. */}
+        <PerformanceMonitor onDecline={() => setMaxDpr(1)} />
+        <SheetViewOffset />
+
         {/* Deep Space Background Stars */}
         <color attach="background" args={['#020617']} />
-        <Stars radius={250000} depth={100000} count={9000} factor={6} saturation={0.5} fade speed={1.0} />
+        <Stars radius={250000} depth={100000} count={lowQuality ? 4000 : 9000} factor={6} saturation={0.5} fade speed={1.0} />
 
         {/* Global Space Ambient Light */}
-        <ambientLight intensity={0.35} />
+        {/* Low fill light: the Sun (and each star's own light) decides day and night sides */}
+        <ambientLight intensity={0.1} />
+
+        {/* Constant-size point-light pool shared by every scale (see rendering/LightPool.tsx) */}
+        <LightPool />
 
         {/* Camera and Navigation Controller */}
         <UniverseCameraManager />
@@ -720,15 +1017,12 @@ export const UniverseCanvasContainer: React.FC = () => {
         {/* Notifies loading screen upon first rasterized WebGL frame */}
         <WebGlFirstFrameNotifier />
 
-        {/* Hierarchical Scale LoD & Culling: Overlapping Visibility Windows for Seamless Continuous Zoom */}
-        {/* Hierarchical Scale LoD & Culling: Conditional Mounting per Active Scale Tier */}
-        <Suspense fallback={null}>
-          {activeScales.showScale1 && <SolarSystemScene />}
-          {activeScales.showScale2 && <StellarNeighborhoodScene />}
-          {activeScales.showScale3 && <MilkyWayScene />}
-          {activeScales.showScale4 && <ExtragalacticScene />}
-          {activeScales.showScale5 && <CosmicWebScene />}
-        </Suspense>
+        {/* Cosmic scale layers: shown/hidden per lib/scaleVisibility.ts, kept alive once mounted */}
+        {SCALE_LEVELS.map((level) => (
+          <ScaleLayer key={level} level={level} preload={preloadOrder.indexOf(level) < preloadCount} />
+        ))}
+
+        {process.env.NODE_ENV !== 'production' && <UniverseDebugProbe />}
 
         {/* Interactive 3D Constellations System */}
         <ConstellationOverlay />
@@ -736,6 +1030,7 @@ export const UniverseCanvasContainer: React.FC = () => {
 
       {/* On-Screen Speed Multiplier Controller */}
       <SpeedMultiplierWidget />
+      <TimeControl />
 
       {/* Interactive Constellation Lore & Star Card */}
       <ConstellationInspectorTooltip />

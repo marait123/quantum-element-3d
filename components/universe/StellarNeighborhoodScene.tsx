@@ -2,14 +2,30 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { ScaleStandIn } from './rendering/ScaleStandIn';
 import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
 import { RealisticPulsar } from './pulsar/RealisticPulsar';
 import { RealisticDiamondPlanet } from './exoplanet/RealisticDiamondPlanet';
+import { PooledPointLight } from '@/components/universe/rendering/LightPool';
+import { StarBody } from './rendering/StarBody';
+import { SupergiantStar, HotStar, GlowShell } from './rendering/StellarExtras';
+import { ExoplanetSurface, getExoplanetLook } from './exoplanet/RealisticExoplanet';
+import { systemOrbitAngle } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+
+// Effective temperatures (K) of the stars drawn by the generic system node
+const STAR_KELVIN: Record<string, number> = {
+  barnard_star: 3134, // M4 V
+  wolf_359: 2800, // M6 V flare star
+  tau_ceti: 5344, // G8.5 V
+  gliese_667c: 3350, // M1.5 V
+  lhs_1140: 3096, // M4.5 V
+};
 
 // Betelgeuse Red Supergiant with pulsating convective envelope
 const BetelgeuseStar: React.FC<{
@@ -21,7 +37,7 @@ const BetelgeuseStar: React.FC<{
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
   const outerPuffRef = useRef<THREE.Mesh>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
@@ -58,35 +74,21 @@ const BetelgeuseStar: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#ef4444" intensity={4.5} distance={body.size * 10} />
+      <PooledPointLight color="#ef4444" intensity={4.5} distance={body.size * 10} />
 
-      {/* Pulsating Core */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[body.size, 36, 36]} />
-        <meshStandardMaterial
-          color="#dc2626"
-          emissive="#b91c1c"
-          emissiveIntensity={0.9}
-          roughness={0.7}
-        />
-      </mesh>
+      {/* Pulsating M1-2 Ia photosphere (~3,600 K): a few giant convection cells, as in the ALMA / VLT images */}
+      <group ref={coreRef}>
+        <SupergiantStar radius={body.size} kelvin={3600} brightness={1.25} cellScale={1.5} glowScale={2.4} glowOpacity={0.45} />
+      </group>
 
-      {/* Convective Outer Dust Shell */}
-      <mesh ref={outerPuffRef}>
-        <sphereGeometry args={[body.size * 1.18, 24, 24]} />
-        <meshBasicMaterial
-          color="#ea580c"
-          transparent
-          opacity={0.35}
-          side={THREE.BackSide}
-          wireframe
-        />
-      </mesh>
+      {/* Clumpy, extended envelope of gas and dust it keeps shedding (cf. the 2019-20 Great Dimming) */}
+      <GlowShell ref={outerPuffRef} radius={body.size * 1.35} color="#c2461d" strength={0.9} power={2.0} noise={0.7} noiseScale={2.2} />
+      <GlowShell radius={body.size * 2.1} color="#7a2a12" strength={0.35} power={1.6} noise={0.8} noiseScale={1.6} />
 
       {/* Selection Ring */}
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
+          <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
@@ -133,17 +135,16 @@ const SiriusBinarySystem: React.FC<{
     };
   }, []);
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    if (binaryGroupRef.current) {
-      binaryGroupRef.current.rotation.y = t * 0.05;
-    }
-    // Sirius B mutual orbit around A
-    if (siriusBRef.current) {
-      const orbitR = 45.0;
-      const angle = t * 0.4;
-      siriusBRef.current.position.set(Math.cos(angle) * orbitR, Math.sin(angle) * 8.0, Math.sin(angle) * orbitR);
-    }
+  useFrame(() => {
+    // Sirius A (2.06 M☉) and B (1.02 M☉) circle their common centre of mass every 50.1 years (shared clock, real
+    // period, so almost still at ×1): B covers two thirds of the separation, A the remaining third
+    const angle = systemOrbitAngle('sirius_b', simClock.time, 0.05);
+    const orbitR = 45.0;
+    const bx = Math.cos(angle) * orbitR;
+    const by = Math.sin(angle) * 8.0;
+    const bz = Math.sin(angle) * orbitR;
+    if (siriusBRef.current) siriusBRef.current.position.set(bx * 0.67, by * 0.67, bz * 0.67);
+    if (siriusARootRef.current) siriusARootRef.current.position.set(-bx * 0.33, -by * 0.33, -bz * 0.33);
   });
 
   const isASelected = selectedId === siriusA.id;
@@ -162,15 +163,9 @@ const SiriusBinarySystem: React.FC<{
         onPointerOver={() => setHoveredA(true)}
         onPointerOut={() => setHoveredA(false)}
       >
-        <pointLight color="#bae6fd" intensity={5.0} distance={siriusA.size * 12} />
-        <mesh>
-          <sphereGeometry args={[siriusA.size, 32, 32]} />
-          <meshBasicMaterial color="#e0f2fe" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[siriusA.size * 1.25, 24, 24]} />
-          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#bae6fd" intensity={5.0} distance={siriusA.size * 12} />
+        {/* A1 V, 9,940 K: blue-white and nearly spotless */}
+        <HotStar radius={siriusA.size} kelvin={9940} brightness={1.7} glowScale={3} glowOpacity={0.7} segments={64} />
         {(hoveredA || isASelected) && (
           <Html position={[0, siriusA.size + 8, 0]} center distanceFactor={siriusA.size * 6}>
             <div className="px-2.5 py-0.5 rounded-full bg-blue-950/90 border border-blue-400 text-xs font-semibold text-blue-200 whitespace-nowrap shadow-lg">
@@ -191,15 +186,9 @@ const SiriusBinarySystem: React.FC<{
         onPointerOver={() => setHoveredB(true)}
         onPointerOut={() => setHoveredB(false)}
       >
-        <pointLight color="#38bdf8" intensity={2.5} distance={siriusB.size * 8} />
-        <mesh>
-          <sphereGeometry args={[siriusB.size, 24, 24]} />
-          <meshBasicMaterial color="#38bdf8" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[siriusB.size * 1.4, 16, 16]} />
-          <meshBasicMaterial color="#93c5fd" transparent opacity={0.4} wireframe />
-        </mesh>
+        <PooledPointLight color="#38bdf8" intensity={2.5} distance={siriusB.size * 8} />
+        {/* White dwarf, ~25,000 K: small, featureless and intensely bright blue-white */}
+        <HotStar radius={siriusB.size} kelvin={25000} brightness={2.6} glowScale={4} glowOpacity={0.9} spin={0.3} />
         {(hoveredB || isBSelected) && (
           <Html position={[0, siriusB.size + 4, 0]} center distanceFactor={siriusB.size * 8}>
             <div className="px-2 py-0.5 rounded-full bg-slate-900/90 border border-sky-400 text-[10px] font-bold text-sky-200 whitespace-nowrap shadow-md">
@@ -284,7 +273,6 @@ const ProximaCentauriSystem: React.FC<{
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
   const planetOrbitRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(0);
   const [starHovered, setStarHovered] = useState(false);
@@ -301,9 +289,8 @@ const ProximaCentauriSystem: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.1;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.04) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.04) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 14.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -328,15 +315,9 @@ const ProximaCentauriSystem: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#f87171" intensity={3.0} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#ef4444" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.25, 20, 20]} />
-          <meshBasicMaterial color="#fca5a5" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#f87171" intensity={3.0} distance={star.size * 10} />
+        {/* M5.5 V flare star, 3,042 K */}
+        <StarBody radius={star.size} kelvin={3042} spots={1} brightness={1.3} glowScale={2.8} glowOpacity={0.55} spin={0.1} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 6, 0]} center distanceFactor={star.size * 5}>
@@ -365,14 +346,11 @@ const ProximaCentauriSystem: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 24, 24]} />
-          <meshStandardMaterial color="#d97706" roughness={0.7} metalness={0.2} />
-        </mesh>
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={3042} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.4, planet.size * 1.6, 24]} />
+            <ringGeometry args={[planet.size * 1.4, planet.size * 1.435, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -399,7 +377,6 @@ const Cancri55System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(0.8);
   const [starHovered, setStarHovered] = useState(false);
@@ -411,9 +388,8 @@ const Cancri55System: React.FC<{
   }, [star.id]);
 
   useFrame(({ clock }, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.055) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.055) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 28.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -438,15 +414,9 @@ const Cancri55System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#fde047" intensity={4.5} distance={star.size * 12} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 32, 32]} />
-          <meshBasicMaterial color="#fef08a" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.2, 24, 24]} />
-          <meshBasicMaterial color="#fde047" transparent opacity={0.3} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#fde047" intensity={4.5} distance={star.size * 12} />
+        {/* G8 V (K0 IV-V), 5,196 K: a slightly cooler, orange-tinged Sun */}
+        <StarBody radius={star.size} kelvin={5196} spots={0.8} brightness={1.6} glowScale={3} glowOpacity={0.6} spin={0.05} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 8, 0]} center distanceFactor={star.size * 5}>
@@ -471,6 +441,7 @@ const Cancri55System: React.FC<{
         <RealisticDiamondPlanet
           body={planet}
           isMagmaWorld={true}
+          hostRef={rootRef}
           isSelected={isPlanetSelected}
           isHighlighted={isPlanetHighlighted}
           onSelect={() => onSelect(planet.id)}
@@ -491,7 +462,6 @@ const Trappist1System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.4);
   const [starHovered, setStarHovered] = useState(false);
@@ -508,9 +478,8 @@ const Trappist1System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.08;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.048) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.048) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 16.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -535,15 +504,9 @@ const Trappist1System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#ef4444" intensity={3.2} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#dc2626" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.25, 20, 20]} />
-          <meshBasicMaterial color="#f87171" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#ef4444" intensity={3.2} distance={star.size * 10} />
+        {/* M8 V ultra-cool dwarf, 2,566 K: deep orange-red */}
+        <StarBody radius={star.size} kelvin={2566} spots={1} brightness={1.25} glowScale={3} glowOpacity={0.55} spin={0.08} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 6, 0]} center distanceFactor={star.size * 5}>
@@ -572,14 +535,11 @@ const Trappist1System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 24, 24]} />
-          <meshStandardMaterial color="#0284c7" roughness={0.5} metalness={0.3} />
-        </mesh>
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={2566} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.4, planet.size * 1.6, 24]} />
+            <ringGeometry args={[planet.size * 1.4, planet.size * 1.435, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -606,7 +566,6 @@ const K218System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(2.1);
   const [starHovered, setStarHovered] = useState(false);
@@ -623,9 +582,8 @@ const K218System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.06;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.042) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.042) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 26.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -650,15 +608,9 @@ const K218System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#ea580c" intensity={3.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#ea580c" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.22, 20, 20]} />
-          <meshBasicMaterial color="#f97316" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#ea580c" intensity={3.5} distance={star.size * 10} />
+        {/* M2.5 V, ~3,457 K */}
+        <StarBody radius={star.size} kelvin={3457} spots={1} brightness={1.3} glowScale={2.8} glowOpacity={0.55} spin={0.06} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 7, 0]} center distanceFactor={star.size * 5}>
@@ -687,21 +639,12 @@ const K218System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Ocean Core */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#06b6d4" roughness={0.3} metalness={0.1} />
-        </mesh>
-
-        {/* Thick Hydrogen & Methane Atmosphere Layer */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.12, 24, 24]} />
-          <meshStandardMaterial color="#a5f3fc" transparent opacity={0.4} roughness={0.9} />
-        </mesh>
+        {/* Hazy hydrogen / methane / CO2 envelope (JWST) over a possible water ocean */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={3457} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.5, planet.size * 1.7, 24]} />
+            <ringGeometry args={[planet.size * 1.5, planet.size * 1.535, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -728,7 +671,6 @@ const HD189733System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(3.0);
   const [starHovered, setStarHovered] = useState(false);
@@ -745,9 +687,8 @@ const HD189733System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.052) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.052) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 24.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -772,15 +713,9 @@ const HD189733System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#fb923c" intensity={4.0} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#fb923c" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.2, 20, 20]} />
-          <meshBasicMaterial color="#fdba74" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#fb923c" intensity={4.0} distance={star.size * 10} />
+        {/* K1.5 V, ~5,050 K, magnetically active (spotted) */}
+        <StarBody radius={star.size} kelvin={5050} spots={1} brightness={1.5} glowScale={2.8} glowOpacity={0.55} spin={0.05} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 7, 0]} center distanceFactor={star.size * 5}>
@@ -809,20 +744,12 @@ const HD189733System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#1d4ed8" roughness={0.35} metalness={0.4} />
-        </mesh>
-
-        {/* Silicate Wind Band Streak */}
-        <mesh rotation={[0.4, 0, 0]}>
-          <torusGeometry args={[planet.size * 1.05, 0.08, 12, 32]} />
-          <meshBasicMaterial color="#93c5fd" transparent opacity={0.6} />
-        </mesh>
+        {/* Cobalt-blue banded atmosphere with silicate haze (Hubble albedo spectrum) */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={5050} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -849,7 +776,6 @@ const Pegasi51System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.2);
   const [starHovered, setStarHovered] = useState(false);
@@ -866,9 +792,8 @@ const Pegasi51System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.058) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.058) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 22.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -893,15 +818,9 @@ const Pegasi51System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#fde047" intensity={4.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 32, 32]} />
-          <meshBasicMaterial color="#fde047" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.16, 20, 20]} />
-          <meshBasicMaterial color="#fef08a" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#fde047" intensity={4.5} distance={star.size * 10} />
+        {/* G2 IV, 5,768 K: a near twin of the Sun */}
+        <StarBody radius={star.size} kelvin={5768} spots={0.9} brightness={1.7} glowScale={3} glowOpacity={0.6} spin={0.04} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 8, 0]} center distanceFactor={star.size * 5}>
@@ -930,26 +849,12 @@ const Pegasi51System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial
-            color="#f97316"
-            emissive="#ea580c"
-            emissiveIntensity={0.35}
-            roughness={0.4}
-            metalness={0.2}
-          />
-        </mesh>
-
-        {/* Torrid Atmosphere Glow Halo */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.15, 20, 20]} />
-          <meshBasicMaterial color="#fb923c" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        {/* Dark, hazy ~1,250 K hot Jupiter */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={5768} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#f59e0b'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -976,7 +881,6 @@ const TOI700System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(0.8);
   const [starHovered, setStarHovered] = useState(false);
@@ -993,9 +897,8 @@ const TOI700System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.046) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.046) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 19.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -1020,15 +923,9 @@ const TOI700System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#f97316" intensity={3.8} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#ea580c" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
-          <meshBasicMaterial color="#f97316" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#f97316" intensity={3.8} distance={star.size * 10} />
+        {/* M2 V, ~3,480 K, unusually quiet */}
+        <StarBody radius={star.size} kelvin={3480} spots={0.5} brightness={1.3} glowScale={2.8} glowOpacity={0.55} spin={0.05} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 5, 0]} center distanceFactor={star.size * 5}>
@@ -1057,21 +954,12 @@ const TOI700System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Ocean & Continental Surface */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#0284c7" roughness={0.45} metalness={0.2} />
-        </mesh>
-
-        {/* Atmosphere Cloud Layer */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.04, 24, 24]} />
-          <meshStandardMaterial color="#f0fdf4" transparent opacity={0.35} roughness={0.9} />
-        </mesh>
+        {/* Temperate Earth-sized world: oceans, clouds and a blue atmosphere rim */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={3480} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -1099,17 +987,12 @@ const ExoplanetSystemNode: React.FC<{
   icon?: string;
 }> = ({ star, planets, selectedId, highlightedElement, onSelect, language, icon = '🪐' }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const [starHovered, setStarHovered] = useState(false);
 
   useEffect(() => {
     if (rootRef.current) registerCelestialObject(star.id, rootRef.current);
     return () => unregisterCelestialObject(star.id);
   }, [star.id]);
-
-  useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
-  });
 
   const isStarSelected = selectedId === star.id;
   const isStarHighlighted =
@@ -1128,20 +1011,20 @@ const ExoplanetSystemNode: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color={star.color} intensity={3.8} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color={star.color} />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
-          <meshBasicMaterial
-            color={star.emissiveColor || star.color}
-            transparent
-            opacity={0.25}
-            side={THREE.BackSide}
+        <PooledPointLight color={star.color} intensity={3.8} distance={star.size * 10} />
+        {STAR_KELVIN[star.id] ? (
+          <StarBody
+            radius={star.size}
+            kelvin={STAR_KELVIN[star.id]}
+            spots={1}
+            brightness={STAR_KELVIN[star.id] < 4000 ? 1.3 : 1.6}
+            glowScale={2.8}
+            glowOpacity={0.55}
+            spin={0.05}
           />
-        </mesh>
+        ) : (
+          <StarBody radius={star.size} color={star.color} glowScale={2.8} glowOpacity={0.55} spin={0.05} />
+        )}
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 4, 0]} center distanceFactor={star.size * 5}>
@@ -1163,6 +1046,8 @@ const ExoplanetSystemNode: React.FC<{
           onSelect={onSelect}
           language={language}
           icon={icon}
+          hostRef={rootRef}
+          hostKelvin={STAR_KELVIN[star.id] ?? 5772}
         />
       ))}
     </group>
@@ -1177,7 +1062,9 @@ const OrbitingPlanetSubNode: React.FC<{
   onSelect: (id: string) => void;
   language: 'en' | 'ar';
   icon: string;
-}> = ({ planet, orbitIndex, selectedId, highlightedElement, onSelect, language, icon }) => {
+  hostRef: React.RefObject<THREE.Object3D>;
+  hostKelvin: number;
+}> = ({ planet, orbitIndex, selectedId, highlightedElement, onSelect, language, icon, hostRef, hostKelvin }) => {
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(orbitIndex * 1.8 + 0.5);
   const [hovered, setHovered] = useState(false);
@@ -1189,7 +1076,7 @@ const OrbitingPlanetSubNode: React.FC<{
 
   useFrame((_, delta) => {
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.04) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.04) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 18.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -1224,19 +1111,11 @@ const OrbitingPlanetSubNode: React.FC<{
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 24, 24]} />
-          <meshStandardMaterial
-            color={planet.color}
-            emissive={planet.emissiveColor || planet.color}
-            emissiveIntensity={0.25}
-            roughness={0.7}
-          />
-        </mesh>
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id, planet.color)} host={hostRef} hostKelvin={hostKelvin} />
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -1300,7 +1179,7 @@ const StandaloneExoplanetNode: React.FC<{
 
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 1.55, 32]} />
+          <ringGeometry args={[body.size * 1.35, body.size * 1.385, 128]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
@@ -1321,6 +1200,59 @@ const StandaloneExoplanetNode: React.FC<{
   );
 };
 
+// Persistent Sol (Our Sun / Solar System Anchor at [0, 0, 0])
+const SolAnchor: React.FC<{
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('sun', rootRef.current);
+    }
+    return () => unregisterCelestialObject('sun');
+  }, []);
+
+  return (
+    <group
+      ref={rootRef}
+      position={[0, 0, 0]}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <PooledPointLight color="#fde047" intensity={5.0} distance={400} decay={1.5} />
+
+      {/* The Sun: real photosphere map (G2 V, 5,772 K) with its corona glow */}
+      <StarBody radius={5.2} kelvin={5772} spots={1} brightness={2.0} glowScale={3.2} glowOpacity={0.7} />
+
+      {/* Selection / Focus Ring */}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[9.5, 11.0, 36]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Tag */}
+      {(hovered || isSelected) && (
+        <Html position={[0, 15, 0]} center distanceFactor={45}>
+          <div className="px-3 py-1 rounded-full bg-amber-950/90 border border-amber-400 text-xs font-bold text-amber-200 shadow-xl backdrop-blur-md whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+            <span>☀️ {language === 'ar' ? 'شمسنا (المجموعة الشمسية)' : 'Sol (Our Sun / Solar System)'}</span>
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
 export const StellarNeighborhoodScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -1333,6 +1265,18 @@ export const StellarNeighborhoodScene: React.FC = () => {
 
   return (
     <group>
+      {/* ==================================================== */}
+      {/* 0. SOL / OUR SUN (Persistent Solar System Anchor)    */}
+      {/* ==================================================== */}
+      {/* Stand-in for the detailed Solar System Sun: shown only while scale 1 is hidden */}
+      <ScaleStandIn replacesScale={1}>
+        <SolAnchor
+          isSelected={selectedCosmicBodyId === 'sun'}
+          onSelect={() => setSelectedCosmicBodyId('sun')}
+          language={language}
+        />
+      </ScaleStandIn>
+
       {/* Betelgeuse Dying Red Supergiant */}
       <BetelgeuseStar
         body={CELESTIAL_BODIES.betelgeuse}

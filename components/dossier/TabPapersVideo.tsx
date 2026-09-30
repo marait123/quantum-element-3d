@@ -205,7 +205,7 @@ export const TabPapersVideo: React.FC<Props> = ({ language }) => {
                   className="p-2 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] text-slate-300 flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span className="truncate">{h}</span>
+                  <span>{h}</span>
                 </div>
               )
             )}

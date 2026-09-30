@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CONSTELLATIONS, ConstellationDefinition } from '@/data/constellationData';
@@ -117,7 +117,7 @@ export const ConstellationOverlay: React.FC = () => {
                 distanceFactor={constellation.boundingRadius * 1.8}
               >
                 <div
-                  className={`px-3 py-1.5 rounded-2xl backdrop-blur-xl border text-xs font-bold whitespace-nowrap shadow-2xl transition-all cursor-pointer flex items-center gap-2 ${
+                  className={`px-3 py-1.5 rounded-2xl backdrop-blur-xl border text-xs font-bold whitespace-nowrap shadow-2xl transition-all cursor-pointer pointer-events-auto flex items-center gap-2 ${
                     isSelected
                       ? 'bg-amber-950/90 border-amber-400 text-amber-200 ring-2 ring-amber-400/50 scale-105'
                       : 'bg-slate-900/90 border-cyan-400 text-cyan-200'

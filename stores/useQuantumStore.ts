@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { audioSynth } from '@/lib/audioSynth';
 import { CosmicScaleLevel, CELESTIAL_BODIES } from '@/data/universeData';
+import { FEATURED_SYSTEMS, GalaxyViewLevel } from '@/lib/galaxyInteriors';
 
 export type ScaleLevel = 1 | 2 | 3 | 4 | 5;
 export type ParticleFilter = 'all' | 'protons' | 'neutrons' | 'electrons';
@@ -28,7 +29,23 @@ interface QuantumState {
   cosmicScaleLevel: CosmicScaleLevel;
   previousCosmicScaleLevel: CosmicScaleLevel;
   adjacentCosmicScaleLevel: CosmicScaleLevel | null;
+  // Bitmask (bit N = scale N) of the cosmic scale layers currently shown; computed by the camera manager
+  visibleScaleMask: number;
+  // Fly into a galaxy (camera manager consumes it); and the galaxy the camera is currently inside, for the HUD
+  galaxyEntryRequest: { id: string; level: GalaxyViewLevel; timestamp: number } | null;
+  insideGalaxyId: string | null;
+  // Inside another galaxy: 3 = whole galaxy, 2 = its star neighbourhood, 1 = its featured star system
+  galaxyViewLevel: GalaxyViewLevel | null;
   selectedCosmicBodyId: string | null;
+  // The selected body the camera has finished flying to (null while the flight is under way). The info card waits
+  // for this so it does not cover the view during the flight.
+  arrivedCosmicBodyId: string | null;
+  // Double-clicking an object shows its card straight away instead of after the flight
+  instantCardBodyId: string | null;
+  // The card was closed by clicking outside it; the body stays selected (and followed) until another selection
+  dismissedCardBodyId: string | null;
+  // Phones: the object card is open as a bottom sheet (the camera shifts its view up to keep the object visible)
+  isCardSheetOpen: boolean;
   scaleNavigationRequest: { level: CosmicScaleLevel; timestamp: number } | null;
   continuousZoomRequest: ContinuousZoomRequest | null;
   navigationMode: NavigationMode;
@@ -93,11 +110,19 @@ interface QuantumState {
   // Cosmic Universe Actions
   setCosmicScaleLevel: (scale: CosmicScaleLevel) => void;
   setAdjacentCosmicScaleLevel: (scale: CosmicScaleLevel | null) => void;
+  setVisibleScaleMask: (mask: number) => void;
+  requestGalaxyEntry: (id: string, level?: GalaxyViewLevel) => void;
+  setInsideGalaxyId: (id: string | null) => void;
+  setGalaxyViewLevel: (level: GalaxyViewLevel | null) => void;
   requestScaleNavigation: (scale: CosmicScaleLevel) => void;
   requestContinuousZoom: (direction: 'in' | 'out', factor?: number) => void;
   cosmicZoomIn: () => void;
   cosmicZoomOut: () => void;
   setSelectedCosmicBodyId: (id: string | null) => void;
+  setArrivedCosmicBodyId: (id: string | null) => void;
+  showCosmicCardNow: () => void;
+  dismissCosmicCard: () => void;
+  setCardSheetOpen: (open: boolean) => void;
   setNavigationMode: (mode: NavigationMode) => void;
   toggleNavigationMode: () => void;
   setHighlightedCosmicElementNum: (num: number | null) => void;
@@ -120,6 +145,9 @@ interface QuantumState {
   setCanvasReady: (ready: boolean) => void;
 }
 
+// localStorage key of the world the visitor last chose (first-visit chooser, world switcher)
+export const WORLD_PREFERENCE_KEY = 'science_lab_world';
+
 // Synchronously read initial URL parameters on client store creation
 const getInitialUrlState = () => {
   if (typeof window === 'undefined') {
@@ -132,7 +160,15 @@ const getInitialUrlState = () => {
   try {
     const params = new URLSearchParams(window.location.search);
     const worldParam = params.get('world');
-    const world: ActiveWorld = worldParam === 'universe' ? 'universe' : 'subatomic';
+    // A link's ?world= wins; otherwise reopen the world the visitor last chose
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(WORLD_PREFERENCE_KEY);
+    } catch {
+      // storage unavailable (private mode, blocked site data)
+    }
+    const preferred = worldParam ?? stored;
+    const world: ActiveWorld = preferred === 'universe' ? 'universe' : 'subatomic';
 
     const scaleParam = parseInt(params.get('scale') || '', 10);
     const cosmicScale: CosmicScaleLevel =
@@ -168,7 +204,15 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   cosmicScaleLevel: _initialUrl.cosmicScale,
   previousCosmicScaleLevel: _initialUrl.cosmicScale,
   adjacentCosmicScaleLevel: null,
+  visibleScaleMask: 1 << _initialUrl.cosmicScale,
+  galaxyEntryRequest: null,
+  insideGalaxyId: null,
+  galaxyViewLevel: null,
   selectedCosmicBodyId: null,
+  arrivedCosmicBodyId: null,
+  instantCardBodyId: null,
+  dismissedCardBodyId: null,
+  isCardSheetOpen: false,
   scaleNavigationRequest: null,
   continuousZoomRequest: null,
   navigationMode: 'orbit',
@@ -356,6 +400,37 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
     set({ adjacentCosmicScaleLevel: scale });
   },
 
+  setVisibleScaleMask: (mask: number) => {
+    if (get().visibleScaleMask === mask) return;
+    set({ visibleScaleMask: mask });
+  },
+
+  requestGalaxyEntry: (id: string, level: GalaxyViewLevel = 3) => {
+    // Our own galaxy is entered through its dedicated scales (Milky Way / Stars & Relics / Solar System)
+    if (id === 'milky_way_galaxy') {
+      get().requestScaleNavigation(level);
+      return;
+    }
+    // Star-system level: fly to (select) the galaxy's featured system, like picking the Solar System
+    if (level === 1) {
+      const featured = FEATURED_SYSTEMS[id]?.bodyId;
+      if (featured) get().setSelectedCosmicBodyId(featured);
+      return;
+    }
+    audioSynth.playScaleWarpSweep('in');
+    set({ galaxyEntryRequest: { id, level, timestamp: Date.now() } });
+  },
+
+  setGalaxyViewLevel: (level: GalaxyViewLevel | null) => {
+    if (get().galaxyViewLevel === level) return;
+    set({ galaxyViewLevel: level });
+  },
+
+  setInsideGalaxyId: (id: string | null) => {
+    if (get().insideGalaxyId === id) return;
+    set({ insideGalaxyId: id });
+  },
+
   requestScaleNavigation: (newScale: CosmicScaleLevel) => {
     const current = get().cosmicScaleLevel;
     const direction = newScale > current ? 'in' : 'out';
@@ -365,6 +440,7 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
       previousCosmicScaleLevel: current,
       cosmicScaleLevel: newScale,
       selectedCosmicBodyId: null,
+      arrivedCosmicBodyId: null,
       scaleNavigationRequest: { level: newScale, timestamp: Date.now() },
     });
   },
@@ -386,18 +462,43 @@ export const useQuantumStore = create<QuantumState>((set, get) => ({
   },
 
   setSelectedCosmicBodyId: (id: string | null) => {
+    // Re-selecting the current body (e.g. the second click of a double-click) must not restart the card's wait.
+    // Once the camera is there, clicking it again brings back a card that was closed.
+    if (id && id === get().selectedCosmicBodyId) {
+      if (get().arrivedCosmicBodyId === id) get().showCosmicCardNow();
+      return;
+    }
     if (id) {
       audioSynth.playClick(1200);
       const body = CELESTIAL_BODIES[id];
       if (body) {
         set({
           selectedCosmicBodyId: id,
+          arrivedCosmicBodyId: null,
+          instantCardBodyId: null,
+          dismissedCardBodyId: null,
           cosmicScaleLevel: body.scaleLevel,
         });
         return;
       }
     }
-    set({ selectedCosmicBodyId: id });
+    set({ selectedCosmicBodyId: id, arrivedCosmicBodyId: null, instantCardBodyId: null, dismissedCardBodyId: null });
+  },
+
+  setArrivedCosmicBodyId: (id: string | null) => set({ arrivedCosmicBodyId: id }),
+
+  showCosmicCardNow: () => {
+    const id = get().selectedCosmicBodyId;
+    if (id) set({ instantCardBodyId: id, dismissedCardBodyId: null });
+  },
+
+  setCardSheetOpen: (open: boolean) => {
+    if (get().isCardSheetOpen !== open) set({ isCardSheetOpen: open });
+  },
+
+  dismissCosmicCard: () => {
+    const id = get().selectedCosmicBodyId;
+    if (id) set({ dismissedCardBodyId: id, instantCardBodyId: null });
   },
 
   setNavigationMode: (mode: NavigationMode) => {

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { X, Search, Filter } from 'lucide-react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { ELEMENTS, CATEGORY_COLORS, ElementData } from '@/data/elementsData';
 import { TRANSLATIONS } from '@/data/translations';
+import { useEscapeKey } from '@/lib/useEscapeKey';
 
 export const Element118GridModal: React.FC = () => {
   const isOpen = useQuantumStore((s) => s.isGridModalOpen);
@@ -32,14 +33,22 @@ export const Element118GridModal: React.FC = () => {
     });
   }, [query, selectedCat]);
 
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  useEscapeKey(isOpen, close);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="glass-panel-deep w-full max-w-5xl max-h-[90vh] rounded-3xl flex flex-col border border-sky-500/30 shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div className="glass-panel-deep w-full max-w-5xl max-h-[90dvh] rounded-3xl flex flex-col border border-sky-500/30 shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-700/50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="p-4 sm:p-5 border-b border-slate-700/50 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Filter className="w-5 h-5 text-cyan-400" />
             <h3 className="text-base sm:text-lg font-bold text-white">
               {language === 'ar' ? 'فهرس العناصر الـ 118 الشامل' : 'Complete 118 Element Sheet'}
@@ -50,8 +59,9 @@ export const Element118GridModal: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            onClick={close}
+            className="shrink-0 p-2 coarse:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
           >
             <X className="w-5 h-5" />
           </button>

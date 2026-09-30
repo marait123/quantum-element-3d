@@ -200,25 +200,28 @@ export const CosmicDatabaseModal: React.FC = () => {
   return (
     <div
       id="cosmic-database-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-fadeIn select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-fadeIn select-none"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setCosmicDatabaseOpen(false);
+      }}
     >
-      <div className="relative w-full max-w-6xl max-h-[92vh] flex flex-col rounded-3xl bg-slate-900/95 border border-cyan-500/40 shadow-2xl overflow-hidden text-slate-100">
+      <div className="relative w-full max-w-6xl max-h-[92dvh] flex flex-col rounded-3xl bg-slate-900/95 border border-cyan-500/40 shadow-2xl overflow-hidden text-slate-100">
         {/* Modal Top Header */}
-        <div className="px-6 py-5 border-b border-slate-800 bg-slate-950/70 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 shadow-lg shadow-cyan-500/20">
+        <div className="px-4 py-3 sm:px-6 sm:py-5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="hidden sm:block p-2.5 rounded-2xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 shadow-lg shadow-cyan-500/20">
               <Database className="w-6 h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-white tracking-wide">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 className="text-base sm:text-xl font-bold text-white tracking-wide">
                   {language === 'ar' ? 'الموسوعة وقاعدة البيانات الكونية' : 'Master Cosmic Database & Encyclopedia'}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-500/30">
                   {allBodiesList.length + ELEMENTS.length + allConstellationsList.length} {language === 'ar' ? 'كيان' : 'Entities'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="hidden sm:block text-xs text-slate-400">
                 {language === 'ar'
                   ? `فهرس شامل للأجرام السماوية (${allBodiesList.length}) والعناصر الكونية (${ELEMENTS.length}) والكوكبات (${allConstellationsList.length}) مع ربط مباشر بقواعد بيانات ناسا الرسمية`
                   : `Complete catalog of Celestial Bodies (${allBodiesList.length}), Cosmic Elements (${ELEMENTS.length}), Constellations (${allConstellationsList.length}), and live NASA Archives`}
@@ -230,21 +233,22 @@ export const CosmicDatabaseModal: React.FC = () => {
             id="close-cosmic-database-btn"
             type="button"
             onClick={() => setCosmicDatabaseOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="shrink-0 p-2 coarse:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Global Search & Tab Switcher Bar */}
-        <div className="px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
-          {/* Main Tabs */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950/80 border border-slate-800">
+        <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-800/80 bg-slate-900/60 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          {/* Main Tabs (scroll sideways on phones) */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950/80 border border-slate-800 max-w-full overflow-x-auto no-scrollbar">
             <button
               type="button"
               id="tab-btn-bodies"
               onClick={() => setActiveTab('bodies')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3.5 py-1.5 coarse:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'bodies'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -252,7 +256,7 @@ export const CosmicDatabaseModal: React.FC = () => {
             >
               <Globe className="w-3.5 h-3.5" />
               <span>{language === 'ar' ? 'الأجرام السماوية' : 'Celestial Bodies'}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/40 text-current font-mono">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-950/40 text-current font-mono">
                 {allBodiesList.length}
               </span>
             </button>
@@ -261,7 +265,7 @@ export const CosmicDatabaseModal: React.FC = () => {
               type="button"
               id="tab-btn-elements"
               onClick={() => setActiveTab('elements')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3.5 py-1.5 coarse:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'elements'
                   ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -269,7 +273,7 @@ export const CosmicDatabaseModal: React.FC = () => {
             >
               <Atom className="w-3.5 h-3.5" />
               <span>{language === 'ar' ? 'العناصر الكونية' : 'Cosmic Elements'}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/40 text-current font-mono">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-950/40 text-current font-mono">
                 {ELEMENTS.length}
               </span>
             </button>
@@ -278,7 +282,7 @@ export const CosmicDatabaseModal: React.FC = () => {
               type="button"
               id="tab-btn-constellations"
               onClick={() => setActiveTab('constellations')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3.5 py-1.5 coarse:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'constellations'
                   ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -286,7 +290,7 @@ export const CosmicDatabaseModal: React.FC = () => {
             >
               <Star className="w-3.5 h-3.5" />
               <span>{language === 'ar' ? 'الكوكبات النجمية' : 'Constellations'}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/40 text-current font-mono">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-950/40 text-current font-mono">
                 {allConstellationsList.length}
               </span>
             </button>
@@ -295,7 +299,7 @@ export const CosmicDatabaseModal: React.FC = () => {
               type="button"
               id="tab-btn-nasa"
               onClick={() => setActiveTab('nasa')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3.5 py-1.5 coarse:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'nasa'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -303,7 +307,7 @@ export const CosmicDatabaseModal: React.FC = () => {
             >
               <Rocket className="w-3.5 h-3.5 text-blue-400" />
               <span>{language === 'ar' ? 'أرشيفات ناسا الحية' : 'NASA Live Archives'}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-950 text-blue-300 font-mono">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-950 text-blue-300 font-mono">
                 API
               </span>
             </button>

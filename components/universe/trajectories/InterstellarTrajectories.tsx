@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import { useQuantumStore } from '@/stores/useQuantumStore';
+import { eclipticDirection, heliocentricPositionOnDate, worldPositionAt } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
 
 interface InterstellarTrajectoriesProps {
   language: 'en' | 'ar';
@@ -17,61 +19,73 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
 }) => {
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
   const pulseRef = useRef<THREE.Group>(null);
+  const isV1Active = selectedCosmicBodyId === 'voyager_1';
+  const isV2Active = selectedCosmicBodyId === 'voyager_2';
 
-  // 1. Voyager 1 Historic Trajectory: Earth -> Saturn/Titan flyby (Nov 1980) -> +35.2° North Interstellar Escape
-  const { v1HistoricLine, v1FutureLine, v1DestinationPos } = useMemo(() => {
-    const p0 = new THREE.Vector3(15.5, 0, 0); // Earth departure
-    const p1 = new THREE.Vector3(26.0, 0.5, 14.0); // Jupiter gravity assist
-    const p2 = new THREE.Vector3(42.0, 1.2, 18.0); // Saturn / Titan flyby (bent northward)
-    const p3 = new THREE.Vector3(58.0, 32.0, -18.0); // Heliosheath climb
-    const pCurrent = new THREE.Vector3(78.0, 68.0, -56.0); // Current location (~163.3 AU)
+  // Real history: where Earth and the planets actually were on the launch and flyby dates (from the same orbital
+  // elements as the frame graph), then out to the probe's live position along its real heading
+  const V1_WAYPOINTS: [string, number][] = [
+    ['earth', Date.UTC(1977, 8, 5)], // launch
+    ['jupiter', Date.UTC(1979, 2, 5)],
+    ['saturn', Date.UTC(1980, 10, 12)],
+  ];
+  const V2_WAYPOINTS: [string, number][] = [
+    ['earth', Date.UTC(1977, 7, 20)],
+    ['jupiter', Date.UTC(1979, 6, 9)],
+    ['saturn', Date.UTC(1981, 7, 25)],
+    ['uranus', Date.UTC(1986, 0, 24)],
+    ['neptune', Date.UTC(1989, 7, 25)],
+  ];
 
-    const curve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, pCurrent]);
-    const historicPoints = curve.getPoints(64);
-    const histGeo = new THREE.BufferGeometry().setFromPoints(historicPoints);
-
-    // Future Vector toward Gliese 445 (Camelopardalis, +35° North)
-    const pDest = new THREE.Vector3(122.0, 112.0, -92.0);
-    const futureGeo = new THREE.BufferGeometry().setFromPoints([pCurrent, pDest]);
-
-    return {
-      v1HistoricLine: histGeo,
-      v1FutureLine: futureGeo,
-      v1DestinationPos: pDest,
+  const trail = useMemo(() => {
+    const build = (probe: 'voyager_1' | 'voyager_2', waypoints: [string, number][], color: string) => {
+      const pts = waypoints.map(([id, date]) => heliocentricPositionOnDate(id, date));
+      const hist = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 }));
+      const future = new THREE.Line(
+        new THREE.BufferGeometry(),
+        new THREE.LineDashedMaterial({ color, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.55 })
+      );
+      const update = (t: number) => {
+        const now = worldPositionAt(probe, t);
+        const curve = new THREE.CatmullRomCurve3([...pts, now], false, 'centripetal');
+        hist.geometry.setFromPoints(curve.getPoints(96));
+        const dest = now.clone().multiplyScalar(1.55);
+        future.geometry.setFromPoints([now, dest]);
+        future.computeLineDistances();
+        return dest;
+      };
+      return { hist, future, update, dest: update(0) };
     };
-  }, []);
-
-  // 2. Voyager 2 Historic Trajectory: Grand Tour (Jupiter -> Saturn -> Uranus -> Neptune/Triton Aug 1989) -> -48.0° South Escape
-  const { v2HistoricLine, v2FutureLine, v2DestinationPos } = useMemo(() => {
-    const p0 = new THREE.Vector3(15.5, 0, 0); // Earth departure
-    const p1 = new THREE.Vector3(25.0, 0.8, -12.0); // Jupiter assist
-    const p2 = new THREE.Vector3(40.0, 1.5, -24.0); // Saturn assist
-    const p3 = new THREE.Vector3(50.0, -3.2, 12.0); // Uranus flyby
-    const p4 = new THREE.Vector3(58.0, -8.5, 26.0); // Neptune / Triton polar dive (bent southward)
-    const pCurrent = new THREE.Vector3(-42.0, -74.0, 52.0); // Current location (~136.2 AU)
-
-    const curve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4, pCurrent]);
-    const historicPoints = curve.getPoints(72);
-    const histGeo = new THREE.BufferGeometry().setFromPoints(historicPoints);
-
-    // Future Vector toward Ross 248 / Sirius (-48° South, Pavo)
-    const pDest = new THREE.Vector3(-68.0, -124.0, 84.0);
-    const futureGeo = new THREE.BufferGeometry().setFromPoints([pCurrent, pDest]);
-
     return {
-      v2HistoricLine: histGeo,
-      v2FutureLine: futureGeo,
-      v2DestinationPos: pDest,
+      v1: build('voyager_1', V1_WAYPOINTS, '#38bdf8'),
+      v2: build('voyager_2', V2_WAYPOINTS, '#10b981'),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(
+    () => () => {
+      for (const k of ['v1', 'v2'] as const) {
+        trail[k].hist.geometry.dispose();
+        (trail[k].hist.material as THREE.Material).dispose();
+        trail[k].future.geometry.dispose();
+        (trail[k].future.material as THREE.Material).dispose();
+      }
+    },
+    [trail]
+  );
+  const v1DestRef = useRef<THREE.Group>(null);
+  const v2DestRef = useRef<THREE.Group>(null);
+  const lastUpdate = useRef(-1);
 
-  // 3. Proxima Centauri Celestial Direction Vector (Dec -62.7° in Centaurus, deep southern sky)
-  const { proximaRefLine, proximaRefPos } = useMemo(() => {
-    const origin = new THREE.Vector3(0, 0, 0);
-    // Heading toward Dec -62.7° in southern celestial hemisphere
-    const dir = new THREE.Vector3(38.0, -88.0, -42.0);
-    const geo = new THREE.BufferGeometry().setFromPoints([origin, dir]);
-    return { proximaRefLine: geo, proximaRefPos: dir };
+  // Proxima Centauri's real direction in the sky (RA 14h30m, Dec −62.7° → ecliptic 239°, −44.8°)
+  const proximaRef = useMemo(() => {
+    const dir = eclipticDirection(239.1, -44.8).multiplyScalar(105);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir]),
+      new THREE.LineDashedMaterial({ color: '#f87171', dashSize: 2, gapSize: 3, transparent: true, opacity: 0.35 })
+    );
+    line.computeLineDistances();
+    return { line, pos: dir };
   }, []);
 
   useFrame(({ clock }) => {
@@ -79,10 +93,15 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
       const s = 1.0 + Math.sin(clock.getElapsedTime() * 3.0) * 0.18;
       pulseRef.current.scale.set(s, s, s);
     }
+    // The probes keep moving outward: refresh the trails a few times a second
+    if (Math.abs(simClock.time - lastUpdate.current) > 0.5) {
+      lastUpdate.current = simClock.time;
+      v1DestRef.current?.position.copy(trail.v1.update(simClock.time));
+      v2DestRef.current?.position.copy(trail.v2.update(simClock.time));
+    }
+    (trail.v1.hist.material as THREE.LineBasicMaterial).opacity = isV1Active ? 0.85 : 0.45;
+    (trail.v2.hist.material as THREE.LineBasicMaterial).opacity = isV2Active ? 0.85 : 0.45;
   });
-
-  const isV1Active = selectedCosmicBodyId === 'voyager_1';
-  const isV2Active = selectedCosmicBodyId === 'voyager_2';
 
   return (
     <group>
@@ -90,38 +109,13 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
       {/* VOYAGER 1: TRAJECTORY & GLIESE 445 ENCOUNTER BEACON                 */}
       {/* =================================================================== */}
       {/* Historic Flight Path */}
-      <primitive
-        object={
-          new THREE.Line(
-            v1HistoricLine,
-            new THREE.LineBasicMaterial({
-              color: '#38bdf8',
-              transparent: true,
-              opacity: isV1Active ? 0.85 : 0.45,
-              linewidth: 2,
-            })
-          )
-        }
-      />
+      <primitive object={trail.v1.hist} />
 
       {/* Future Interstellar Escape Vector */}
-      <primitive
-        object={
-          new THREE.Line(
-            v1FutureLine,
-            new THREE.LineDashedMaterial({
-              color: '#38bdf8',
-              dashSize: 3,
-              gapSize: 2,
-              transparent: true,
-              opacity: isV1Active ? 0.95 : 0.55,
-            })
-          )
-        }
-      />
+      <primitive object={trail.v1.future} />
 
       {/* Gliese 445 Future Encounter Beacon */}
-      <group position={v1DestinationPos}>
+      <group ref={v1DestRef} position={trail.v1.dest}>
         <mesh>
           <sphereGeometry args={[0.9, 16, 16]} />
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.6} />
@@ -133,7 +127,7 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
 
         <Html position={[0, 1.8, 0]} center distanceFactor={42}>
           <div
-            className={`px-3 py-1.5 rounded-xl backdrop-blur-md border text-xs whitespace-nowrap shadow-2xl transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl backdrop-blur-md border text-xs whitespace-nowrap shadow-2xl transition-all cursor-pointer pointer-events-auto ${
               isV1Active
                 ? 'bg-sky-950/95 border-sky-400 text-sky-200 ring-2 ring-sky-400/50 scale-105'
                 : 'bg-slate-950/85 border-sky-500/40 text-slate-300 hover:border-sky-400 hover:text-white'
@@ -147,7 +141,7 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
                   ? 'وجهة فوياجر 1: غليزا 445'
                   : 'Voyager 1 Heading: Gliese 445'}
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
                 +35.2° North
               </span>
             </div>
@@ -164,38 +158,13 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
       {/* VOYAGER 2: TRAJECTORY & ROSS 248 / SIRIUS ENCOUNTER BEACON          */}
       {/* =================================================================== */}
       {/* Historic Flight Path */}
-      <primitive
-        object={
-          new THREE.Line(
-            v2HistoricLine,
-            new THREE.LineBasicMaterial({
-              color: '#10b981',
-              transparent: true,
-              opacity: isV2Active ? 0.85 : 0.45,
-              linewidth: 2,
-            })
-          )
-        }
-      />
+      <primitive object={trail.v2.hist} />
 
       {/* Future Interstellar Escape Vector */}
-      <primitive
-        object={
-          new THREE.Line(
-            v2FutureLine,
-            new THREE.LineDashedMaterial({
-              color: '#10b981',
-              dashSize: 3,
-              gapSize: 2,
-              transparent: true,
-              opacity: isV2Active ? 0.95 : 0.55,
-            })
-          )
-        }
-      />
+      <primitive object={trail.v2.future} />
 
       {/* Ross 248 & Sirius Future Encounter Beacon */}
-      <group position={v2DestinationPos}>
+      <group ref={v2DestRef} position={trail.v2.dest}>
         <mesh>
           <sphereGeometry args={[0.9, 16, 16]} />
           <meshBasicMaterial color="#10b981" transparent opacity={0.6} />
@@ -207,7 +176,7 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
 
         <Html position={[0, -2.0, 0]} center distanceFactor={42}>
           <div
-            className={`px-3 py-1.5 rounded-xl backdrop-blur-md border text-xs whitespace-nowrap shadow-2xl transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl backdrop-blur-md border text-xs whitespace-nowrap shadow-2xl transition-all cursor-pointer pointer-events-auto ${
               isV2Active
                 ? 'bg-emerald-950/95 border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/50 scale-105'
                 : 'bg-slate-950/85 border-emerald-500/40 text-slate-300 hover:border-emerald-400 hover:text-white'
@@ -221,7 +190,7 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
                   ? 'وجهة فوياجر 2: روس 248 والشعرى اليمانية'
                   : 'Voyager 2 Heading: Ross 248 & Sirius'}
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
                 -48.0° South
               </span>
             </div>
@@ -237,22 +206,9 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
       {/* =================================================================== */}
       {/* PROXIMA CENTAURI REFERENCE DIRECTION POINTER                        */}
       {/* =================================================================== */}
-      <primitive
-        object={
-          new THREE.Line(
-            proximaRefLine,
-            new THREE.LineDashedMaterial({
-              color: '#f87171',
-              dashSize: 2,
-              gapSize: 3,
-              transparent: true,
-              opacity: 0.35,
-            })
-          )
-        }
-      />
+      <primitive object={proximaRef.line} />
 
-      <group position={proximaRefPos}>
+      <group position={proximaRef.pos}>
         <mesh>
           <sphereGeometry args={[0.6, 12, 12]} />
           <meshBasicMaterial color="#ef4444" transparent opacity={0.5} />
@@ -262,13 +218,13 @@ export const InterstellarTrajectories: React.FC<InterstellarTrajectoriesProps> =
           <div className="px-2.5 py-1 rounded-lg bg-slate-950/80 border border-red-500/30 text-[10px] text-red-300/90 whitespace-nowrap backdrop-blur-sm pointer-events-none select-none">
             <span className="font-bold">
               {language === 'ar'
-                ? '🔴 اتجاه بروكسيما قنطورس (الجنوب العميق -62.7°)'
-                : '🔴 Proxima Centauri Direction (Deep South -62.7°)'}
+                ? '🔴 اتجاه بروكسيما قنطورس (الميل -62.7°)'
+                : '🔴 Proxima Centauri Direction (Dec −62.7°)'}
             </span>
             <span className="block text-[9px] text-slate-400">
               {language === 'ar'
-                ? 'عكس اتجاه فوياجر 1 تماماً (4.25 سنة ضوئية)'
-                : 'Opposite to Voyager 1 trajectory (4.25 ly)'}
+                ? 'بعيد عن مسار فوياجر 1 (4.25 سنة ضوئية)'
+                : 'Far from Voyager 1’s heading (4.25 ly)'}
             </span>
           </div>
         </Html>

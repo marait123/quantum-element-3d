@@ -8,8 +8,13 @@ import * as THREE from 'three';
  * 3. Bipolar Ionized Hydrogen (H-alpha) Superwind Chimneys (Messier 82)
  */
 
+// All shaders include three's log-depth chunks: the universe canvas uses a logarithmic depth buffer, and without
+// them a shader writes linear depth and depth-tests wrongly against everything else (the disk vanished behind the
+// cosmic web).
 export const GalacticDiskShader = {
   vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec2 vUv;
     varying vec3 vWorldPosition;
     varying vec3 vNormal;
@@ -20,9 +25,11 @@ export const GalacticDiskShader = {
       vec4 worldPos = modelMatrix * vec4(position, 1.0);
       vWorldPosition = worldPos.xyz;
       gl_Position = projectionMatrix * viewMatrix * worldPos;
+      #include <logdepthbuf_vertex>
     }
   `,
   fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
     uniform float uTime;
     uniform vec3 uCoreColor;
     uniform vec3 uArmColor;
@@ -35,6 +42,10 @@ export const GalacticDiskShader = {
     uniform float uDiskRadius;
     uniform float uDustStrength;
     uniform float uH2Abundance;
+    uniform float uBar;        // bar half-length in disk radii (0: unbarred)
+    uniform float uBarAngle;
+    uniform vec3 uCenter;      // galaxy centre (world)
+    uniform vec3 uDiskNormal;  // disk normal (world)
 
     varying vec2 vUv;
     varying vec3 vWorldPosition;
@@ -69,6 +80,7 @@ export const GalacticDiskShader = {
     }
 
     void main() {
+      #include <logdepthbuf_fragment>
       // Coordinate transformation from center of disk (-1 to 1)
       vec2 pos = (vUv - 0.5) * 2.0;
       float r = length(pos);
@@ -94,6 +106,17 @@ export const GalacticDiskShader = {
       float localArmWidth = uArmWidth * (0.6 + 0.6 * rNorm);
       float armIntensity = exp(-pow(distToArm / localArmWidth, 2.0));
 
+      // Central bar of old stars (barred spirals like the Milky Way, the LMC's off-centre bar): the arms start
+      // at the bar's ends
+      float bar = 0.0;
+      if (uBar > 0.0) {
+        float cb = cos(uBarAngle);
+        float sb = sin(uBarAngle);
+        vec2 bp = vec2(cb * pos.x + sb * pos.y, -sb * pos.x + cb * pos.y);
+        bar = exp(-pow(abs(bp.x) / uBar, 3.0) - pow(bp.y / (uBar * 0.3), 2.0));
+        armIntensity *= smoothstep(uBar * 0.55, uBar * 1.05, rNorm);
+      }
+
       // Radial attenuation at outer disk rim
       float diskFalloff = smoothstep(1.0, 0.55, rNorm);
 
@@ -115,7 +138,10 @@ export const GalacticDiskShader = {
       float blueStarClusters = smoothstep(0.35, 0.75, snoise(vec2(phi * 16.0, rNorm * 30.0))) * armIntensity * 0.8;
 
       // Color composition
-      vec3 finalColor = uCoreColor * bulge * 2.2;
+      vec3 finalColor = uCoreColor * bulge * 2.2 + mix(uCoreColor, vec3(1.0, 0.85, 0.6), 0.3) * bar * 1.3;
+      // Smooth exponential disk of older stars between the arms (scale length ~0.28 R), warm toward the centre
+      float smoothDisk = exp(-rNorm / 0.28) * (0.85 + 0.3 * snoise(vec2(phi * 5.0, rNorm * 10.0)));
+      finalColor += mix(uArmColor, uCoreColor, exp(-rNorm / 0.35)) * smoothDisk * 0.55 * diskFalloff;
       finalColor += uArmColor * (armIntensity * 1.4 + blueStarClusters) * diskFalloff;
       finalColor += uH2Color * h2Knots * 3.5;
 
@@ -123,8 +149,18 @@ export const GalacticDiskShader = {
       finalColor = mix(finalColor, uDustColor, clamp(dustLane * 0.85, 0.0, 0.92));
 
       // Total alpha transparency
-      float totalDensity = (bulge * 1.5 + armIntensity * 0.8 + h2Knots * 1.2) * diskFalloff;
+      float totalDensity = (bulge * 1.5 + bar * 0.9 + armIntensity * 0.8 + h2Knots * 1.2 + smoothDisk * 0.45) * diskFalloff;
       float alpha = clamp(totalDensity, 0.0, 0.92);
+
+      // Dust lanes on the NEAR side of an inclined disk are silhouetted against the bright bulge behind them
+      // (as in M31 and Centaurus A); on the far side the bulge light is in front and the lanes barely show
+      vec3 toCam = normalize(cameraPosition - uCenter);
+      float incl = 1.0 - abs(dot(normalize(uDiskNormal), toCam));
+      vec3 toFrag = vWorldPosition - uCenter;
+      float near = smoothstep(-0.05, 0.35, dot(toFrag, toCam) / max(length(toFrag), 1e-3)) * smoothstep(0.05, 0.5, incl);
+      float lane = clamp(dustLane * 1.6, 0.0, 1.0) * near * (1.0 - smoothstep(0.25, 0.8, rNorm));
+      finalColor = mix(finalColor, uDustColor, lane * 0.9);
+      alpha = max(alpha, lane * 0.85);
 
       gl_FragColor = vec4(finalColor, alpha);
     }
@@ -133,6 +169,8 @@ export const GalacticDiskShader = {
 
 export const RelativisticAGNJetShader = {
   vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec2 vUv;
     varying vec3 vWorldPosition;
 
@@ -141,9 +179,11 @@ export const RelativisticAGNJetShader = {
       vec4 worldPos = modelMatrix * vec4(position, 1.0);
       vWorldPosition = worldPos.xyz;
       gl_Position = projectionMatrix * viewMatrix * worldPos;
+      #include <logdepthbuf_vertex>
     }
   `,
   fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
     uniform float uTime;
     uniform vec3 uJetColor;
     uniform vec3 uKnotColor;
@@ -153,6 +193,7 @@ export const RelativisticAGNJetShader = {
     varying vec3 vWorldPosition;
 
     void main() {
+      #include <logdepthbuf_fragment>
       float y = vUv.y; // distance along jet from core (0 to 1)
       float x = abs(vUv.x - 0.5) * 2.0; // distance from jet spine (0 to 1)
 
@@ -166,8 +207,11 @@ export const RelativisticAGNJetShader = {
       // Synchrotron radiation power-law attenuation
       float jetDecay = smoothstep(1.0, 0.05, y);
 
+      // Radio lobes: the jets balloon into diffuse plumes where they are stopped by intergalactic gas
+      float lobe = exp(-pow((y - 0.82) / 0.16, 2.0)) * exp(-pow(x / 0.85, 2.0)) * 0.45;
+
       vec3 col = mix(uJetColor, uKnotColor, knotIntensity * 0.7);
-      float alpha = beamProfile * (0.6 + knotIntensity * 0.8) * jetDecay;
+      float alpha = (beamProfile * (0.6 + knotIntensity * 0.8) * jetDecay + lobe) * smoothstep(0.0, 0.03, y);
 
       gl_FragColor = vec4(col * (1.2 + knotIntensity * 1.5), alpha);
     }
@@ -176,6 +220,8 @@ export const RelativisticAGNJetShader = {
 
 export const M82SuperwindShader = {
   vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
     varying vec2 vUv;
     varying vec3 vNormal;
 
@@ -183,9 +229,11 @@ export const M82SuperwindShader = {
       vUv = uv;
       vNormal = normalize(normalMatrix * normal);
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      #include <logdepthbuf_vertex>
     }
   `,
   fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
     uniform float uTime;
     uniform vec3 uPlumeColor;
     uniform float uTurbulence;
@@ -204,18 +252,23 @@ export const M82SuperwindShader = {
     }
 
     void main() {
-      float y = vUv.y; // Height along superwind chimney
-      float x = abs(vUv.x - 0.5) * 2.0;
+      #include <logdepthbuf_fragment>
+      // Cone apex sits at the starburst core: y = 0 there, 1 at the far end of the plume
+      float y = 1.0 - vUv.y;
+      float az = vUv.x * 6.2831853;
 
-      // Upward flowing filamentary plasma
-      float stream = noise(vec2(x * 6.0, y * 12.0 - uTime * 0.6));
-      float streamFine = noise(vec2(x * 14.0, y * 24.0 - uTime * 1.1));
+      // Outflowing filamentary H-alpha plasma (seamless around the cone)
+      vec2 ring = vec2(cos(az), sin(az));
+      float stream = noise(ring * 3.0 + vec2(0.0, y * 10.0 - uTime * 0.6));
+      float streamFine = noise(ring * 7.0 + vec2(5.0, y * 22.0 - uTime * 1.1));
       float plume = (stream * 0.7 + streamFine * 0.3);
 
-      float shape = exp(-pow(x / (0.3 + 0.7 * y), 2.0)) * smoothstep(1.0, 0.1, y) * smoothstep(0.0, 0.15, y);
+      // Soft volume: brightest through the middle of the cone, no hard silhouette
+      float facing = abs(normalize(vNormal).z);
+      float shape = pow(facing, 1.3) * smoothstep(1.0, 0.25, y) * smoothstep(0.0, 0.12, y);
 
       vec3 col = uPlumeColor * (0.9 + plume * 0.8);
-      float alpha = shape * plume * 0.75;
+      float alpha = shape * plume * 0.7;
 
       gl_FragColor = vec4(col, alpha);
     }

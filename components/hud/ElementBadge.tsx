@@ -7,6 +7,7 @@ import { ELEMENT_MAP, CATEGORY_COLORS } from '@/data/elementsData';
 import { ELEMENT_IMAGES } from '@/data/elementImagesData';
 import { TRANSLATIONS } from '@/data/translations';
 import { useDraggableCard } from '@/lib/useDraggableCard';
+import { useIsCompact } from '@/lib/useMediaQuery';
 
 export const ElementBadge: React.FC = () => {
   const activeElementNum = useQuantumStore((s) => s.activeElementNum);
@@ -16,7 +17,12 @@ export const ElementBadge: React.FC = () => {
   const setVideoModalOpen = useQuantumStore((s) => s.setVideoModalOpen);
 
   const [imageError, setImageError] = useState(false);
-  const [showImageZoom, setShowImageZoom] = useState(false);
+  // Phones: start collapsed (expanded it covers most of the scene); expanded it spans the width left of the tools
+  // pill and scrolls within the space above the bottom controls
+  const isCompact = useIsCompact();
+  React.useEffect(() => {
+    if (isCompact) setBadgeCollapsed(true);
+  }, [isCompact, setBadgeCollapsed]);
 
   const { pos, isDragging, handlePointerDown } = useDraggableCard({
     initialX: 16,
@@ -46,12 +52,23 @@ export const ElementBadge: React.FC = () => {
       className={`z-20 pointer-events-auto transition-shadow duration-200 select-none ${
         isDragging ? 'opacity-95 shadow-2xl scale-[1.01]' : ''
       }`}
-      style={{
-        position: 'fixed',
-        left: isCollapsed ? 16 : pos.x,
-        top: isCollapsed ? 76 : pos.y,
-        touchAction: 'none',
-      }}
+      style={
+        isCompact
+          ? {
+              position: 'fixed',
+              insetInlineStart: 12,
+              top: 76,
+              ...(isCollapsed
+                ? {}
+                : { width: 'calc(100vw - 84px)', maxHeight: 'calc(100dvh - 300px)', overflowY: 'auto', borderRadius: 16 }),
+            }
+          : {
+              position: 'fixed',
+              left: isCollapsed ? 16 : pos.x,
+              top: isCollapsed ? 76 : pos.y,
+              touchAction: 'none',
+            }
+      }
     >
       {/* Collapsed Pill View */}
       {isCollapsed ? (
@@ -92,7 +109,7 @@ export const ElementBadge: React.FC = () => {
         </button>
       ) : (
         /* Expanded Full HUD Card */
-        <div className="glass-panel w-72 md:w-80 rounded-2xl p-4 shadow-2xl border border-white/15 relative overflow-hidden backdrop-blur-xl">
+        <div className={`glass-panel ${isCompact ? 'w-full' : 'w-72 md:w-80'} rounded-2xl p-4 shadow-2xl border border-white/15 relative overflow-hidden backdrop-blur-xl`}>
           {/* Top category accent stripe */}
           <div
             className="absolute top-0 inset-x-0 h-1 cursor-grab active:cursor-grabbing"
@@ -108,9 +125,13 @@ export const ElementBadge: React.FC = () => {
             <div className="flex items-center gap-3">
               {/* Real Element Photographic Sample */}
               {elementImg?.url && !imageError ? (
-                <div
-                  className="w-14 h-14 rounded-xl overflow-hidden border border-white/20 shadow-lg relative bg-slate-900 shrink-0 cursor-pointer group"
-                  onClick={() => setShowImageZoom(!showImageZoom)}
+                <a
+                  href={elementImg.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  // Don't start dragging the card when the photo is clicked
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="block w-14 h-14 rounded-xl overflow-hidden border border-white/20 shadow-lg relative bg-slate-900 shrink-0 cursor-zoom-in group"
                   title={language === 'ar' ? elementImg.titleAr : elementImg.titleEn}
                 >
                   <img
@@ -120,10 +141,10 @@ export const ElementBadge: React.FC = () => {
                     onError={() => setImageError(true)}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-1">
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-1 pointer-events-none">
                     <span className="text-[9px] font-black text-white font-mono">{element.sym}</span>
                   </div>
-                </div>
+                </a>
               ) : (
                 /* Symbol Box Fallback */
                 <div

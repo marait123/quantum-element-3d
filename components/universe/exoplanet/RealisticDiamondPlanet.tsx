@@ -1,96 +1,94 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import { CelestialBody } from '@/data/universeData';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
+import { ExoplanetSurface, EXOPLANET_LOOKS } from './RealisticExoplanet';
 
 export interface RealisticDiamondPlanetProps {
   body: CelestialBody;
-  isMagmaWorld?: boolean; // For 55 Cancri e (molten dayside lava fissures + diamond crust)
+  isMagmaWorld?: boolean; // For 55 Cancri e (molten lava-ocean day side over a carbon-rich interior)
   isSelected: boolean;
   isHighlighted?: boolean;
   onSelect: () => void;
   language: 'en' | 'ar';
+  /** System root whose origin is the host star (lights the planet and keeps a lava world tidally locked) */
+  hostRef?: React.RefObject<THREE.Object3D>;
 }
 
 /**
- * GLSL Diamond Prismatic Dispersion & Caustic Shader
- * Simulates diamond's high refractive index (n = 2.42) and chromatic dispersion (fire).
+ * Crystallised carbon world (PSR J1719-1438 b): the stripped core of a white dwarf, so dense that its carbon is
+ * probably crystalline. A smooth sphere (gravity rounds it) with diamond's high refractive index (n = 2.42):
+ * strong Fresnel sheen, fine crystalline glints and prismatic "fire", lit by the host pulsar.
  */
-const DiamondVertexShader = `
-varying vec3 vNormal;
+const DiamondVertexShader = /* glsl */ `
+#include <common>
+#include <logdepthbuf_pars_vertex>
+varying vec3 vNormalW;
 varying vec3 vWorldPos;
-varying vec3 vViewDir;
+varying vec3 vLocal;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
+  vLocal = position;
+  vNormalW = normalize(mat3(modelMatrix) * normal);
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
   vWorldPos = worldPosition.xyz;
-  vViewDir = normalize(cameraPosition - vWorldPos);
   gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  #include <logdepthbuf_vertex>
 }
 `;
 
-const DiamondFragmentShader = `
+const DiamondFragmentShader = /* glsl */ `
+#include <common>
+#include <logdepthbuf_pars_fragment>
 uniform float uTime;
 uniform vec3 uBaseColor;
-uniform float uDispersion;
-uniform float uMagmaFactor; // 0 for pure diamond (PSR J1719), >0 for 55 Cancri e
+uniform vec3 uLightPos;
+uniform float uRadius;
 
-varying vec3 vNormal;
+varying vec3 vNormalW;
 varying vec3 vWorldPos;
-varying vec3 vViewDir;
+varying vec3 vLocal;
+
+float hash13(vec3 p) {
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
 
 void main() {
-  // Compute faceted crystal normals via screen-space derivatives
-  vec3 facetNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-  vec3 norm = length(facetNormal) > 0.0 ? facetNormal : vNormal;
+  #include <logdepthbuf_fragment>
+  vec3 V = normalize(cameraPosition - vWorldPos);
+  vec3 L = normalize(uLightPos - vWorldPos);
+  // Crystalline grains: each cell of the surface tilts its normal slightly, catching the light at its own angle
+  vec3 cell = floor(vLocal / uRadius * 90.0);
+  vec3 jitter = vec3(hash13(cell), hash13(cell + 17.3), hash13(cell + 41.9)) - 0.5;
+  vec3 N = normalize(normalize(vNormalW) + jitter * 0.22);
 
-  // Fresnel reflection factor for high-index diamond (n = 2.42)
-  float cosTheta = clamp(dot(norm, vViewDir), 0.0, 1.0);
-  float f0 = 0.17; // Diamond Fresnel at normal incidence
-  float fresnel = f0 + (1.0 - f0) * pow(1.0 - cosTheta, 4.0);
+  float ndl = max(dot(normalize(vNormalW), L), 0.0);
+  float cosTheta = clamp(dot(N, V), 0.0, 1.0);
+  float fresnel = 0.17 + 0.83 * pow(1.0 - cosTheta, 5.0); // diamond: F0 ~ 0.17
 
-  // Prismatic Chromatic Dispersion: Wavelength-dependent refraction angles
-  // Red refracts less, blue refracts more
-  vec3 refrR = refract(-vViewDir, norm, 1.0 / 2.407);
-  vec3 refrG = refract(-vViewDir, norm, 1.0 / 2.417);
-  vec3 refrB = refract(-vViewDir, norm, 1.0 / 2.435);
+  // Chromatic dispersion ("fire"): R, G and B refract by slightly different amounts, so glints split into colour
+  vec3 H = normalize(L + V);
+  float sR = pow(max(dot(N, normalize(H + vec3(0.02, 0.0, 0.0))), 0.0), 180.0);
+  float sG = pow(max(dot(N, H), 0.0), 180.0);
+  float sB = pow(max(dot(N, normalize(H - vec3(0.02, 0.0, 0.0))), 0.0), 180.0);
+  float twinkle = 0.6 + 0.4 * sin(uTime * 2.0 + hash13(cell) * 40.0);
+  vec3 fire = vec3(sR, sG, sB) * 3.0 * twinkle;
 
-  // Internal caustic glints based on refraction vectors
-  float glintR = pow(max(dot(refrR, vec3(0.577, 0.577, 0.577)), 0.0), 16.0);
-  float glintG = pow(max(dot(refrG, vec3(0.577, 0.577, 0.577)), 0.0), 16.0);
-  float glintB = pow(max(dot(refrB, vec3(0.577, 0.577, 0.577)), 0.0), 16.0);
-
-  // Rainbow spectral fire
-  vec3 dispersionColor = vec3(glintR, glintG, glintB) * uDispersion * 2.5;
-
-  // Specular facet flash on facet normal
-  vec3 halfVec = normalize(vViewDir + vec3(0.5, 0.8, 0.3));
-  float spec = pow(max(dot(norm, halfVec), 0.0), 32.0) * 1.8;
-
-  // Facet shading variation: crisp crystal reflections
-  float facetLighting = max(dot(norm, vec3(0.6, 0.7, 0.4)), 0.0) * 0.5 + 0.5;
-
-  vec3 crystalColor = uBaseColor * facetLighting * (0.5 + 0.5 * cosTheta) + dispersionColor;
-  vec3 finalColor = mix(crystalColor, vec3(1.0, 1.0, 1.0), fresnel * 0.45) + vec3(spec);
-
-  // If this is 55 Cancri e: Add molten lava ocean & fissure veins on dayside (x > 0)
-  if (uMagmaFactor > 0.01) {
-    float daySide = clamp(vWorldPos.x * 0.6 + 0.4, 0.0, 1.0);
-    // Magma vein pattern
-    float vein = sin(vWorldPos.y * 6.0 + sin(vWorldPos.z * 8.0 + uTime * 0.5)) * 0.5 + 0.5;
-    vein = pow(vein, 4.0);
-    vec3 lavaColor = vec3(1.0, 0.4, 0.05) * 2.2;
-    vec3 basaltCrust = vec3(0.12, 0.1, 0.08);
-    vec3 magmaSurface = mix(basaltCrust, lavaColor, vein);
-    finalColor = mix(finalColor, magmaSurface, daySide * uMagmaFactor * 0.75);
-  }
-
-  gl_FragColor = vec4(finalColor, 0.98);
+  // Dark, glassy body: a transparent crystal shows mostly reflections, and there is little light to reflect
+  vec3 body = uBaseColor * (0.05 + 0.55 * ndl);
+  vec3 col = body + vec3(0.75, 0.85, 1.0) * fresnel * (0.12 + 0.6 * ndl) + fire * ndl;
+  gl_FragColor = vec4(col, 1.0);
 }
 `;
+
+const _host = new THREE.Vector3();
+
+// 55 Cancri e's surface: dark rock with lava seas (see EXOPLANET_LOOKS)
+const MAGMA_LOOK = EXOPLANET_LOOKS.cancri_55_e;
 
 export const RealisticDiamondPlanet: React.FC<RealisticDiamondPlanetProps> = ({
   body,
@@ -99,6 +97,7 @@ export const RealisticDiamondPlanet: React.FC<RealisticDiamondPlanetProps> = ({
   isHighlighted = false,
   onSelect,
   language,
+  hostRef,
 }) => {
   const rootRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -111,31 +110,27 @@ export const RealisticDiamondPlanet: React.FC<RealisticDiamondPlanetProps> = ({
     return () => unregisterCelestialObject(body.id);
   }, [body.id]);
 
-  // Diamond Shader Material
-  const diamondMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: DiamondVertexShader,
-      fragmentShader: DiamondFragmentShader,
-      uniforms: {
-        uTime: { value: 0 },
-        uBaseColor: { value: new THREE.Color(isMagmaWorld ? '#38bdf8' : '#7dd3fc') },
-        uDispersion: { value: 1.0 },
-        uMagmaFactor: { value: isMagmaWorld ? 0.95 : 0.0 },
-      },
-      transparent: true,
-    });
-  }, [isMagmaWorld]);
+  const diamondMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: DiamondVertexShader,
+        fragmentShader: DiamondFragmentShader,
+        uniforms: {
+          uTime: { value: 0 },
+          uBaseColor: { value: new THREE.Color('#9fb8cc') },
+          uLightPos: { value: new THREE.Vector3() },
+          uRadius: { value: body.size },
+        },
+      }),
+    [body.size]
+  );
+  useEffect(() => () => diamondMaterial.dispose(), [diamondMaterial]);
 
-  // Frame animation
   useFrame(({ clock }, delta) => {
-    const time = clock.getElapsedTime();
-    if (diamondMaterial.uniforms) {
-      diamondMaterial.uniforms.uTime.value = time;
-    }
-    if (meshRef.current) {
-      meshRef.current.rotation.y += delta * 0.25;
-      meshRef.current.rotation.x += delta * 0.08;
-    }
+    if (isMagmaWorld) return;
+    diamondMaterial.uniforms.uTime.value = clock.getElapsedTime();
+    if (hostRef?.current) diamondMaterial.uniforms.uLightPos.value.copy(hostRef.current.getWorldPosition(_host));
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.25;
   });
 
   return (
@@ -149,28 +144,18 @@ export const RealisticDiamondPlanet: React.FC<RealisticDiamondPlanetProps> = ({
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Faceted Crystallized Pure Diamond Sphere */}
-      <mesh ref={meshRef}>
-        <icosahedronGeometry args={[body.size, 3]} />
-        <primitive object={diamondMaterial} attach="material" />
-      </mesh>
-
-      {/* Subtle Refraction Glow Shell */}
-      <mesh>
-        <sphereGeometry args={[body.size * 1.08, 24, 24]} />
-        <meshBasicMaterial
-          color={isMagmaWorld ? '#38bdf8' : '#e0f2fe'}
-          transparent
-          opacity={0.15}
-          side={THREE.BackSide}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
+      {isMagmaWorld ? (
+        <ExoplanetSurface radius={body.size} look={MAGMA_LOOK} host={hostRef} hostKelvin={5196} />
+      ) : (
+        <mesh ref={meshRef} material={diamondMaterial}>
+          <sphereGeometry args={[body.size, 64, 64]} />
+        </mesh>
+      )}
 
       {/* Selection Glow Ring */}
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 1.48, 48]} />
+          <ringGeometry args={[body.size * 1.35, body.size * 1.385, 128]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}

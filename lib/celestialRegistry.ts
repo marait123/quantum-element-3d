@@ -1,25 +1,74 @@
 import * as THREE from 'three';
 import { CELESTIAL_BODIES } from '@/data/universeData';
 
-// Global runtime registry for active celestial 3D Object3D instances
-const registry = new Map<string, THREE.Object3D>();
+// Global runtime registry for active celestial 3D Object3D instances.
+// One id can be represented by several objects at once (e.g. the detailed Sun in the Solar System scale
+// and the Sol stand-in of the Stellar Neighborhood scale), so each id keeps a stack of owners.
+// The most recently registered *visible* object wins; unregistering removes only the caller's object.
+const registry = new Map<string, THREE.Object3D[]>();
 
 export function registerCelestialObject(id: string, obj: THREE.Object3D) {
-  registry.set(id, obj);
+  const owners = registry.get(id) ?? [];
+  if (!owners.includes(obj)) owners.push(obj);
+  registry.set(id, owners);
 }
 
-export function unregisterCelestialObject(id: string) {
-  registry.delete(id);
+function isAttachedToScene(obj: THREE.Object3D): boolean {
+  let o = obj;
+  while (o.parent) o = o.parent;
+  return (o as THREE.Scene).isScene === true;
+}
+
+export function unregisterCelestialObject(id: string, obj?: THREE.Object3D) {
+  const owners = registry.get(id);
+  if (!owners) return;
+  if (obj) {
+    const idx = owners.indexOf(obj);
+    if (idx >= 0) owners.splice(idx, 1);
+  } else {
+    // Callers that don't pass their object run in effect cleanups, after React Three Fiber has already
+    // detached the unmounted subtree. Drop only detached owners so another scale's object with the same
+    // id (still in the scene) keeps its registration. Fall back to the newest owner (id-change cleanups).
+    const remaining = owners.filter(isAttachedToScene);
+    if (remaining.length < owners.length) owners.splice(0, owners.length, ...remaining);
+    else owners.pop();
+  }
+  if (owners.length === 0) registry.delete(id);
+}
+
+function isRenderedInScene(obj: THREE.Object3D): boolean {
+  let o: THREE.Object3D | null = obj;
+  while (o) {
+    if (!o.visible) return false;
+    if (!o.parent) return (o as THREE.Scene).isScene === true;
+    o = o.parent;
+  }
+  return false;
 }
 
 export function getCelestialObject(id: string): THREE.Object3D | undefined {
-  return registry.get(id);
+  const owners = registry.get(id);
+  if (!owners || owners.length === 0) return undefined;
+  for (let i = owners.length - 1; i >= 0; i--) {
+    if (isRenderedInScene(owners[i])) return owners[i];
+  }
+  return owners[owners.length - 1];
+}
+
+// Debug/diagnostics access to every registered object (used by the dev-only UniverseDebugProbe)
+export function getRegisteredCelestialEntries(): [string, THREE.Object3D][] {
+  const out: [string, THREE.Object3D][] = [];
+  registry.forEach((_, id) => {
+    const obj = getCelestialObject(id);
+    if (obj) out.push([id, obj]);
+  });
+  return out;
 }
 
 const _tempVec = new THREE.Vector3();
 
 export function getCelestialWorldPosition(id: string, out: THREE.Vector3): boolean {
-  const obj = registry.get(id);
+  const obj = getCelestialObject(id);
   if (!obj) return false;
   obj.updateWorldMatrix(true, false);
   obj.getWorldPosition(out);
@@ -60,6 +109,7 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   proxima_centauri: { elevation: 0.28, lateralAngle: Math.PI * 0.15 },
 
   // Galactic & Extragalactic
+  milky_way_galaxy: { elevation: 0.45, lateralAngle: Math.PI * 0.2 },
   sagittarius_a: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
   crab_nebula: { elevation: 0.35, lateralAngle: Math.PI * 0.2 },
   pillars_of_creation: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
@@ -187,6 +237,8 @@ export function calculateFramingDistance(bodyId: string): number {
   else if (bodyId === 'kepler_16_ab') margin = 3.4; // Binary suns pair
   else if (bodyId === 'pluto') margin = 2.8; // Pluto & Charon system
   else if (bodyId === 'centaurus_a') margin = 3.6; // Relativistic jets & warped dust belt
+  else if (bodyId === 'm87_hst1') margin = 5.0; // Knot sits inside M87's jet: frame it from outside the jet
+  else if (bodyId === 'andromeda_giant_stream') margin = 0.5; // ~21,700-unit stream: view it from inside Andromeda's halo
   else if (bodyId === 'messier_82') margin = 3.2; // Bipolar superwind chimneys
   else if (body.type === 'star_cluster') margin = 2.6;
   else if (body.type === 'spacecraft') margin = 3.6; // High-gain dish, RTG & sensor booms
@@ -231,6 +283,21 @@ export function calculateFramingCameraPosition(
 
   // Lateral perpendicular vector (in the XZ plane)
   const perp = new THREE.Vector3(-sunToBody.z, 0, sunToBody.x).normalize();
+
+  // Solar System bodies are lit by the Sun: look from the sunward side, ~55° off the Sun line, so the planet shows
+  // a mostly lit (three-quarter) face with a visible terminator instead of its night side, and the Sun stays out
+  // of view behind the camera's shoulder
+  // (JWST is the exception: its sunshield faces the Sun, so it is framed from the cold side to show the mirror)
+  if (CELESTIAL_BODIES[bodyId]?.scaleLevel === 1 && bodyId !== 'jwst') {
+    const phase = (55 * Math.PI) / 180;
+    const litDir = new THREE.Vector3()
+      .copy(sunToBody)
+      .multiplyScalar(-Math.cos(phase))
+      .addScaledVector(perp, Math.sin(phase))
+      .normalize();
+    outCamPos.copy(bodyWorldPos).addScaledVector(litDir, dist).setY(bodyWorldPos.y + dist * angle.elevation);
+    return;
+  }
 
   // Combine sun-to-body vector and perpendicular vector based on lateralAngle
   const viewDir = new THREE.Vector3()

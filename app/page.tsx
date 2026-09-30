@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { useQuantumStore } from '@/stores/useQuantumStore';
+import { useQuantumStore, WORLD_PREFERENCE_KEY, ActiveWorld } from '@/stores/useQuantumStore';
+import { WorldChooser } from '@/components/ui/WorldChooser';
 import { audioSynth } from '@/lib/audioSynth';
 import { UrlStateSynchronizer } from '@/components/navigation/UrlStateSynchronizer';
 
@@ -16,6 +17,7 @@ import { CosmicScaleDock } from '@/components/universe/hud/CosmicScaleDock';
 import { CelestialInspectorTooltip } from '@/components/universe/hud/CelestialInspectorTooltip';
 import { CosmicLoadingScreen } from '@/components/ui/CosmicLoadingScreen';
 import { ScienceToolsDock } from '@/components/universe/hud/ScienceToolsDock';
+import { GalaxyExplorerPanel } from '@/components/universe/hud/GalaxyExplorerPanel';
 
 // Dynamically import Subatomic 3D Canvas with SSR disabled
 const CanvasContainer = dynamic(
@@ -94,8 +96,19 @@ const InteractiveGuidedTour = dynamic(
 
 export default function QuantumElementApp() {
   const [isMounted, setIsMounted] = useState(false);
+  // First visit (no remembered world and no ?world= link): ask where to begin
+  const [chooserChecked, setChooserChecked] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
   useEffect(() => {
     setIsMounted(true);
+    try {
+      const stored = localStorage.getItem(WORLD_PREFERENCE_KEY);
+      const linkedWorld = new URLSearchParams(window.location.search).get('world');
+      if (!stored && !linkedWorld) setChooserOpen(true);
+    } catch {
+      // storage unavailable: skip the chooser and use the default world
+    }
+    setChooserChecked(true);
   }, []);
 
   const language = useQuantumStore((s) => s.language);
@@ -111,6 +124,31 @@ export default function QuantumElementApp() {
   const isVideoModalOpen = useQuantumStore((s) => s.isVideoModalOpen);
   const isTutorialOpen = useQuantumStore((s) => s.isTutorialOpen);
   const setTutorialOpen = useQuantumStore((s) => s.setTutorialOpen);
+  const setActiveWorld = useQuantumStore((s) => s.setActiveWorld);
+
+  // Remember the current world (after the first-visit choice), so a refresh reopens it
+  useEffect(() => {
+    if (!isMounted || chooserOpen) return;
+    try {
+      localStorage.setItem(WORLD_PREFERENCE_KEY, activeWorld);
+    } catch {
+      // storage unavailable
+    }
+  }, [activeWorld, isMounted, chooserOpen]);
+
+  const handleWorldChosen = useCallback(
+    (world: ActiveWorld) => {
+      setActiveWorld(world);
+      try {
+        localStorage.setItem(WORLD_PREFERENCE_KEY, world); // remembered right away, even if the page reloads now
+      } catch {
+        // storage unavailable
+      }
+      // The chooser finishes its zoom-out animation before it unmounts
+      setTimeout(() => setChooserOpen(false), 900);
+    },
+    [setActiveWorld]
+  );
 
   // Sync document direction and language on mount & update
   useEffect(() => {
@@ -118,8 +156,9 @@ export default function QuantumElementApp() {
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
   }, [language]);
 
-  // First-visit onboarding tutorial auto-launch
+  // First-visit onboarding tutorial auto-launch (after the world has been chosen)
   useEffect(() => {
+    if (!chooserChecked || chooserOpen) return;
     try {
       const hasCompleted = localStorage.getItem('science_lab_tutorial_completed');
       if (!hasCompleted) {
@@ -131,7 +170,7 @@ export default function QuantumElementApp() {
     } catch {
       // Ignore localStorage restrictions
     }
-  }, [setTutorialOpen]);
+  }, [setTutorialOpen, chooserChecked, chooserOpen]);
 
   // Start subtle zero-point drone on first user interaction
   useEffect(() => {
@@ -151,7 +190,7 @@ export default function QuantumElementApp() {
   }, []);
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#020617]">
+    <main className="relative w-screen h-screen h-dvh overflow-hidden bg-[#020617]">
       {/* Universal Deep Linking & View Refresh Synchronizer */}
       <Suspense fallback={null}>
         <UrlStateSynchronizer />
@@ -191,6 +230,7 @@ export default function QuantumElementApp() {
       {effectiveWorld === 'universe' && (
         <>
           <CosmicScaleDock />
+          <GalaxyExplorerPanel />
           <CelestialInspectorTooltip />
           {isCosmicElementDrawerOpen && <CosmicElementDrawer />}
           {isCosmicDatabaseOpen && <CosmicDatabaseModal />}
@@ -201,6 +241,9 @@ export default function QuantumElementApp() {
 
       {/* Global Interactive On-Site Guided Tour Overlay */}
       {isTutorialOpen && <InteractiveGuidedTour />}
+
+      {/* First-visit world chooser (above the loading screen) */}
+      {chooserOpen && <WorldChooser onChoose={handleWorldChosen} />}
     </main>
   );
 }

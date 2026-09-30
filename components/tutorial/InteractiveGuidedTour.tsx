@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { TOUR_STEPS } from '@/lib/tourSteps';
 import { audioSynth } from '@/lib/audioSynth';
+import { useIsCompact } from '@/lib/useMediaQuery';
 import {
   Compass,
   ChevronRight,
@@ -27,6 +28,23 @@ export const InteractiveGuidedTour: React.FC = () => {
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [progress, setProgress] = useState(0); // 0 to 100 for step timer
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Phones: the card docks to the bottom edge at full width; elsewhere it is placed next to its target using its
+  // measured size (not a fixed guess), so it never runs off-screen
+  const isCompact = useIsCompact();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardSize, setCardSize] = useState({ w: 420, h: 240 });
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setCardSize((c) => (Math.abs(c.w - r.width) > 1 || Math.abs(c.h - r.height) > 1 ? { w: r.width, h: r.height } : c));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
 
   const step = TOUR_STEPS[tutorialStep] || TOUR_STEPS[0];
   const totalSteps = TOUR_STEPS.length;
@@ -74,12 +92,9 @@ export const InteractiveGuidedTour: React.FC = () => {
     }
 
     const el = document.querySelector(step.targetSelector);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      setTargetRect(rect);
-    } else {
-      setTargetRect(null);
-    }
+    const rect = el?.getBoundingClientRect();
+    // A target hidden at this screen size (e.g. the desktop search box on a phone) measures 0x0: no spotlight
+    setTargetRect(rect && rect.width > 0 && rect.height > 0 ? rect : null);
   }, [isTutorialOpen, step.targetSelector]);
 
   // Dynamic measuring with polling and resize listener
@@ -172,17 +187,28 @@ export const InteractiveGuidedTour: React.FC = () => {
 
   // Calculate anchored tooltip card style based on targetRect & preferredPlacement
   const padding = 10;
-  const cardWidth = 420;
-  const cardHeight = 240;
+  const cardWidth = Math.min(420, cardSize.w || 420);
+  const cardHeight = cardSize.h || 240;
 
   let tooltipStyle: React.CSSProperties = {
     position: 'fixed',
     zIndex: 60,
-    width: cardWidth,
+    width: 420,
     maxWidth: 'calc(100vw - 2rem)',
+    maxHeight: 'calc(100dvh - 2rem)',
+    overflowY: 'auto',
   };
 
-  if (!targetRect || step.preferredPlacement === 'center') {
+  if (isCompact) {
+    tooltipStyle = {
+      position: 'fixed',
+      zIndex: 60,
+      insetInline: 12,
+      bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+      maxHeight: '55dvh',
+      overflowY: 'auto',
+    };
+  } else if (!targetRect || step.preferredPlacement === 'center') {
     tooltipStyle = {
       ...tooltipStyle,
       top: '50%',
@@ -284,6 +310,7 @@ export const InteractiveGuidedTour: React.FC = () => {
       {/* Tethered Speech-Bubble Interactive Tooltip Card */}
       <div
         id="tour-speech-bubble-card"
+        ref={cardRef}
         style={tooltipStyle}
         className="pointer-events-auto rounded-3xl bg-slate-950/95 border border-purple-500/40 shadow-2xl backdrop-blur-2xl text-slate-100 overflow-hidden animate-fadeIn flex flex-col"
       >
@@ -341,7 +368,7 @@ export const InteractiveGuidedTour: React.FC = () => {
               id="tour-close-btn"
               type="button"
               onClick={finishTour}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="p-1.5 coarse:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               title={language === 'ar' ? 'إغلاق الدليل' : 'Dismiss Guide'}
             >
               <X className="w-4 h-4" />
@@ -385,7 +412,7 @@ export const InteractiveGuidedTour: React.FC = () => {
             id="tour-skip-btn"
             type="button"
             onClick={finishTour}
-            className="text-xs text-slate-400 hover:text-slate-200 transition cursor-pointer"
+            className="text-xs text-slate-400 hover:text-slate-200 transition cursor-pointer coarse:min-h-10 coarse:px-2"
           >
             {language === 'ar' ? 'تخطي الجولة' : 'Skip Tour'}
           </button>

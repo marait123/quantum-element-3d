@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useMemo, useEffect, useState } from 'react';
+import React, { useRef, useMemo, useEffect, useLayoutEffect, useState } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html, useLayerVisible } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
@@ -23,6 +23,54 @@ import { RealisticComet } from './smallbodies/RealisticComet';
 import { RealisticAsteroid } from './smallbodies/RealisticAsteroid';
 import { MeteorShowerEffect } from './smallbodies/MeteorShowerEffect';
 import { InterstellarTrajectories } from './trajectories/InterstellarTrajectories';
+import { PooledPointLight } from '@/components/universe/rendering/LightPool';
+import { worldPositionAt, localPositionAt, orbitPointAtAngle, getBodyFrame } from '@/lib/frames';
+import { getRealTexture, RealTextureName } from '@/lib/realTextures';
+import { createNightLitMaterial, createAtmosphereMaterial } from '@/components/universe/rendering/celestialMaterials';
+import { StarBody } from '@/components/universe/rendering/StarBody';
+import { simClock } from '@/lib/simClock';
+import { rockGeometry } from './smallbodies/rockGeometry';
+import { scaledCount } from '@/lib/deviceQuality';
+import { EARTH_YEAR_SECONDS } from '@/lib/simClock';
+
+
+// Real surface maps for the planets drawn by StandardPlanet, axial tilts (degrees) and atmosphere rims
+const PLANET_MAPS: Record<string, RealTextureName> = {
+  mercury: 'mercury',
+  venus: 'venus_atmosphere',
+  uranus: 'uranus',
+  neptune: 'neptune',
+};
+const AXIAL_TILT_DEG: Record<string, number> = { mercury: 0.03, venus: 2.64, uranus: 97.77, neptune: 28.32, ceres: 4 };
+const ATMOSPHERES: Record<string, { color: string; strength: number; scale: number }> = {
+  venus: { color: '#f4dfae', strength: 1.3, scale: 1.05 },
+  uranus: { color: '#a8eef2', strength: 0.9, scale: 1.04 },
+  neptune: { color: '#6fa8ff', strength: 1.0, scale: 1.04 },
+};
+
+// Ring geometry whose U coordinate runs from the inner to the outer edge, so a radial ring strip maps correctly
+function radialRingGeometry(inner: number, outer: number, segments = 128) {
+  const geo = new THREE.RingGeometry(inner, outer, segments, 1);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    uv.setXY(i, (r - inner) / (outer - inner), 0.5);
+  }
+  uv.needsUpdate = true;
+  return geo;
+}
+
+// Atmosphere rim shell shared by the planets
+const AtmosphereShell: React.FC<{ radius: number; color: string; strength?: number }> = ({ radius, color, strength = 1 }) => {
+  const material = useMemo(() => createAtmosphereMaterial(color, strength), [color, strength]);
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh material={material} raycast={() => null}>
+      <sphereGeometry args={[radius, 48, 48]} />
+    </mesh>
+  );
+};
 
 // ==========================================
 // REALISTIC EARTH WITH ROTATING CLOUD SHIFT
@@ -42,7 +90,6 @@ const RealisticEarth: React.FC<{
   const surfaceRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const moonOrbitRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   // Register with global runtime celestial registry for live camera follow
   useEffect(() => {
@@ -77,13 +124,43 @@ const RealisticEarth: React.FC<{
     });
   }, []);
 
-  useFrame((_, delta) => {
+  // Real Earth: NASA-derived day map, city lights on the night side only, real cloud cover, blue limb haze
+  const earthMaterial = useMemo(
+    () =>
+      createNightLitMaterial({
+        map: getRealTexture('earth_daymap'),
+        emissiveMap: getRealTexture('earth_nightmap'),
+        emissive: new THREE.Color('#ffd7a0'),
+        emissiveIntensity: 1.4,
+        roughness: 0.78,
+        metalness: 0,
+        oceanGlint: true,
+      }),
+    []
+  );
+  const cloudMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        alphaMap: getRealTexture('earth_clouds'),
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        roughness: 1,
+      }),
+    []
+  );
+  const moonMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ map: getRealTexture('moon'), roughness: 0.95, metalness: 0 }),
+    []
+  );
+  const _earthWorld = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame((state, delta) => {
     // 1. Earth orbits the Sun
-    if (earthGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      earthGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
-      earthGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
-    }
+    // Position from the frame graph (lib/frames.ts): real period ratio, starts where Earth is today
+    if (earthGroupRef.current) worldPositionAt('earth', simClock.time, earthGroupRef.current.position);
+    earthMaterial.userData.updateSun?.(state.camera);
 
     // 2. Earth surface rotates on its 23.4° tilted axis
     if (surfaceRef.current) {
@@ -95,9 +172,11 @@ const RealisticEarth: React.FC<{
       cloudsRef.current.rotation.y += (body.rotationSpeed || 0.015) * 1.35 * delta * 60;
     }
 
-    // 4. Moon orbits Earth
-    if (moonOrbitRef.current) {
-      moonOrbitRef.current.rotation.y += delta * 0.45;
+    // 4. Moon orbits Earth (its real mean longitude, so the phase seen from Earth is right)
+    if (moonGroupRef.current) {
+      localPositionAt('moon', simClock.time, moonGroupRef.current.position);
+      // Tidally locked: the same face (the near side of the real map) always turns toward Earth
+      if (earthGroupRef.current) moonGroupRef.current.lookAt(earthGroupRef.current.getWorldPosition(_earthWorld));
     }
   });
 
@@ -121,50 +200,22 @@ const RealisticEarth: React.FC<{
         onPointerOut={() => onPointerOut()}
       >
         {/* Photorealistic Continents & Oceans Surface */}
-        <mesh ref={surfaceRef}>
-          <sphereGeometry args={[body.size, 48, 48]} />
-          {textures.earth ? (
-            <meshStandardMaterial
-              map={textures.earth}
-              roughness={0.55}
-              metalness={0.15}
-              emissive={isSelected ? '#0284c7' : '#000000'}
-              emissiveIntensity={isSelected ? 0.35 : 0}
-            />
-          ) : (
-            <meshStandardMaterial color="#0284c7" />
-          )}
+        <mesh ref={surfaceRef} material={earthMaterial}>
+          <sphereGeometry args={[body.size, 64, 64]} />
         </mesh>
 
-        {/* Dynamic Transparent Cumulus Clouds Layer */}
-        {textures.clouds && (
-          <mesh ref={cloudsRef}>
-            <sphereGeometry args={[body.size * 1.02, 40, 40]} />
-            <meshStandardMaterial
-              map={textures.clouds}
-              transparent
-              opacity={0.88}
-              blending={THREE.NormalBlending}
-              depthWrite={false}
-            />
-          </mesh>
-        )}
-
-        {/* Soft Blue Rayleigh Atmosphere Glow */}
-        <mesh>
-          <sphereGeometry args={[body.size * 1.06, 32, 32]} />
-          <meshBasicMaterial
-            color="#38bdf8"
-            transparent
-            opacity={0.22}
-            side={THREE.BackSide}
-          />
+        {/* Real cloud cover, drifting slightly faster than the surface */}
+        <mesh ref={cloudsRef} material={cloudMaterial}>
+          <sphereGeometry args={[body.size * 1.012, 64, 64]} />
         </mesh>
+
+        {/* Rayleigh-blue limb, brightest on the day side */}
+        <AtmosphereShell radius={body.size * 1.045} color="#5aa9ff" strength={1.35} />
 
         {/* Selection / Highlight Pulse Ring */}
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
+            <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
             <meshBasicMaterial
               color={isHighlighted ? '#fbbf24' : '#38bdf8'}
               side={THREE.DoubleSide}
@@ -176,7 +227,7 @@ const RealisticEarth: React.FC<{
 
         {/* Label */}
         {(isHovered || isSelected || isHighlighted) && (
-          <Html position={[0, body.size + 1.2, 0]} center distanceFactor={28}>
+          <Html position={[0, body.size + 1.2, 0]} center>
             <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-sky-400 shadow-xl backdrop-blur-md text-[11px] font-bold text-sky-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
               {isHighlighted && <span className="text-amber-400">⚡</span>}
               <span>🌍 {displayName}</span>
@@ -187,14 +238,10 @@ const RealisticEarth: React.FC<{
 
       {/* Moon Orbiting Earth */}
       <group ref={moonOrbitRef}>
-        <group ref={moonGroupRef} position={[3.2, 0.4, 0]}>
-          <mesh>
-            <sphereGeometry args={[moonBody.size, 24, 24]} />
-            {textures.moon ? (
-              <meshStandardMaterial map={textures.moon} roughness={0.85} metalness={0.05} />
-            ) : (
-              <meshStandardMaterial color="#cbd5e1" roughness={0.85} />
-            )}
+        <group ref={moonGroupRef}>
+          {/* Real lunar map; the near side (map centre, +x) turned to face +z, which lookAt points at Earth */}
+          <mesh material={moonMaterial} rotation={[0, -Math.PI / 2, 0]}>
+            <sphereGeometry args={[moonBody.size, 48, 48]} />
           </mesh>
         </group>
       </group>
@@ -218,7 +265,26 @@ const RealisticMars: React.FC<{
   const marsGroupRef = useRef<THREE.Group>(null);
   const marsMeshRef = useRef<THREE.Mesh>(null);
   const phobosOrbitRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
+  const phobosRef = useRef<THREE.Group>(null);
+  const phobosGeometry = useMemo(
+    () =>
+      rockGeometry({
+        radius: 0.18,
+        seed: 27,
+        detail: 4,
+        relief: 0.12,
+        craters: 18,
+        stretch: [1.25, 0.82, 1.0],
+        color: '#6f655c',
+        giantCrater: { dir: [1, 0.1, 0.2], size: 0.55, depth: 0.2 },
+      }),
+    []
+  );
+  useEffect(() => () => phobosGeometry.dispose(), [phobosGeometry]);
+  useEffect(() => {
+    if (phobosRef.current) registerCelestialObject('phobos', phobosRef.current);
+    return () => unregisterCelestialObject('phobos');
+  }, []);
 
   const [marsTexture, setMarsTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -238,16 +304,12 @@ const RealisticMars: React.FC<{
 
   useFrame((_, delta) => {
     if (marsGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      marsGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
-      marsGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
+      worldPositionAt('mars', simClock.time, marsGroupRef.current.position);
     }
     if (marsMeshRef.current) {
       marsMeshRef.current.rotation.y += (body.rotationSpeed || 0.014) * delta * 60;
     }
-    if (phobosOrbitRef.current) {
-      phobosOrbitRef.current.rotation.y += delta * 1.2;
-    }
+    if (phobosRef.current) localPositionAt('phobos', simClock.time, phobosRef.current.position);
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -268,29 +330,16 @@ const RealisticMars: React.FC<{
         onPointerOut={() => onPointerOut()}
       >
         <mesh ref={marsMeshRef}>
-          <sphereGeometry args={[body.size, 40, 40]} />
-          {marsTexture ? (
-            <meshStandardMaterial
-              map={marsTexture}
-              roughness={0.8}
-              metalness={0.1}
-              emissive={isSelected ? '#b91c1c' : '#000000'}
-              emissiveIntensity={isSelected ? 0.3 : 0}
-            />
-          ) : (
-            <meshStandardMaterial color="#dc2626" roughness={0.8} />
-          )}
+          <sphereGeometry args={[body.size, 64, 64]} />
+          <meshStandardMaterial map={getRealTexture('mars')} roughness={0.92} metalness={0} />
         </mesh>
 
-        {/* Subtle Rust Atmosphere Rim */}
-        <mesh>
-          <sphereGeometry args={[body.size * 1.035, 24, 24]} />
-          <meshBasicMaterial color="#f87171" transparent opacity={0.18} side={THREE.BackSide} />
-        </mesh>
+        {/* Thin, dusty CO2 atmosphere */}
+        <AtmosphereShell radius={body.size * 1.03} color="#e8a878" strength={0.55} />
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
+            <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
             <meshBasicMaterial
               color={isHighlighted ? '#fbbf24' : '#ef4444'}
               side={THREE.DoubleSide}
@@ -301,7 +350,7 @@ const RealisticMars: React.FC<{
         )}
 
         {(isHovered || isSelected || isHighlighted) && (
-          <Html position={[0, body.size + 1.0, 0]} center distanceFactor={28}>
+          <Html position={[0, body.size + 1.0, 0]} center>
             <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-red-500 shadow-xl backdrop-blur-md text-[11px] font-bold text-red-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
               {isHighlighted && <span className="text-amber-400">⚡</span>}
               <span>🔴 {displayName}</span>
@@ -310,12 +359,21 @@ const RealisticMars: React.FC<{
         )}
       </group>
 
-      {/* Orbiting Moon Phobos */}
+      {/* Orbiting Moon Phobos (registered, so it can be selected and followed) */}
       <group ref={phobosOrbitRef}>
-        <mesh position={[1.8, 0.2, 0]}>
-          <dodecahedronGeometry args={[0.18, 0]} />
-          <meshStandardMaterial color="#a8a29e" roughness={0.9} />
-        </mesh>
+        <group
+          ref={phobosRef}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            if (e.delta && e.delta > 5) return;
+            e.stopPropagation();
+            useQuantumStore.getState().setSelectedCosmicBodyId('phobos');
+          }}
+        >
+          {/* Phobos: 27 × 22 × 18 km potato, grooved, with the 9 km Stickney crater */}
+          <mesh geometry={phobosGeometry}>
+            <meshStandardMaterial vertexColors roughness={0.97} metalness={0} />
+          </mesh>
+        </group>
       </group>
     </group>
   );
@@ -338,7 +396,6 @@ const RealisticJupiter: React.FC<{
   const jupiterMeshRef = useRef<THREE.Mesh>(null);
   const europaOrbitRef = useRef<THREE.Group>(null);
   const europaGroupRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   const [jupTexture, setJupTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -367,16 +424,12 @@ const RealisticJupiter: React.FC<{
 
   useFrame((_, delta) => {
     if (jupiterGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      jupiterGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
-      jupiterGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
+      worldPositionAt('jupiter', simClock.time, jupiterGroupRef.current.position);
     }
     if (jupiterMeshRef.current) {
       jupiterMeshRef.current.rotation.y += (body.rotationSpeed || 0.035) * delta * 60;
     }
-    if (europaOrbitRef.current) {
-      europaOrbitRef.current.rotation.y += delta * 0.7;
-    }
+    if (europaGroupRef.current) localPositionAt('europa', simClock.time, europaGroupRef.current.position);
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -396,24 +449,15 @@ const RealisticJupiter: React.FC<{
         }}
         onPointerOut={() => onPointerOut()}
       >
-        <mesh ref={jupiterMeshRef}>
-          <sphereGeometry args={[body.size, 48, 48]} />
-          {jupTexture ? (
-            <meshStandardMaterial
-              map={jupTexture}
-              roughness={0.65}
-              metalness={0.1}
-              emissive={isSelected ? '#b45309' : '#000000'}
-              emissiveIntensity={isSelected ? 0.3 : 0}
-            />
-          ) : (
-            <meshStandardMaterial color="#d97706" roughness={0.65} />
-          )}
+        <mesh ref={jupiterMeshRef} scale={[1, 0.935, 1]}>
+          <sphereGeometry args={[body.size, 72, 72]} />
+          <meshStandardMaterial map={getRealTexture('jupiter')} roughness={0.85} metalness={0} />
         </mesh>
+        <AtmosphereShell radius={body.size * 1.03} color="#f3d7b0" strength={0.45} />
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
+            <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
             <meshBasicMaterial
               color={isHighlighted ? '#fbbf24' : '#f59e0b'}
               side={THREE.DoubleSide}
@@ -424,7 +468,7 @@ const RealisticJupiter: React.FC<{
         )}
 
         {(isHovered || isSelected || isHighlighted) && (
-          <Html position={[0, body.size + 1.4, 0]} center distanceFactor={30}>
+          <Html position={[0, body.size + 1.4, 0]} center>
             <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-amber-500 shadow-xl backdrop-blur-md text-[11px] font-bold text-amber-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
               {isHighlighted && <span className="text-amber-400">⚡</span>}
               <span>🪐 {displayName}</span>
@@ -435,10 +479,11 @@ const RealisticJupiter: React.FC<{
 
       {/* Orbiting Moon Europa */}
       <group ref={europaOrbitRef}>
-        <group ref={europaGroupRef} position={[5.2, 0.4, 0]}>
+        <group ref={europaGroupRef}>
           <mesh>
             <sphereGeometry args={[europaBody.size, 20, 20]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.3} metalness={0.2} />
+            {/* Icy crust stained by reddish-brown lineae: the lunar map, tinted, gives it a cracked relief */}
+            <meshStandardMaterial map={getRealTexture('moon')} color="#f1e3cf" roughness={0.55} metalness={0} />
           </mesh>
         </group>
       </group>
@@ -463,7 +508,6 @@ const RealisticSaturn: React.FC<{
   const saturnMeshRef = useRef<THREE.Mesh>(null);
   const titanOrbitRef = useRef<THREE.Group>(null);
   const titanGroupRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   const [ringTexture, setRingTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -490,18 +534,17 @@ const RealisticSaturn: React.FC<{
     };
   }, []);
 
+  const saturnRingGeometry = useMemo(() => radialRingGeometry(body.size * 1.24, body.size * 2.27, 160), [body.size]);
+  useEffect(() => () => saturnRingGeometry.dispose(), [saturnRingGeometry]);
+
   useFrame((_, delta) => {
     if (saturnGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      saturnGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
-      saturnGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
+      worldPositionAt('saturn', simClock.time, saturnGroupRef.current.position);
     }
     if (saturnMeshRef.current) {
       saturnMeshRef.current.rotation.y += (body.rotationSpeed || 0.03) * delta * 60;
     }
-    if (titanOrbitRef.current) {
-      titanOrbitRef.current.rotation.y += delta * 0.5;
-    }
+    if (titanGroupRef.current) localPositionAt('titan', simClock.time, titanGroupRef.current.position);
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -523,42 +566,28 @@ const RealisticSaturn: React.FC<{
         onPointerOut={() => onPointerOut()}
       >
         {/* Saturn Body */}
-        <mesh ref={saturnMeshRef}>
-          <sphereGeometry args={[body.size, 40, 40]} />
-          <meshStandardMaterial
-            color="#fde047"
-            roughness={0.6}
-            metalness={0.1}
-            emissive={isSelected ? '#ca8a04' : '#000000'}
-            emissiveIntensity={isSelected ? 0.3 : 0}
-          />
+        <mesh ref={saturnMeshRef} scale={[1, 0.902, 1]}>
+          <sphereGeometry args={[body.size, 72, 72]} />
+          <meshStandardMaterial map={getRealTexture('saturn')} roughness={0.85} metalness={0} />
         </mesh>
+        <AtmosphereShell radius={body.size * 1.025} color="#f5e3b5" strength={0.4} />
 
-        {/* Majestic Cassini Ring System */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 2.7, 64]} />
-          {ringTexture ? (
-            <meshStandardMaterial
-              map={ringTexture}
-              side={THREE.DoubleSide}
-              transparent
-              opacity={0.92}
-              roughness={0.3}
-              metalness={0.1}
-            />
-          ) : (
-            <meshStandardMaterial
-              color="#fed7aa"
-              side={THREE.DoubleSide}
-              transparent
-              opacity={0.8}
-            />
-          )}
+        {/* Real ring system, C ring (1.24 Saturn radii) to the outer A ring (2.27), with the Cassini Division */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={saturnRingGeometry}>
+          <meshStandardMaterial
+            map={getRealTexture('saturn_ring_alpha')}
+            side={THREE.DoubleSide}
+            transparent
+            alphaTest={0.02}
+            depthWrite={false}
+            roughness={0.9}
+            metalness={0}
+          />
         </mesh>
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[body.size * 2.85, body.size * 3.0, 32]} />
+            <ringGeometry args={[body.size * 2.42, body.size * 2.46, 160]} />
             <meshBasicMaterial
               color={isHighlighted ? '#fbbf24' : '#eab308'}
               side={THREE.DoubleSide}
@@ -569,7 +598,7 @@ const RealisticSaturn: React.FC<{
         )}
 
         {(isHovered || isSelected || isHighlighted) && (
-          <Html position={[0, body.size + 1.4, 0]} center distanceFactor={30}>
+          <Html position={[0, body.size + 1.4, 0]} center>
             <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-yellow-500 shadow-xl backdrop-blur-md text-[11px] font-bold text-yellow-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
               {isHighlighted && <span className="text-amber-400">⚡</span>}
               <span>🪐 {displayName}</span>
@@ -580,10 +609,12 @@ const RealisticSaturn: React.FC<{
 
       {/* Orbiting Moon Titan */}
       <group ref={titanOrbitRef}>
-        <group ref={titanGroupRef} position={[6.8, -0.6, 0]}>
+        <group ref={titanGroupRef}>
+          {/* Titan's thick orange nitrogen-methane haze hides its surface */}
+          <AtmosphereShell radius={titanBody.size * 1.12} color="#e9a349" strength={1.6} />
           <mesh>
-            <sphereGeometry args={[titanBody.size, 20, 20]} />
-            <meshStandardMaterial color="#f59e0b" roughness={0.7} />
+            <sphereGeometry args={[titanBody.size, 32, 32]} />
+            <meshStandardMaterial color="#c98a3a" roughness={0.9} />
           </mesh>
         </group>
       </group>
@@ -607,7 +638,6 @@ const RealisticPluto: React.FC<{
   const plutoGroupRef = useRef<THREE.Group>(null);
   const plutoMeshRef = useRef<THREE.Mesh>(null);
   const charonOrbitRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
 
   useEffect(() => {
     if (plutoGroupRef.current) {
@@ -619,19 +649,13 @@ const RealisticPluto: React.FC<{
   }, []);
 
   useFrame((_, delta) => {
-    if (plutoGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      const r = body.orbitalRadius;
-      plutoGroupRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
-      // 17-degree orbital inclination
-      plutoGroupRef.current.position.y = Math.sin(orbitAngleRef.current) * (r * 0.28);
-      plutoGroupRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
-    }
+    // Real 17° inclination and 248-year period come from the frame graph
+    if (plutoGroupRef.current) worldPositionAt('pluto', simClock.time, plutoGroupRef.current.position);
     if (plutoMeshRef.current) {
       plutoMeshRef.current.rotation.y += (body.rotationSpeed || 0.008) * delta * 60;
     }
     if (charonOrbitRef.current) {
-      charonOrbitRef.current.rotation.y += delta * 0.35;
+      charonOrbitRef.current.rotation.y = (2 * Math.PI * simClock.time) / 8;
     }
   });
 
@@ -683,7 +707,7 @@ const RealisticPluto: React.FC<{
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[body.size * 1.4, body.size * 1.6, 32]} />
+            <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
             <meshBasicMaterial
               color={isHighlighted ? '#fbbf24' : '#f59e0b'}
               side={THREE.DoubleSide}
@@ -694,7 +718,7 @@ const RealisticPluto: React.FC<{
         )}
 
         {(isHovered || isSelected || isHighlighted) && (
-          <Html position={[0, body.size + 0.9, 0]} center distanceFactor={26}>
+          <Html position={[0, body.size + 0.9, 0]} center>
             <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-amber-500 shadow-xl backdrop-blur-md text-[11px] font-bold text-amber-200 whitespace-nowrap flex items-center gap-1.5 animate-fadeIn">
               {isHighlighted && <span className="text-amber-400">⚡</span>}
               <span>🤎 {displayName}</span>
@@ -728,7 +752,7 @@ const StandardPlanet: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
   const meshRef = useRef<THREE.Group>(null);
-  const orbitAngleRef = useRef(Math.atan2(body.position[2] || 0, body.position[0] || 1));
+  const spinRef = useRef<THREE.Mesh>(null);
 
   // Register with global runtime celestial registry for live camera follow
   useEffect(() => {
@@ -742,14 +766,11 @@ const StandardPlanet: React.FC<{
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    if (body.rotationSpeed) {
-      meshRef.current.rotation.y += body.rotationSpeed * delta * 60;
+    // Spin the planet itself (not its label or selection ring); negative speeds are retrograde (Venus, Uranus)
+    if (body.rotationSpeed && spinRef.current) {
+      spinRef.current.rotation.y += body.rotationSpeed * delta * 60 * simClock.scale;
     }
-    if (body.orbitalRadius && body.orbitalSpeed) {
-      orbitAngleRef.current += body.orbitalSpeed * delta * 1.5;
-      meshRef.current.position.x = Math.cos(orbitAngleRef.current) * body.orbitalRadius;
-      meshRef.current.position.z = Math.sin(orbitAngleRef.current) * body.orbitalRadius;
-    }
+    worldPositionAt(body.id, simClock.time, meshRef.current.position);
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -769,20 +790,34 @@ const StandardPlanet: React.FC<{
       }}
       onPointerOut={() => onPointerOut()}
     >
-      <mesh>
-        <sphereGeometry args={[body.size, 32, 32]} />
-        <meshStandardMaterial
-          color={body.color}
-          emissive={body.emissiveColor || (isSelected ? '#38bdf8' : '#000000')}
-          emissiveIntensity={isSelected ? 0.5 : isHovered ? 0.3 : 0.05}
-          roughness={0.7}
-          metalness={0.2}
+      <group rotation={[((AXIAL_TILT_DEG[body.id] ?? 0) * Math.PI) / 180, 0, 0]}>
+        <mesh ref={spinRef}>
+          <sphereGeometry args={[body.size, 64, 64]} />
+          {PLANET_MAPS[body.id] ? (
+            <meshStandardMaterial map={getRealTexture(PLANET_MAPS[body.id])} roughness={0.9} metalness={0} />
+          ) : (
+            <meshStandardMaterial color={body.color} roughness={0.8} metalness={0} />
+          )}
+        </mesh>
+        {/* Uranus: faint, dark narrow rings (epsilon ring outermost), tipped over with the planet */}
+        {body.id === 'uranus' && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+            <ringGeometry args={[body.size * 1.64, body.size * 2.0, 96]} />
+            <meshBasicMaterial color="#8d9aa6" transparent opacity={0.16} side={THREE.DoubleSide} depthWrite={false} />
+          </mesh>
+        )}
+      </group>
+      {ATMOSPHERES[body.id] && (
+        <AtmosphereShell
+          radius={body.size * ATMOSPHERES[body.id].scale}
+          color={ATMOSPHERES[body.id].color}
+          strength={ATMOSPHERES[body.id].strength}
         />
-      </mesh>
+      )}
 
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.35, body.size * 1.5, 32]} />
+          <ringGeometry args={[body.size * 1.42, body.size * 1.46, 128]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
@@ -793,7 +828,7 @@ const StandardPlanet: React.FC<{
       )}
 
       {(isHovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 1.0, 0]} center distanceFactor={28}>
+        <Html position={[0, body.size + 1.0, 0]} center>
           <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-sky-500/60 shadow-lg backdrop-blur-md text-[11px] font-semibold text-sky-200 whitespace-nowrap pointer-events-none select-none flex items-center gap-1.5 animate-fadeIn">
             {isHighlighted && <span className="text-amber-400">⚡</span>}
             <span>{displayName}</span>
@@ -805,66 +840,153 @@ const StandardPlanet: React.FC<{
 };
 
 // Orbital Path Visualizer
-const OrbitLine: React.FC<{ radius: number; color?: string }> = ({ radius, color = '#334155' }) => {
+const OrbitLine: React.FC<{ radius: number; color?: string; bodyId?: string }> = ({ radius, color = '#334155', bodyId }) => {
   const points = useMemo(() => {
     const pts = [];
-    const segments = 96;
+    const segments = 160;
+    const frame = bodyId ? getBodyFrame(bodyId) : undefined;
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      pts.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+      // Follow the body's real, inclined orbit from the frame graph when it has one
+      if (frame && frame.kind === 'orbit') pts.push(orbitPointAtAngle(frame, theta, new THREE.Vector3()));
+      else pts.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
     }
     return pts;
-  }, [radius]);
+  }, [radius, bodyId]);
 
   const lineGeo = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points]);
-
-  return (
-    <primitive object={new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.25 }))} />
+  // Memoized: building the Line inline created (and leaked) a new line + material on every parent re-render,
+  // e.g. on each hover change in the Solar System scene
+  const line = useMemo(
+    () => new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.25 })),
+    [lineGeo, color]
   );
+  useEffect(
+    () => () => {
+      (line.material as THREE.Material).dispose();
+    },
+    [line]
+  );
+  useEffect(() => () => lineGeo.dispose(), [lineGeo]);
+
+  return <primitive object={line} />;
 };
 
 // Asteroid Belt Particles
+const BELT_VARIANTS = 4;
 const AsteroidBelt: React.FC = () => {
-  const count = 450;
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const count = scaledCount(480, 0.5);
+  const perVariant = Math.ceil(count / BELT_VARIANTS);
+  const meshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
+  // Varied rock shapes (not one repeated block), each instanced
+  const geometries = useMemo(
+    () =>
+      Array.from({ length: BELT_VARIANTS }, (_, i) =>
+        rockGeometry({ radius: 1, seed: 101 + i * 17, detail: 2, relief: 0.22, craters: 6, color: '#ffffff', albedoJitter: 0.25, stretch: [1 + i * 0.25, 0.8 + (i % 2) * 0.2, 0.9] })
+      ),
+    []
+  );
+  useEffect(() => () => geometries.forEach((g) => g.dispose()), [geometries]);
+
+  // Real belt: 2.2–3.3 AU, so orbital periods of ~3.3–6 years (Kepler), on the shared simulation clock
   const asteroidData = useMemo(() => {
-    const data = [];
-    for (let i = 0; i < count; i++) {
-      const radius = 24.5 + Math.random() * 4.0;
-      const angle = Math.random() * Math.PI * 2;
-      const y = (Math.random() - 0.5) * 1.8;
-      const scale = 0.08 + Math.random() * 0.16;
-      const speed = 0.01 + Math.random() * 0.005;
-      data.push({ radius, angle, y, scale, speed });
-    }
-    return data;
+    const rand = (() => {
+      let x = 12345;
+      return () => ((x = (x * 16807) % 2147483647) / 2147483647);
+    })();
+    return Array.from({ length: count }, () => {
+      const t = rand();
+      const radius = 24.5 + t * 4.0;
+      const au = 2.2 + t * 1.1;
+      const periodSeconds = Math.pow(au, 1.5) * EARTH_YEAR_SECONDS;
+      const carbonaceous = rand() < 0.75; // most belt asteroids are dark C-types; the rest stony S-types
+      const shade = carbonaceous ? 0.28 + rand() * 0.12 : 0.55 + rand() * 0.2;
+      return {
+        radius,
+        angle0: rand() * Math.PI * 2,
+        omega: (2 * Math.PI) / periodSeconds,
+        y: (rand() - 0.5) * 1.8,
+        scale: 0.06 + Math.pow(rand(), 2.5) * 0.24,
+        spin: new THREE.Euler(rand() * 6, rand() * 6, rand() * 6),
+        spinRate: 0.2 + rand() * 0.8,
+        color: carbonaceous ? new THREE.Color(shade, shade * 0.97, shade * 0.93) : new THREE.Color(shade, shade * 0.88, shade * 0.72),
+      };
+    });
   }, [count]);
 
-  useFrame((state, delta) => {
-    if (!meshRef.current) return;
-    // Performance LOD: freeze asteroid updates when in deep space
-    if (state.camera.position.length() > 2500) return;
+  const layerVisible = useLayerVisible();
 
-    for (let i = 0; i < count; i++) {
-      const a = asteroidData[i];
-      a.angle += a.speed * delta * 1.2;
-      dummy.position.set(Math.cos(a.angle) * a.radius, a.y, Math.sin(a.angle) * a.radius);
-      dummy.rotation.x += delta * 0.5;
-      dummy.rotation.y += delta * 0.8;
-      dummy.scale.set(a.scale, a.scale, a.scale);
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
+  // A point on the belt to select and fly to (the belt itself is thousands of instances)
+  const anchorRef = useRef<THREE.Group>(null);
+  useEffect(() => {
+    if (anchorRef.current) registerCelestialObject('asteroid_belt', anchorRef.current);
+    return () => unregisterCelestialObject('asteroid_belt');
+  }, []);
+
+  const place = (i: number, t: number) => {
+    const a = asteroidData[i];
+    const ang = a.angle0 + a.omega * t;
+    dummy.position.set(Math.cos(ang) * a.radius, a.y, -Math.sin(ang) * a.radius);
+    dummy.rotation.set(a.spin.x + t * a.spinRate, a.spin.y + t * a.spinRate * 0.7, a.spin.z);
+    dummy.scale.setScalar(a.scale);
+    dummy.updateMatrix();
+  };
+
+  // Place every instance before the first render and size the bounding sphere to the whole belt. Otherwise
+  // three.js may compute it while all instances still sit at the origin (e.g. when this layer is prewarmed
+  // from far away) and then frustum-cull the entire belt whenever the Sun is off-screen.
+  useLayoutEffect(() => {
+    for (let v = 0; v < BELT_VARIANTS; v++) {
+      const mesh = meshRefs.current[v];
+      if (!mesh) continue;
+      for (let k = 0; k < perVariant; k++) {
+        const i = v * perVariant + k;
+        if (i >= count) break;
+        place(i, simClock.time);
+        mesh.setMatrixAt(k, dummy.matrix);
+        mesh.setColorAt(k, asteroidData[i].color);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
     }
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asteroidData, dummy]);
+
+  useFrame((state) => {
+    // Performance LOD: freeze asteroid updates when the layer is hidden or in deep space
+    if (!layerVisible || state.camera.position.length() > 2500) return;
+    const t = simClock.time;
+    for (let v = 0; v < BELT_VARIANTS; v++) {
+      const mesh = meshRefs.current[v];
+      if (!mesh) continue;
+      for (let k = 0; k < perVariant; k++) {
+        const i = v * perVariant + k;
+        if (i >= count) break;
+        place(i, t);
+        mesh.setMatrixAt(k, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-      <dodecahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial color="#78716c" roughness={0.9} />
-    </instancedMesh>
+    <>
+      <group ref={anchorRef} position={CELESTIAL_BODIES.asteroid_belt.position} />
+      {geometries.map((geo, v) => (
+        <instancedMesh
+          key={v}
+          ref={(el) => {
+            meshRefs.current[v] = el;
+          }}
+          args={[geo, undefined, Math.min(perVariant, count - v * perVariant)]}
+        >
+          <meshStandardMaterial vertexColors roughness={0.95} metalness={0} />
+        </instancedMesh>
+      ))}
+    </>
   );
 };
 
@@ -916,7 +1038,7 @@ export const SolarSystemScene: React.FC = () => {
   return (
     <group>
       {/* Central Solar Illuminator */}
-      <pointLight position={[0, 0, 0]} intensity={5.0} distance={180} decay={1.1} color="#fffbeb" />
+      <PooledPointLight position={[0, 0, 0]} intensity={3.2} distance={220} decay={0} color="#fff6e5" />
 
       {/* Sun Photosphere & Animated Corona */}
       <group
@@ -930,23 +1052,11 @@ export const SolarSystemScene: React.FC = () => {
         onPointerOver={() => setHoveredBodyId('sun')}
         onPointerOut={() => setHoveredBodyId(null)}
       >
-        <mesh ref={sunRef}>
-          <sphereGeometry args={[sunBody.size, 48, 48]} />
-          {sunTexture ? (
-            <meshBasicMaterial map={sunTexture} />
-          ) : (
-            <meshBasicMaterial color="#fbbf24" />
-          )}
-        </mesh>
-
-        {/* Pulsating Corona */}
-        <mesh ref={sunCoronaRef}>
-          <sphereGeometry args={[sunBody.size * 1.18, 32, 32]} />
-          <meshBasicMaterial color="#f59e0b" transparent opacity={0.35} side={THREE.BackSide} />
-        </mesh>
+        {/* Real photosphere (Solar System Scope map): boiling granulation, sunspots, limb darkening, corona */}
+        <StarBody radius={sunBody.size} kelvin={5772} brightness={2.1} spots={1} glowScale={3.2} glowOpacity={0.75} segments={96} />
 
         {(hoveredBodyId === 'sun' || selectedCosmicBodyId === 'sun') && (
-          <Html position={[0, sunBody.size + 1.4, 0]} center distanceFactor={30}>
+          <Html position={[0, sunBody.size + 1.4, 0]} center>
             <div className="px-3 py-1 rounded-full bg-amber-950/90 border border-amber-400 shadow-xl text-xs font-bold text-amber-200 whitespace-nowrap">
               ☀️ {language === 'ar' ? sunBody.nameAr : sunBody.nameEn}
             </div>
@@ -955,16 +1065,16 @@ export const SolarSystemScene: React.FC = () => {
       </group>
 
       {/* Planetary Orbit Guide Rings */}
-      <OrbitLine radius={7.5} />
-      <OrbitLine radius={11.0} />
-      <OrbitLine radius={15.5} color="#0284c7" />
-      <OrbitLine radius={21.0} color="#b91c1c" />
-      <OrbitLine radius={26.5} color="#78716c" />
-      <OrbitLine radius={33.0} color="#b45309" />
-      <OrbitLine radius={42.0} color="#ca8a04" />
-      <OrbitLine radius={51.0} color="#0891b2" />
-      <OrbitLine radius={58.0} color="#2563eb" />
-      <OrbitLine radius={64.0} color="#a16207" />
+      <OrbitLine radius={7.5} bodyId="mercury" />
+      <OrbitLine radius={11.0} bodyId="venus" />
+      <OrbitLine radius={15.5} bodyId="earth" color="#0284c7" />
+      <OrbitLine radius={21.0} bodyId="mars" color="#b91c1c" />
+      <OrbitLine radius={26.5} bodyId="ceres" color="#78716c" />
+      <OrbitLine radius={33.0} bodyId="jupiter" color="#b45309" />
+      <OrbitLine radius={42.0} bodyId="saturn" color="#ca8a04" />
+      <OrbitLine radius={51.0} bodyId="uranus" color="#0891b2" />
+      <OrbitLine radius={58.0} bodyId="neptune" color="#2563eb" />
+      <OrbitLine radius={64.0} bodyId="pluto" color="#a16207" />
 
       {/* Main Asteroid Belt & Meteor Showers */}
       <AsteroidBelt />
@@ -1077,18 +1187,6 @@ export const SolarSystemScene: React.FC = () => {
         isHighlighted={isHighlighted(CELESTIAL_BODIES.mars)}
         onClick={() => setSelectedCosmicBodyId('mars')}
         onPointerOver={() => setHoveredBodyId('mars')}
-        onPointerOut={() => setHoveredBodyId(null)}
-        language={language}
-      />
-
-      {/* Ceres Dwarf Planet */}
-      <StandardPlanet
-        body={CELESTIAL_BODIES.ceres}
-        isSelected={selectedCosmicBodyId === 'ceres'}
-        isHovered={hoveredBodyId === 'ceres'}
-        isHighlighted={isHighlighted(CELESTIAL_BODIES.ceres)}
-        onClick={() => setSelectedCosmicBodyId('ceres')}
-        onPointerOver={() => setHoveredBodyId('ceres')}
         onPointerOut={() => setHoveredBodyId(null)}
         language={language}
       />

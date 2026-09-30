@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import { OrbitControls, Stars, PerformanceMonitor } from '@react-three/drei';
+import { isLowQuality } from '@/lib/deviceQuality';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -36,6 +37,9 @@ const CameraAndSceneManager: React.FC = () => {
 
   const isInitialMountRef = useRef(true);
   const prevActiveElementRef = useRef<number>(activeElementNum);
+  // While the camera flies to a newly chosen scale, its distance is still that of the old scale; the distance-based
+  // auto-step below must wait, or a jump that skips a scale (e.g. periodic table -> nucleus) is undone mid-flight
+  const transitionUntilRef = useRef(0);
 
   // Transition camera smoothly whenever scaleLevel changes
   useEffect(() => {
@@ -58,6 +62,7 @@ const CameraAndSceneManager: React.FC = () => {
     }
 
     gsap.killTweensOf(camera.position);
+    transitionUntilRef.current = performance.now() + 1300;
 
     // Cinematic zoom warp transition
     gsap.to(camera.position, {
@@ -170,6 +175,7 @@ const CameraAndSceneManager: React.FC = () => {
     const distance = camera.position.distanceTo(targetPos);
     const config = SCALE_CAMERA_CONFIGS[scaleLevel];
     const now = performance.now();
+    if (now < transitionUntilRef.current) return;
 
     // Debounce scale jumps by 900ms to allow smooth user interaction
     if (now - lastZoomTimeRef.current > 900) {
@@ -248,6 +254,8 @@ const SubatomicWebGlNotifier: React.FC = () => {
 };
 
 export const CanvasContainer: React.FC = () => {
+  // Phones (low quality tier) start at a 1.5 pixel ratio instead of 2 and drop to 1 if frames get slow
+  const [maxDpr, setMaxDpr] = useState(() => (isLowQuality() ? 1.5 : 2));
   return (
     <div className="w-full h-full absolute inset-0 bg-[#030712]">
       <Canvas
@@ -257,8 +265,9 @@ export const CanvasContainer: React.FC = () => {
           alpha: false,
           powerPreference: 'high-performance',
         }}
-        dpr={[1, 2]}
+        dpr={[1, maxDpr]}
       >
+        <PerformanceMonitor onDecline={() => setMaxDpr(1)} />
         <CameraAndSceneManager />
       </Canvas>
     </div>

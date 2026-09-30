@@ -15,7 +15,28 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
+    overscroll-behavior: none;
   }
+
+  /* iOS zooms the page when an input under 16px gets focus: keep finger-input fields at 16px */
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Safe areas (notch, home indicator) for HUD pinned to screen edges; viewport-fit=cover is set in layout.tsx */
+@layer utilities {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .ps-safe { padding-inline-start: env(safe-area-inset-left, 0px); }
+  .pe-safe { padding-inline-end: env(safe-area-inset-right, 0px); }
+  .bottom-safe-2 { bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); }
+  .no-scrollbar, .scrollbar-none { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar, .scrollbar-none::-webkit-scrollbar { display: none; }
 }
 
 /* Glassmorphism Classes */
@@ -43,10 +64,12 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.glass-button:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(56, 189, 248, 0.5);
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+@media (hover: hover) {
+  .glass-button:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: rgba(56, 189, 248, 0.5);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+  }
 }
 
 .glass-button-active {
@@ -107,4 +130,63 @@
 
 .animate-subatomic-pulse {
   animation: subatomicPulse 2.4s ease-in-out infinite;
+}
+
+/* ---------------- First-visit world chooser ---------------- */
+@keyframes wcTwinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+@keyframes wcRise {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes wcSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes wcGlowPulse {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+@keyframes wcComet {
+  0% { transform: translate(-20px, 40px); opacity: 0; }
+  10% { opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: translate(260px, 150px); opacity: 0; }
+}
+
+.wc-star { animation: wcTwinkle 4s ease-in-out infinite; }
+.wc-rise { animation: wcRise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.wc-glow-pulse { animation: wcGlowPulse 3s ease-in-out infinite; }
+.wc-galaxy-spin { animation: wcSpin 60s linear infinite; }
+@media (hover: hover) { .wc-card:hover .wc-galaxy-spin { animation-duration: 18s; } }
+.wc-comet { animation: wcComet 6s ease-in 1.5s infinite; }
+
+.wc-card {
+  animation: wcRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s, opacity 0.5s, border-color 0.3s;
+}
+@media (hover: hover) { .wc-card:hover { transform: translateY(-6px) scale(1.015); box-shadow: 0 30px 80px -20px rgba(99, 102, 241, 0.45); } }
+.wc-card-chosen { transform: scale(1.06) !important; box-shadow: 0 0 120px -10px rgba(129, 140, 248, 0.7) !important; }
+.wc-card-dismissed { opacity: 0 !important; transform: scale(0.92) !important; }
+
+.wc-overlay { transition: opacity 0.7s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), filter 0.7s ease; }
+.wc-overlay-leaving { opacity: 0; transform: scale(1.12); filter: blur(6px); pointer-events: none; }
+
+/* Object info card appearing once the camera has reached the object */
+@keyframes cardReveal {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.card-reveal { animation: cardReveal 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn, .animate-fade-in, .animate-slideInRight, .animate-slideUp { animation: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-reveal { animation: none !important; }
+  .wc-star, .wc-rise, .wc-glow-pulse, .wc-galaxy-spin, .wc-comet, .wc-card { animation: none !important; }
+  .wc-overlay, .wc-card { transition: opacity 0.3s ease !important; }
+  .wc-overlay-leaving { transform: none; filter: none; }
 }

@@ -2,7 +2,7 @@
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
 import * as THREE from 'three';
 import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES, CelestialBody } from '@/data/universeData';
@@ -13,6 +13,22 @@ import { RealisticPulsar } from './pulsar/RealisticPulsar';
 import { RealisticDiamondPlanet } from './exoplanet/RealisticDiamondPlanet';
 import { RealisticNebula } from './nebula/RealisticNebula';
 import { RealisticSupernova } from './supernova/RealisticSupernova';
+import { ScaleStandIn } from './rendering/ScaleStandIn';
+import { DistanceFadeGroup } from './rendering/useDistanceFade';
+import { MILKY_WAY_CROSSFADE_START, MILKY_WAY_CROSSFADE_END } from '@/lib/scaleVisibility';
+import { PooledPointLight } from '@/components/universe/rendering/LightPool';
+import { scaledCount } from '@/lib/deviceQuality';
+import { StarBody } from './rendering/StarBody';
+import { SupergiantStar, HotStar, GlowShell } from './rendering/StellarExtras';
+import { ExoplanetSurface, getExoplanetLook } from './exoplanet/RealisticExoplanet';
+import { systemOrbitAngle } from '@/lib/frames';
+import { simClock } from '@/lib/simClock';
+
+// Effective temperatures (K) of stars drawn by the generic galactic system node
+const STAR_KELVIN: Record<string, number> = {
+  kepler_90: 6080, // G0 V
+  wasp_76: 6250, // F7 V
+};
 
 // 3D Barred Spiral Galaxy Particle Generator (Milky Way spanning 18,000 units)
 const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTexture?: THREE.CanvasTexture }> = ({
@@ -23,33 +39,50 @@ const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTextu
   const { camera } = useThree();
 
   const [positions, colors] = useMemo(() => {
-    const count = 12000;
+    const count = scaledCount(12000, 0.6);
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
     const arms = 4;
     const armSeparation = (Math.PI * 2) / arms;
     const maxRadius = 18000;
+    // The Milky Way is a barred spiral: a ~5 kpc stellar bar at ~27° to the Sun–centre line (the Sun lies on +z
+    // from the centre), the arms springing from its ends. Positions are local to the galactic centre.
+    const barHalfLength = maxRadius * 0.24;
+    const barAngle = Math.PI / 2 - (27 * Math.PI) / 180;
+    const barFraction = 0.18;
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      // Exponential radial distribution
-      const radius = Math.pow(Math.random(), 1.4) * maxRadius;
-      const spinAngle = (radius / maxRadius) * Math.PI * 3.2;
-      const armAngle = (i % arms) * armSeparation;
+      let radius: number;
+      if (i < count * barFraction) {
+        // Bar: elongated gaussian blob of old, yellowish stars
+        const g = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+        const along = g() * barHalfLength;
+        const across = g() * barHalfLength * 0.28;
+        pos[i3] = Math.cos(barAngle) * along - Math.sin(barAngle) * across;
+        pos[i3 + 1] = g() * 500;
+        pos[i3 + 2] = Math.sin(barAngle) * along + Math.cos(barAngle) * across;
+        radius = Math.hypot(pos[i3], pos[i3 + 2]) * 0.4;
+      } else {
+        // Arms: logarithmic-ish spirals starting from the bar ends
+        radius = barHalfLength * 0.9 + Math.pow(Math.random(), 1.2) * (maxRadius - barHalfLength * 0.9);
+        const spinAngle = ((radius - barHalfLength) / maxRadius) * Math.PI * 2.6;
+        const armAngle = barAngle + (i % arms) * armSeparation;
 
-      // Vertical Gaussian thickness tapering at the edges
-      const thickness = Math.max(120, (1 - radius / maxRadius) * 1600);
-      const randomY = (Math.random() - 0.5) * thickness;
+        // Vertical Gaussian thickness tapering at the edges
+        const thickness = Math.max(120, (1 - radius / maxRadius) * 1600);
+        const randomY = (Math.random() - 0.5) * thickness;
 
-      // Arm width scatter
-      const armWidth = 400 + (radius / maxRadius) * 1800;
-      const scatterX = (Math.random() - 0.5) * armWidth;
-      const scatterZ = (Math.random() - 0.5) * armWidth;
+        // Arm width scatter
+        const armWidth = 400 + (radius / maxRadius) * 1800;
+        const scatterX = (Math.random() - 0.5) * armWidth;
+        const scatterZ = (Math.random() - 0.5) * armWidth;
 
-      pos[i3] = center[0] + Math.cos(armAngle + spinAngle) * radius + scatterX;
-      pos[i3 + 1] = center[1] + randomY;
-      pos[i3 + 2] = center[2] + Math.sin(armAngle + spinAngle) * radius + scatterZ;
+        pos[i3] = Math.cos(armAngle + spinAngle) * radius + scatterX;
+        pos[i3 + 1] = randomY;
+        pos[i3 + 2] = Math.sin(armAngle + spinAngle) * radius + scatterZ;
+      }
 
       // Color gradation: warm gold galactic core, bright azure/cyan young OB stars in spiral arms
       const c = new THREE.Color();
@@ -70,19 +103,21 @@ const MilkyWaySpiralArms: React.FC<{ center: [number, number, number]; glowTextu
     }
 
     return [pos, col];
-  }, [center]);
+  }, []);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (pointsRef.current) {
-      pointsRef.current.rotation.y += delta * 0.008;
-      // Only show dense galactic spiral arms when zooming out past local solar neighborhood
+      // No spin: the stars, clusters and nebulae of this scale are fixed in the disk, so the arms must be too
+      // (real galactic rotation takes ~230 million years)
+      // Hide the dense galactic spiral arms while inside the local solar neighborhood (< 250).
+      // Off-screen parts are already skipped by three.js' own per-object frustum culling.
       const dist = camera.position.length();
       pointsRef.current.visible = dist > 250;
     }
   });
 
   return (
-    <points ref={pointsRef} visible={false}>
+    <points ref={pointsRef} position={center} visible={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
@@ -127,81 +162,6 @@ const SagittariusABlackHole: React.FC<{
   );
 };
 
-// Volumetric Nebula Cloud Node (Crab Nebula, Pillars of Creation, Kilonova Forge)
-const NebulaCloudNode: React.FC<{
-  body: CelestialBody;
-  isSelected: boolean;
-  isHighlighted: boolean;
-  onSelect: () => void;
-  language: 'en' | 'ar';
-  icon: string;
-}> = ({ body, isSelected, isHighlighted, onSelect, language, icon }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-
-  useEffect(() => {
-    if (groupRef.current) {
-      registerCelestialObject(body.id, groupRef.current);
-    }
-    return () => unregisterCelestialObject(body.id);
-  }, [body.id]);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.02;
-    }
-  });
-
-  return (
-    <group
-      ref={groupRef}
-      position={body.position}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (e.delta && e.delta > 5) return;
-        e.stopPropagation();
-        onSelect();
-      }}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <pointLight color={body.color} intensity={3.5} distance={body.size * 8} />
-
-      {/* Outer Whispy Gas Shell */}
-      <mesh>
-        <dodecahedronGeometry args={[body.size, 1]} />
-        <meshStandardMaterial
-          color={body.color}
-          emissive={body.emissiveColor || body.color}
-          emissiveIntensity={0.8}
-          transparent
-          opacity={0.45}
-          wireframe
-        />
-      </mesh>
-
-      {/* Inner Dense Ionized Core */}
-      <mesh>
-        <sphereGeometry args={[body.size * 0.65, 20, 20]} />
-        <meshBasicMaterial
-          color={body.emissiveColor || '#facc15'}
-          transparent
-          opacity={0.7}
-        />
-      </mesh>
-
-      {/* Tag */}
-      {(hovered || isSelected || isHighlighted) && (
-        <Html position={[0, body.size + 40, 0]} center distanceFactor={body.size * 5}>
-          <div className="px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-400 text-xs font-bold text-cyan-200 whitespace-nowrap shadow-xl flex items-center gap-1.5">
-            {isHighlighted && <span className="text-amber-400">⚡</span>}
-            <span>{icon} {language === 'ar' ? body.nameAr : body.nameEn}</span>
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
-
 // Kepler-22 System (Habitable Super-Earth Ocean World)
 const Kepler22System: React.FC<{
   star: CelestialBody;
@@ -212,7 +172,6 @@ const Kepler22System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.2);
   const [starHovered, setStarHovered] = useState(false);
@@ -229,9 +188,8 @@ const Kepler22System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.034) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.034) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 52.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -255,15 +213,9 @@ const Kepler22System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#fef08a" intensity={4.0} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#fef08a" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.2, 20, 20]} />
-          <meshBasicMaterial color="#fef9c3" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#fef08a" intensity={4.0} distance={star.size * 10} />
+        {/* G5 V, 5,518 K */}
+        <StarBody radius={star.size} kelvin={5518} spots={0.9} brightness={1.7} glowScale={3} glowOpacity={0.6} spin={0.04} segments={64} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 15, 0]} center distanceFactor={star.size * 5}>
@@ -292,14 +244,12 @@ const Kepler22System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#10b981" roughness={0.4} metalness={0.2} />
-        </mesh>
+        {/* Possible global ocean world under clouds */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={5518} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -326,7 +276,6 @@ const WASP12System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(2.4);
   const [starHovered, setStarHovered] = useState(false);
@@ -343,9 +292,8 @@ const WASP12System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.065) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.065) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 48.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -370,15 +318,9 @@ const WASP12System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#f8fafc" intensity={4.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#f8fafc" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
-          <meshBasicMaterial color="#e2e8f0" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#f8fafc" intensity={4.5} distance={star.size * 10} />
+        {/* F9 V, ~6,300 K: yellow-white, calmer surface than the Sun */}
+        <StarBody radius={star.size} kelvin={6300} spots={0.4} brightness={1.8} glowScale={3} glowOpacity={0.6} spin={0.05} segments={64} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 18, 0]} center distanceFactor={star.size * 5}>
@@ -407,21 +349,12 @@ const WASP12System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Egg-shaped mesh scaled along X axis */}
-        <mesh scale={[1.4, 0.95, 0.95]}>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
-        </mesh>
-
-        {/* Glowing tidal heat rim */}
-        <mesh scale={[1.42, 0.97, 0.97]}>
-          <sphereGeometry args={[planet.size, 20, 20]} />
-          <meshBasicMaterial color="#ea580c" transparent opacity={0.25} wireframe />
-        </mesh>
+        {/* Pitch-black, tidally stretched along the star line, ~2,600 K day side glowing, atmosphere escaping */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} stretch={[1.4, 0.95, 0.95]} hostKelvin={6300} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.6, planet.size * 1.85, 24]} />
+            <ringGeometry args={[planet.size * 1.6, planet.size * 1.635, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -447,7 +380,7 @@ const Stephenson218Star: React.FC<{
   language: 'en' | 'ar';
 }> = ({ body, isSelected, isHighlighted, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Group>(null);
   const shellRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -482,35 +415,21 @@ const Stephenson218Star: React.FC<{
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      <pointLight color="#dc2626" intensity={8.0} distance={body.size * 6} />
+      <PooledPointLight color="#dc2626" intensity={8.0} distance={body.size * 6} />
 
-      {/* Gargantuan Convective Red Hypergiant Core */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[body.size, 36, 36]} />
-        <meshStandardMaterial
-          color="#dc2626"
-          emissive="#b91c1c"
-          emissiveIntensity={0.9}
-          roughness={0.8}
-        />
-      </mesh>
+      {/* Red hypergiant photosphere (M6, ~3,200 K): a few gigantic convection cells, strongly limb-darkened */}
+      <group ref={coreRef}>
+        <SupergiantStar radius={body.size} kelvin={3200} brightness={1.2} cellScale={1.3} glowScale={2.2} glowOpacity={0.45} />
+      </group>
 
-      {/* Massive Convective Gas Shockwave Halo */}
-      <mesh ref={shellRef}>
-        <sphereGeometry args={[body.size * 1.14, 24, 24]} />
-        <meshBasicMaterial
-          color="#ea580c"
-          transparent
-          opacity={0.35}
-          side={THREE.BackSide}
-          wireframe
-        />
-      </mesh>
+      {/* Dusty mass-loss envelope around the star */}
+      <GlowShell ref={shellRef} radius={body.size * 1.3} color="#b3401a" strength={0.5} power={2.0} noise={0.7} noiseScale={2.0} />
+      <GlowShell radius={body.size * 2.0} color="#6b2410" strength={0.2} power={1.6} noise={0.8} noiseScale={1.5} />
 
       {/* Selection Ring */}
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[body.size * 1.25, body.size * 1.35, 48]} />
+          <ringGeometry args={[body.size * 1.25, body.size * 1.285, 128]} />
           <meshBasicMaterial
             color={isHighlighted ? '#fbbf24' : '#38bdf8'}
             side={THREE.DoubleSide}
@@ -544,13 +463,16 @@ const PSRJ1719DiamondSystem: React.FC<{
 
   useFrame((_, delta) => {
     if (diamondMeshRef.current) {
-      orbitAngleRef.current += (diamondPlanet.orbitalSpeed || 0.075) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(diamondPlanet.id, simClock.time, (diamondPlanet.orbitalSpeed || 0.075) * 60); // real period (lib/frames.ts)
       const r = diamondPlanet.orbitalRadius || 36.0;
       diamondMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       diamondMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
     }
   });
 
+  // The pulsar sits at this system's origin (it places itself at body.position; passing the catalogued position
+  // doubled the offset and drew PSR J1719−1438 thousands of units from where the camera flies to)
+  const localPulsar = React.useMemo<CelestialBody>(() => ({ ...pulsar, position: [0, 0, 0] }), [pulsar]);
   const isPulsarSelected = selectedId === pulsar.id;
   const isDiamondSelected = selectedId === diamondPlanet.id;
   const isPulsarHighlighted = highlightedElement !== null && pulsar.primaryElements.some(e => e.atomicNumber === highlightedElement);
@@ -560,7 +482,7 @@ const PSRJ1719DiamondSystem: React.FC<{
     <group ref={rootRef} position={pulsar.position}>
       {/* Millisecond Radio Pulsar with Dipolar Field Loops & Sweeping Beams */}
       <RealisticPulsar
-        body={pulsar}
+        body={localPulsar}
         spinFrequency={14.0}
         magneticTilt={0.52}
         isSelected={isPulsarSelected}
@@ -583,6 +505,7 @@ const PSRJ1719DiamondSystem: React.FC<{
         <RealisticDiamondPlanet
           body={diamondPlanet}
           isMagmaWorld={false}
+          hostRef={rootRef}
           isSelected={isDiamondSelected}
           isHighlighted={isDiamondHighlighted}
           onSelect={() => onSelect(diamondPlanet.id)}
@@ -603,7 +526,6 @@ const Kepler452System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(0.4);
   const [starHovered, setStarHovered] = useState(false);
@@ -620,9 +542,8 @@ const Kepler452System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.038) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.038) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 44.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -647,15 +568,9 @@ const Kepler452System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#fef08a" intensity={4.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 32, 32]} />
-          <meshBasicMaterial color="#fef08a" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.15, 20, 20]} />
-          <meshBasicMaterial color="#fde047" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#fef08a" intensity={4.5} distance={star.size * 10} />
+        {/* G2 V, 5,757 K: an older twin of the Sun */}
+        <StarBody radius={star.size} kelvin={5757} spots={1} brightness={1.8} glowScale={3} glowOpacity={0.6} spin={0.04} segments={64} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 14, 0]} center distanceFactor={star.size * 5}>
@@ -684,21 +599,12 @@ const Kepler452System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Oceans & Continents */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#15803d" roughness={0.4} metalness={0.15} />
-        </mesh>
-
-        {/* Dynamic Atmosphere & Clouds */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.03, 24, 24]} />
-          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.4} roughness={0.8} />
-        </mesh>
+        {/* Drier continents, oceans, clouds and a thick atmosphere */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={5757} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#22c55e'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -725,7 +631,6 @@ const Kepler186System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.7);
   const [starHovered, setStarHovered] = useState(false);
@@ -742,9 +647,8 @@ const Kepler186System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.04;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.042) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.042) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 32.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -769,15 +673,9 @@ const Kepler186System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#f97316" intensity={4.0} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color="#ea580c" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
-          <meshBasicMaterial color="#f97316" transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#f97316" intensity={4.0} distance={star.size * 10} />
+        {/* M1 V, ~3,755 K */}
+        <StarBody radius={star.size} kelvin={3755} spots={1} brightness={1.35} glowScale={2.8} glowOpacity={0.55} spin={0.04} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 10, 0]} center distanceFactor={star.size * 5}>
@@ -806,20 +704,12 @@ const Kepler186System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#0284c7" roughness={0.5} metalness={0.2} />
-        </mesh>
-
-        {/* Ice & Cloud Veil */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.04, 20, 20]} />
-          <meshBasicMaterial color="#f0f9ff" transparent opacity={0.3} wireframe />
-        </mesh>
+        {/* Cold Earth-sized world: more ice and cloud, thin blue rim */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={3755} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -846,8 +736,8 @@ const Kepler16CircumbinarySystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ binarySuns, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const sunAPosRef = useRef<THREE.Mesh>(null);
-  const sunBPosRef = useRef<THREE.Mesh>(null);
+  const sunAPosRef = useRef<THREE.Group>(null);
+  const sunBPosRef = useRef<THREE.Group>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const binaryOrbitAngleRef = useRef(0);
   const planetOrbitAngleRef = useRef(2.5);
@@ -865,7 +755,8 @@ const Kepler16CircumbinarySystem: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    binaryOrbitAngleRef.current += delta * 0.8;
+    // Kepler-16 A and B circle each other every 41.1 days (shared clock, real period)
+    binaryOrbitAngleRef.current = systemOrbitAngle('kepler_16_ab', simClock.time, 0.8);
     if (sunAPosRef.current) {
       sunAPosRef.current.position.x = Math.cos(binaryOrbitAngleRef.current) * 4.2;
       sunAPosRef.current.position.z = Math.sin(binaryOrbitAngleRef.current) * 4.2;
@@ -878,7 +769,7 @@ const Kepler16CircumbinarySystem: React.FC<{
     }
 
     if (planetMeshRef.current) {
-      planetOrbitAngleRef.current += (planet.orbitalSpeed || 0.035) * delta * 60;
+      planetOrbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.035) * 60); // real period
       const r = planet.orbitalRadius || 40.0;
       planetMeshRef.current.position.x = Math.cos(planetOrbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(planetOrbitAngleRef.current) * r;
@@ -903,19 +794,18 @@ const Kepler16CircumbinarySystem: React.FC<{
         onPointerOver={() => setSunsHovered(true)}
         onPointerOut={() => setSunsHovered(false)}
       >
-        <pointLight color="#f97316" intensity={4.5} distance={binarySuns.size * 10} />
+        <PooledPointLight color="#f97316" intensity={4.5} distance={binarySuns.size * 10} />
 
-        {/* Primary K-Dwarf Sun */}
-        <mesh ref={sunAPosRef} position={[4.2, 0, 0]}>
-          <sphereGeometry args={[binarySuns.size * 0.65, 28, 28]} />
-          <meshBasicMaterial color="#fb923c" />
-        </mesh>
+        {/* Kepler-16 A: K-dwarf, 4,450 K, 0.65 R☉. Sized so the pair stays separate on its orbit (the real
+            stars are ~47 R☉ apart; the earlier spheres overlapped). Radii keep the real ~2.8:1 ratio. */}
+        <group ref={sunAPosRef} position={[4.2, 0, 0]}>
+          <StarBody radius={binarySuns.size * 0.28} kelvin={4450} spots={1} brightness={1.5} glowScale={2.4} glowOpacity={0.55} />
+        </group>
 
-        {/* Secondary M-Dwarf Sun */}
-        <mesh ref={sunBPosRef} position={[-7.5, 0, 0]}>
-          <sphereGeometry args={[binarySuns.size * 0.38, 24, 24]} />
-          <meshBasicMaterial color="#ef4444" />
-        </mesh>
+        {/* Kepler-16 B: M-dwarf, 3,311 K, 0.23 R☉ */}
+        <group ref={sunBPosRef} position={[-7.5, 0, 0]}>
+          <StarBody radius={binarySuns.size * 0.1} kelvin={3311} spots={1} brightness={1.3} glowScale={2.4} glowOpacity={0.55} />
+        </group>
 
         {(sunsHovered || isSunsSelected || isSunsHighlighted) && (
           <Html position={[0, binarySuns.size + 12, 0]} center distanceFactor={binarySuns.size * 5}>
@@ -944,21 +834,12 @@ const Kepler16CircumbinarySystem: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Saturn-like Golden Atmosphere */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#ca8a04" roughness={0.5} metalness={0.2} />
-        </mesh>
-
-        {/* Delicate Gas Giant Ring */}
-        <mesh rotation={[-Math.PI / 3, 0, 0]}>
-          <ringGeometry args={[planet.size * 1.35, planet.size * 2.1, 48]} />
-          <meshBasicMaterial color="#fef08a" transparent opacity={0.4} side={THREE.DoubleSide} />
-        </mesh>
+        {/* Cold Saturn-mass giant (no rings have been observed) */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={4200} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 2.2, planet.size * 2.4, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#ca8a04'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -984,6 +865,7 @@ const Kepler1649cSystem: React.FC<{
   language: 'en' | 'ar';
 }> = ({ planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
+  const hostRef = useRef<THREE.Group>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -1003,8 +885,10 @@ const Kepler1649cSystem: React.FC<{
 
   return (
     <group ref={rootRef} position={planet.position}>
-      {/* Dim host red-dwarf illumination */}
-      <pointLight color="#f97316" intensity={2.5} distance={60} />
+      {/* Dim host red-dwarf (M5 V, ~3,240 K) illumination, from the direction of the (undrawn) star */}
+      <group ref={hostRef} position={[-34, 6, 12]}>
+        <PooledPointLight color="#ffb07a" intensity={2.5} distance={120} />
+      </group>
 
       <group
         ref={planetMeshRef}
@@ -1016,21 +900,12 @@ const Kepler1649cSystem: React.FC<{
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
-        {/* Terrestrial Blue-Green Sphere */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial color="#0ea5e9" roughness={0.45} metalness={0.2} />
-        </mesh>
-
-        {/* Thin Cloud Shell */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.04, 20, 20]} />
-          <meshStandardMaterial color="#f8fafc" transparent opacity={0.35} />
-        </mesh>
+        {/* Earth-sized, tidally locked, 75% of Earth's sunlight */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={hostRef} hostKelvin={3240} />
 
         {(isSelected || isHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -1057,7 +932,6 @@ const KELT9System: React.FC<{
   language: 'en' | 'ar';
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(1.0);
   const [starHovered, setStarHovered] = useState(false);
@@ -1074,9 +948,8 @@ const KELT9System: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.08;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.07) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.07) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 46.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -1101,15 +974,9 @@ const KELT9System: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color="#93c5fd" intensity={5.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 32, 32]} />
-          <meshBasicMaterial color="#bfdbfe" />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 24, 24]} />
-          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color="#93c5fd" intensity={5.5} distance={star.size * 10} />
+        {/* B9.5-A0, 10,170 K, fast rotator: blue-white, no spots */}
+        <HotStar radius={star.size} kelvin={10170} brightness={1.8} glowScale={3.2} glowOpacity={0.7} spin={0.12} segments={64} />
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 18, 0]} center distanceFactor={star.size * 5}>
@@ -1138,27 +1005,12 @@ const KELT9System: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        {/* Incandescent Core */}
-        <mesh>
-          <sphereGeometry args={[planet.size, 28, 28]} />
-          <meshStandardMaterial
-            color="#facc15"
-            emissive="#f97316"
-            emissiveIntensity={0.8}
-            roughness={0.2}
-            metalness={0.5}
-          />
-        </mesh>
-
-        {/* Vaporized Iron & Titanium Comet-like Evaporating Envelope */}
-        <mesh>
-          <sphereGeometry args={[planet.size * 1.25, 20, 20]} />
-          <meshBasicMaterial color="#ea580c" transparent opacity={0.4} wireframe />
-        </mesh>
+        {/* 4,600 K day side glowing like a star, with an extended, evaporating envelope of iron and titanium */}
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id)} host={rootRef} hostKelvin={10170} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.5, planet.size * 1.75, 24]} />
+            <ringGeometry args={[planet.size * 1.5, planet.size * 1.535, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#f97316'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -1187,7 +1039,6 @@ const GalacticExoplanetSystem: React.FC<{
   badgeSuffix?: string;
 }> = ({ star, planet, selectedId, highlightedElement, onSelect, language, icon, badgeSuffix }) => {
   const rootRef = useRef<THREE.Group>(null);
-  const starMeshRef = useRef<THREE.Mesh>(null);
   const planetMeshRef = useRef<THREE.Group>(null);
   const orbitAngleRef = useRef(Math.random() * Math.PI * 2);
   const [starHovered, setStarHovered] = useState(false);
@@ -1204,9 +1055,8 @@ const GalacticExoplanetSystem: React.FC<{
   }, [planet.id]);
 
   useFrame((_, delta) => {
-    if (starMeshRef.current) starMeshRef.current.rotation.y += delta * 0.05;
     if (planetMeshRef.current) {
-      orbitAngleRef.current += (planet.orbitalSpeed || 0.03) * delta * 60;
+      orbitAngleRef.current = systemOrbitAngle(planet.id, simClock.time, (planet.orbitalSpeed || 0.03) * 60); // real period (lib/frames.ts)
       const r = planet.orbitalRadius || 40.0;
       planetMeshRef.current.position.x = Math.cos(orbitAngleRef.current) * r;
       planetMeshRef.current.position.z = Math.sin(orbitAngleRef.current) * r;
@@ -1233,15 +1083,12 @@ const GalacticExoplanetSystem: React.FC<{
         onPointerOver={() => setStarHovered(true)}
         onPointerOut={() => setStarHovered(false)}
       >
-        <pointLight color={star.color} intensity={4.5} distance={star.size * 10} />
-        <mesh ref={starMeshRef}>
-          <sphereGeometry args={[star.size, 28, 28]} />
-          <meshBasicMaterial color={star.color} />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[star.size * 1.18, 20, 20]} />
-          <meshBasicMaterial color={star.emissiveColor || star.color} transparent opacity={0.25} side={THREE.BackSide} />
-        </mesh>
+        <PooledPointLight color={star.color} intensity={4.5} distance={star.size * 10} />
+        {STAR_KELVIN[star.id] ? (
+          <StarBody radius={star.size} kelvin={STAR_KELVIN[star.id]} spots={0.6} brightness={1.8} glowScale={3} glowOpacity={0.6} spin={0.05} segments={64} />
+        ) : (
+          <StarBody radius={star.size} color={star.color} glowScale={3} glowOpacity={0.6} spin={0.05} />
+        )}
 
         {(starHovered || isStarSelected || isStarHighlighted) && (
           <Html position={[0, star.size + 10, 0]} center distanceFactor={star.size * 5}>
@@ -1270,19 +1117,11 @@ const GalacticExoplanetSystem: React.FC<{
         onPointerOver={() => setPlanetHovered(true)}
         onPointerOut={() => setPlanetHovered(false)}
       >
-        <mesh>
-          <sphereGeometry args={[planet.size, 24, 24]} />
-          <meshStandardMaterial
-            color={planet.color}
-            emissive={planet.emissiveColor || planet.color}
-            emissiveIntensity={0.3}
-            roughness={0.7}
-          />
-        </mesh>
+        <ExoplanetSurface radius={planet.size} look={getExoplanetLook(planet.id, planet.color)} host={rootRef} hostKelvin={STAR_KELVIN[star.id] ?? 5772} />
 
         {(isPlanetSelected || isPlanetHighlighted) && (
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[planet.size * 1.45, planet.size * 1.65, 24]} />
+            <ringGeometry args={[planet.size * 1.45, planet.size * 1.485, 128]} />
             <meshBasicMaterial color={isPlanetHighlighted ? '#fbbf24' : '#38bdf8'} side={THREE.DoubleSide} />
           </mesh>
         )}
@@ -1298,6 +1137,62 @@ const GalacticExoplanetSystem: React.FC<{
     </group>
   );
 };
+
+// Persistent Solar Neighborhood & Orion Spur Anchor at [0, 0, 0] in Milky Way Scale
+const SolarNeighborhoodAnchor: React.FC<{
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (rootRef.current) {
+      registerCelestialObject('solar_neighborhood', rootRef.current);
+    }
+    return () => unregisterCelestialObject('solar_neighborhood');
+  }, []);
+
+  return (
+    <group
+      ref={rootRef}
+      position={[0, 0, 0]}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <PooledPointLight color="#fde047" intensity={6.0} distance={800} decay={1.5} />
+
+      {/* The Sun as seen from afar: real photosphere map and a wide soft glow */}
+      <StarBody radius={9.5} kelvin={5772} spots={1} brightness={2.0} glowScale={3.4} glowOpacity={0.7} />
+
+      {/* Selection / Focus Ring */}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[20.0, 23.0, 36]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Tag */}
+      {(hovered || isSelected) && (
+        <Html position={[0, 28, 0]} center distanceFactor={90}>
+          <div className="px-3 py-1 rounded-full bg-amber-950/90 border border-amber-400 text-xs font-bold text-amber-200 shadow-xl backdrop-blur-md whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+            <span>☀️ {language === 'ar' ? 'النظام الشمسي وذراع الجبار' : 'Solar System & Orion Spur'}</span>
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
+const detailedMilkyWayFade = (camera: THREE.Camera) =>
+  1 - THREE.MathUtils.smoothstep(camera.position.length(), MILKY_WAY_CROSSFADE_START, MILKY_WAY_CROSSFADE_END);
 
 export const MilkyWayScene: React.FC = () => {
   const language = useQuantumStore((s) => s.language);
@@ -1318,7 +1213,20 @@ export const MilkyWayScene: React.FC = () => {
   const sgrACenter: [number, number, number] = [0, 0, -6500];
 
   return (
-    <group>
+    // Cross-fades into the scale-4 Milky Way stand-in while zooming out (see MILKY_WAY_CROSSFADE_*)
+    <DistanceFadeGroup fade={detailedMilkyWayFade} fadeOpaque={false}>
+      {/* ==================================================== */}
+      {/* 0. SOLAR SYSTEM & ORION SPUR ANCHOR AT [0, 0, 0]     */}
+      {/* ==================================================== */}
+      {/* Stand-in for the Stellar Neighborhood's Sol: shown only while scale 2 is hidden */}
+      <ScaleStandIn replacesScale={2}>
+        <SolarNeighborhoodAnchor
+          isSelected={selectedCosmicBodyId === 'sun'}
+          onSelect={() => setSelectedCosmicBodyId('sun')}
+          language={language}
+        />
+      </ScaleStandIn>
+
       {/* Dynamic 18,000-unit Milky Way Spiral Arms centered at Sgr A* */}
       <MilkyWaySpiralArms center={sgrACenter} glowTexture={glowTexture} />
 
@@ -1543,6 +1451,6 @@ export const MilkyWayScene: React.FC = () => {
           badgeSuffix="Iron Rain"
         />
       )}
-    </group>
+    </DistanceFadeGroup>
   );
 };

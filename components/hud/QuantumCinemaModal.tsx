@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   X,
   Play,
@@ -25,10 +25,13 @@ import {
   VideoItem,
 } from '@/data/videosData';
 import { TRANSLATIONS } from '@/data/translations';
+import { useEscapeKey } from '@/lib/useEscapeKey';
 
 export const QuantumCinemaModal: React.FC = () => {
   const isOpen = useQuantumStore((s) => s.isVideoModalOpen);
   const setOpen = useQuantumStore((s) => s.setVideoModalOpen);
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  useEscapeKey(isOpen, close);
   const activeVideoType = useQuantumStore((s) => s.activeVideoType);
   const scaleLevel = useQuantumStore((s) => s.scaleLevel);
   const setScaleLevel = useQuantumStore((s) => s.setScaleLevel);
@@ -140,20 +143,25 @@ export const QuantumCinemaModal: React.FC = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in pointer-events-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in pointer-events-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
       <div
         id="quantum-cinema-modal"
-        className="glass-panel-deep w-full max-w-5xl max-h-[95vh] rounded-3xl flex flex-col border border-sky-400/30 shadow-2xl overflow-hidden"
+        className="glass-panel-deep w-full max-w-5xl max-h-[95dvh] rounded-3xl flex flex-col border border-sky-400/30 shadow-2xl overflow-hidden"
       >
         {/* Modal Top Header */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-700/60 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-500/20 text-white">
+        <div className="p-3 sm:p-5 border-b border-slate-700/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 items-center justify-center shadow-lg shadow-rose-500/20 text-white">
               <Play className="w-5 h-5 fill-white" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-lg font-bold text-white tracking-wide">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-sm sm:text-lg font-bold text-white tracking-wide truncate">
                   {language === 'ar'
                     ? 'سينما كوانتوم: المحاضرات المرئية لكافة المقاييس والعناصر'
                     : 'Quantum Cinema: Animated Physics Masterclasses'}
@@ -163,7 +171,7 @@ export const QuantumCinemaModal: React.FC = () => {
                   HD
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="hidden sm:block text-xs text-slate-400">
                 {language === 'ar'
                   ? 'استكشف شروحات مرئية عالمية لأبعاد المادة الخمسة وجميع عناصر الجدول الدوري الـ 118'
                   : 'Curated world-class animations for all 5 powers of ten & all 118 chemical elements'}
@@ -171,7 +179,7 @@ export const QuantumCinemaModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <a
               id="quantum-youtube-direct-link"
               href={currentVideo.id.startsWith('search_') ? currentVideo.embedUrl : `https://www.youtube.com/watch?v=${currentVideo.id}`}
@@ -187,9 +195,9 @@ export const QuantumCinemaModal: React.FC = () => {
             </a>
             <button
               id="quantum-cinema-close"
-              onClick={() => setOpen(false)}
+              onClick={close}
               aria-label="Close Cinema"
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              className="p-2 coarse:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
             >
               <X className="w-5 h-5" />
             </button>
