@@ -13,7 +13,7 @@ import {
 } from './shaders/galaxyShaders';
 import { PooledPointLight } from '@/components/universe/rendering/LightPool';
 import { getGlowPointTexture } from '@/lib/planetTextures';
-import { softenPointSprites } from '@/components/universe/rendering/softPointSprites';
+import { softenPointSprites, starPointSprites } from '@/components/universe/rendering/softPointSprites';
 import { getGalaxyDiskRotation, GALAXY_INTERIORS, interiorFade, InteriorStyle } from '@/lib/galaxyInteriors';
 import { DistanceFadeGroup } from '@/components/universe/rendering/useDistanceFade';
 import { getCoronaTexture } from '@/components/universe/rendering/celestialMaterials';
@@ -70,8 +70,8 @@ const gauss = (rand: () => number) => {
 };
 
 const INSIDE_DISK_GLOW: Record<InteriorStyle, number> = {
-  grand_spiral: 0.35,
-  flocculent_spiral: 0.35,
+  grand_spiral: 0.2,
+  flocculent_spiral: 0.2,
   barred_magellanic: 0.3,
   irregular_dwarf: 0.3,
   starburst_disk: 0,
@@ -435,7 +435,7 @@ export const RealisticGalaxy: React.FC<RealisticGalaxyProps> = ({
               <bufferAttribute attach="attributes-color" args={[bulgeStars.col, 3]} />
             </bufferGeometry>
             <pointsMaterial
-              ref={softenPointSprites}
+              ref={starPointSprites}
               size={body.size * 0.012}
               map={haloTexture}
               vertexColors

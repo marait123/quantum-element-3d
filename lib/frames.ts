@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CELESTIAL_BODIES } from '@/data/universeData';
-import { BODY_FRAMES, BodyFrame, OrbitFrame, DEFAULT_MIN_PERIOD_SECONDS, ORBITAL_PERIOD_DAYS } from '@/data/bodyFrames';
+import { BODY_FRAMES, BodyFrame, OrbitFrame, TrajectoryFrame, DEFAULT_MIN_PERIOD_SECONDS, ORBITAL_PERIOD_DAYS, LAUNCH_UTC, TRAJECTORY_REFERENCE_UTC } from '@/data/bodyFrames';
+import { daysSinceJ2000, hasEphemeris, moonEcliptic, planetScenePosition, poleQuaternion } from '@/lib/ephemeris';
 import { EARTH_YEAR_SECONDS, simClock, skyDaysSinceJ2000 } from '@/lib/simClock';
 
 // Frame graph: where a body is at a given simulation time, derived from its parent and its placement (see
@@ -68,32 +69,43 @@ export function eclipticDirection(lonDeg: number, latDeg: number, out = new THRE
   return out.set(Math.cos(b) * Math.cos(l), Math.sin(b), -Math.cos(b) * Math.sin(l));
 }
 
-/** Where a Sun-orbiting body (with a real mean longitude) was on a given calendar date */
+/** Where a Sun-orbiting body was on a given calendar date (real elements for the planets) */
 export function heliocentricPositionOnDate(id: string, dateUtcMs: number, out = new THREE.Vector3()) {
   const f = BODY_FRAMES[id];
-  if (!f || f.kind !== 'orbit' || f.meanLongitudeJ2000 === undefined) return out.set(0, 0, 0);
-  const days = (dateUtcMs - Date.UTC(2000, 0, 1, 12)) / 86400000;
+  if (!f || f.kind !== 'orbit') return out.set(0, 0, 0);
+  const days = daysSinceJ2000(dateUtcMs);
+  if (hasEphemeris(id) && f.parent === 'sun') return planetScenePosition(id, days, f.radius, out);
+  if (f.meanLongitudeJ2000 === undefined) return out.set(0, 0, 0);
   const angle = (f.meanLongitudeJ2000 + (360 * days) / f.periodDays) * DEG;
   return orbitPointAtAngle(f, angle, out);
 }
 
+/** Days since J2000 shown by the sky at simulation time t */
+export const skyDaysAt = (t: number = simClock.time) => skyDaysSinceJ2000(t);
+
+/** Spacecraft are only shown once launched */
+export function isLaunched(id: string, t: number = simClock.time) {
+  const launch = LAUNCH_UTC[id];
+  return launch === undefined || daysSinceJ2000(launch) <= skyDaysSinceJ2000(t);
+}
+
 /** Offset from the parent (scene units) for an orbit at time t */
-export function orbitOffsetAt(f: OrbitFrame, t: number, out: THREE.Vector3) {
-  const a = orbitAngleAt(f, t);
-  out.set(Math.cos(a) * f.radius, 0, -Math.sin(a) * f.radius);
-  if (f.inclinationDeg) {
-    // Tilt the orbit plane about the line of nodes
-    const node = (f.nodeDeg ?? 0) * DEG;
-    _axis.set(Math.cos(node), 0, -Math.sin(node));
-    _tilt.setFromAxisAngle(_axis, f.inclinationDeg * DEG);
-    out.applyQuaternion(_tilt);
+export function orbitOffsetAt(f: OrbitFrame, t: number, out: THREE.Vector3, id?: string) {
+  if (id && hasEphemeris(id)) {
+    const days = skyDaysSinceJ2000(t);
+    if (id === 'moon') {
+      const m = moonEcliptic(days);
+      return eclipticDirection(m.lonDeg, m.latDeg, out).multiplyScalar(f.radius);
+    }
+    if (f.parent === 'sun') return planetScenePosition(id, days, f.radius, out);
   }
-  return out;
+  return orbitPointAtAngle(f, orbitAngleAt(f, t), out);
 }
 
 /** A point on the orbit at a given angle (for drawing the orbit path) */
 export function orbitPointAtAngle(f: OrbitFrame, angle: number, out: THREE.Vector3) {
   out.set(Math.cos(angle) * f.radius, 0, -Math.sin(angle) * f.radius);
+  if (f.plane === 'equator') return out.applyQuaternion(poleQuaternion(f.parent));
   if (f.inclinationDeg) {
     const node = (f.nodeDeg ?? 0) * DEG;
     _axis.set(Math.cos(node), 0, -Math.sin(node));
@@ -101,6 +113,57 @@ export function orbitPointAtAngle(f: OrbitFrame, angle: number, out: THREE.Vecto
     out.applyQuaternion(_tilt);
   }
   return out;
+}
+
+/** Points along a body's orbit for its guide line: the real (eccentric, tilted) orbit for bodies with elements */
+export function orbitPathPoints(id: string, segments = 180): THREE.Vector3[] {
+  const f = BODY_FRAMES[id];
+  if (!f || f.kind !== 'orbit') return [];
+  const pts: THREE.Vector3[] = [];
+  const d0 = skyDaysSinceJ2000(0);
+  for (let i = 0; i <= segments; i++) {
+    if (hasEphemeris(id) && f.parent === 'sun') pts.push(planetScenePosition(id, d0 + (i / segments) * f.periodDays, f.radius, new THREE.Vector3()));
+    else pts.push(orbitPointAtAngle(f, (i / segments) * Math.PI * 2, new THREE.Vector3()));
+  }
+  return pts;
+}
+
+// Probe routes: launch at Earth, through the flybys, to the escape heading, then straight out
+const routeCurves = new Map<string, { curve: THREE.CatmullRomCurve3; days: number[] }>();
+function routeCurve(id: string, f: TrajectoryFrame) {
+  let c = routeCurves.get(id);
+  if (c) return c;
+  const pts = f.route.map(([body, date]) => heliocentricPositionOnDate(body, date));
+  const days = f.route.map(([, date]) => daysSinceJ2000(date));
+  pts.push(eclipticDirection(f.lonDeg, f.latDeg).multiplyScalar(f.distance));
+  days.push(daysSinceJ2000(TRAJECTORY_REFERENCE_UTC));
+  c = { curve: new THREE.CatmullRomCurve3(pts, false, 'centripetal'), days };
+  routeCurves.set(id, c);
+  return c;
+}
+
+function trajectoryPositionOnDays(id: string, f: TrajectoryFrame, d: number, out: THREE.Vector3) {
+  const { curve, days } = routeCurve(id, f);
+  const last = days[days.length - 1];
+  if (d >= last) {
+    const dist = f.distance + (f.unitsPerYear * (d - last)) / 365.25;
+    return eclipticDirection(f.lonDeg, f.latDeg, out).multiplyScalar(dist);
+  }
+  if (d <= days[0]) return out.copy(curve.points[0]);
+  let k = 0;
+  while (k < days.length - 2 && d > days[k + 1]) k++;
+  const frac = (d - days[k]) / (days[k + 1] - days[k]);
+  return curve.getPoint((k + frac) / (days.length - 1), out);
+}
+
+/** The flown part of a probe's route up to time t (for its trail) */
+export function trajectoryHistory(id: string, t: number = simClock.time, samples = 120): THREE.Vector3[] {
+  const f = BODY_FRAMES[id];
+  if (!f || f.kind !== 'trajectory') return [];
+  const start = daysSinceJ2000(f.route[0][1]);
+  const end = skyDaysSinceJ2000(t);
+  if (end <= start) return [];
+  return Array.from({ length: samples + 1 }, (_, i) => trajectoryPositionOnDays(id, f, start + ((end - start) * i) / samples, new THREE.Vector3()));
 }
 
 const _parent = new THREE.Vector3();
@@ -117,13 +180,10 @@ export function worldPositionAt(id: string, t: number = simClock.time, out = new
   }
   if (f.kind === 'orbit') {
     const parent = worldPositionAt(f.parent, t, new THREE.Vector3(), depth + 1);
-    orbitOffsetAt(f, t, out);
+    orbitOffsetAt(f, t, out, id);
     return out.add(parent);
   }
-  if (f.kind === 'trajectory') {
-    const dist = f.distance + (f.unitsPerYear * t) / EARTH_YEAR_SECONDS;
-    return eclipticDirection(f.lonDeg, f.latDeg, out).multiplyScalar(dist);
-  }
+  if (f.kind === 'trajectory') return trajectoryPositionOnDays(id, f, skyDaysSinceJ2000(t), out);
   // Lagrange L2: beyond the secondary, on the line from the primary
   const secondary = worldPositionAt(f.parent, t, _parent.clone(), depth + 1);
   const primary = worldPositionAt(f.primary, t, _primary.clone(), depth + 1);
@@ -136,7 +196,7 @@ export function worldPositionAt(id: string, t: number = simClock.time, out = new
 export function localPositionAt(id: string, t: number = simClock.time, out = new THREE.Vector3()) {
   const f = BODY_FRAMES[id];
   if (!f) return out.set(0, 0, 0);
-  if (f.kind === 'orbit') return orbitOffsetAt(f, t, out);
+  if (f.kind === 'orbit') return orbitOffsetAt(f, t, out, id);
   const world = worldPositionAt(id, t, new THREE.Vector3());
   const parent = worldPositionAt(f.parent, t, new THREE.Vector3());
   return out.copy(world).sub(parent);

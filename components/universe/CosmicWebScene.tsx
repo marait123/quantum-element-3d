@@ -3,8 +3,8 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { LayerHtml as Html } from '@/components/universe/rendering/LayerVisibility';
-import { useDistanceFade } from '@/components/universe/rendering/useDistanceFade';
-import { COSMIC_WEB_FADE_START, COSMIC_WEB_FADE_FULL } from '@/lib/scaleVisibility';
+import { DistanceFadeGroup, useDistanceFade } from '@/components/universe/rendering/useDistanceFade';
+import { COSMIC_WEB_FADE_START, COSMIC_WEB_FADE_FULL, GALAXIES_FADE_START, GALAXIES_FADE_FULL } from '@/lib/scaleVisibility';
 import { GALAXY_INTERIORS, interiorFade } from '@/lib/galaxyInteriors';
 
 const ENTERABLE_IDS = Object.keys(GALAXY_INTERIORS);
@@ -16,9 +16,33 @@ import { getGlowPointTexture } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 import { RealisticBlackHole } from './blackhole/RealisticBlackHole';
 import { scaledCount, isLowQuality } from '@/lib/deviceQuality';
-import { softenPointSprites } from '@/components/universe/rendering/softPointSprites';
+import { softenPointSprites, starPointSprites } from '@/components/universe/rendering/softPointSprites';
 
 const noRaycast = () => null;
+
+// The cosmic web surrounds the Local Group: dissolve it while flying in towards the Milky Way, so it is fully
+// transparent by the time this layer turns off at the Milky Way boundary (no pop in either direction)…
+const webFromHome = (cam: THREE.Camera) =>
+  THREE.MathUtils.smoothstep(cam.position.length(), COSMIC_WEB_FADE_START, COSMIC_WEB_FADE_FULL);
+// …and let it vanish while the camera is inside another galaxy (as it does inside the Milky Way)
+const insideGalaxy = (cam: THREE.Camera) => {
+  let inside = 0;
+  for (const id of ENTERABLE_IDS) {
+    const b = CELESTIAL_BODIES[id];
+    inside = Math.max(inside, interiorFade(cam.position.distanceTo(_webFadeVec.set(...b.position)), b.size));
+  }
+  return inside;
+};
+// Laniakea's heart, the Great Attractor, lies only ~45,000 units out, inside the zone where the rest of the web has
+// faded away. Keep its flow visible while the camera is near it (within the Great Attractor's sphere of influence,
+// where computeScaleVisibility keeps this layer on), still fully transparent at the region boundary near home.
+const _gaPos = new THREE.Vector3(...CELESTIAL_BODIES.great_attractor.position);
+const laniakeaFade = (cam: THREE.Camera) => {
+  const nearGA =
+    (1 - THREE.MathUtils.smoothstep(cam.position.distanceTo(_gaPos), 10000, 20000)) *
+    THREE.MathUtils.smoothstep(cam.position.length(), GALAXIES_FADE_START, GALAXIES_FADE_FULL);
+  return Math.max(webFromHome(cam), nearGA) * (1 - insideGalaxy(cam));
+};
 
 // Deterministic randomness (the web looks the same on every visit)
 function seededRandom(seed: number) {
@@ -434,13 +458,66 @@ const BootesVoidStructure: React.FC<{
   );
 };
 
+// The Great Attractor: where Laniakea's streamlines converge. Its own body, so it can be clicked and flown to.
+const GreatAttractorCore: React.FC<{
+  position: THREE.Vector3;
+  glowTexture?: THREE.CanvasTexture;
+  isSelected: boolean;
+  onSelect: () => void;
+  language: 'en' | 'ar';
+}> = ({ position, glowTexture, isSelected, onSelect, language }) => {
+  const rootRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+  const body = CELESTIAL_BODIES.great_attractor;
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject('great_attractor', rootRef.current);
+    return () => unregisterCelestialObject('great_attractor', rootRef.current ?? undefined);
+  }, []);
+
+  return (
+    <group
+      ref={rootRef}
+      position={position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+    >
+      <sprite scale={[body.size * 2, body.size * 2, 1]} raycast={noRaycast}>
+        <spriteMaterial map={glowTexture} color={body.color} transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      {/* Picking target (draws nothing) */}
+      <mesh>
+        <sphereGeometry args={[body.size * 0.45, 12, 8]} />
+        <meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} />
+      </mesh>
+      {(hovered || isSelected) && (
+        <Html position={[0, body.size * 0.8, 0]} center distanceFactor={body.size * 6}>
+          <div className="px-3 py-1 rounded-full bg-slate-950/95 border border-amber-400 text-xs font-bold text-amber-200 whitespace-nowrap shadow-2xl">
+            🧲 {language === 'ar' ? body.nameAr : body.nameEn}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
 // Laniakea Supercluster Flow (Size 180,000)
 const LaniakeaFlowModel: React.FC<{
   isSelected: boolean;
   onSelect: () => void;
+  selectedGreatAttractor: boolean;
+  onSelectGreatAttractor: () => void;
   language: 'en' | 'ar';
   glowTexture?: THREE.CanvasTexture;
-}> = ({ isSelected, onSelect, language, glowTexture }) => {
+}> = ({ isSelected, onSelect, selectedGreatAttractor, onSelectGreatAttractor, language, glowTexture }) => {
   const rootRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const body = CELESTIAL_BODIES.laniakea_supercluster;
@@ -458,7 +535,7 @@ const LaniakeaFlowModel: React.FC<{
   const flow = useMemo(() => {
     const rand = seededRandom(2014);
     const R = body.size * 0.5;
-    const greatAttractor = new THREE.Vector3(-30000, -6000, -26000);
+    const greatAttractor = new THREE.Vector3(...CELESTIAL_BODIES.great_attractor.position).sub(new THREE.Vector3(...body.position));
     const lines = isLowQuality() ? 40 : 80;
     const steps = 28;
     const linePts: number[] = [];
@@ -579,7 +656,7 @@ const LaniakeaFlowModel: React.FC<{
           <bufferAttribute attach="attributes-color" args={[flow.galaxyCol, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          ref={softenPointSprites}
+          ref={starPointSprites}
           size={900}
           map={glowTexture}
           vertexColors
@@ -596,7 +673,7 @@ const LaniakeaFlowModel: React.FC<{
           <bufferAttribute attach="attributes-position" args={[flow.tracerPos, 3]} usage={THREE.DynamicDrawUsage} />
         </bufferGeometry>
         <pointsMaterial
-          ref={softenPointSprites}
+          ref={starPointSprites}
           size={1300}
           map={glowTexture}
           color="#f0f9ff"
@@ -608,9 +685,13 @@ const LaniakeaFlowModel: React.FC<{
       </points>
 
       {/* The Great Attractor: the dense heart the flows converge on (Norma cluster region) */}
-      <sprite position={flow.greatAttractor} scale={[16000, 16000, 1]} raycast={noRaycast}>
-        <spriteMaterial map={glowTexture} color="#fde68a" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
+      <GreatAttractorCore
+        position={flow.greatAttractor}
+        glowTexture={glowTexture}
+        isSelected={selectedGreatAttractor}
+        onSelect={onSelectGreatAttractor}
+        language={language}
+      />
 
       {(hovered || isSelected) && (
         <Html position={[0, body.size * 0.35, 0]} center distanceFactor={body.size * 4}>
@@ -679,28 +760,24 @@ export const CosmicWebScene: React.FC = () => {
   // The cosmic web surrounds the Local Group: dissolve it while flying in towards the Milky Way, so it is fully
   // transparent by the time this layer turns off at the Milky Way boundary (no pop in either direction)
   // …and let it vanish while the camera is inside another galaxy (as it does inside the Milky Way)
-  useDistanceFade(groupRef, (cam) => {
-    const fromHome = THREE.MathUtils.smoothstep(cam.position.length(), COSMIC_WEB_FADE_START, COSMIC_WEB_FADE_FULL);
-    let inside = 0;
-    for (const id of ENTERABLE_IDS) {
-      const b = CELESTIAL_BODIES[id];
-      inside = Math.max(inside, interiorFade(cam.position.distanceTo(_webFadeVec.set(...b.position)), b.size));
-    }
-    return fromHome * (1 - inside);
-  });
+  useDistanceFade(groupRef, (cam) => webFromHome(cam) * (1 - insideGalaxy(cam)));
 
   return (
-    <group ref={groupRef}>
-      {/* 3D Dark Matter & Galaxy Filaments */}
-      <FilamentaryWeb glowTexture={glowTexture} />
-
-      {/* Laniakea Supercluster Flow */}
+    <>
+    {/* Laniakea Supercluster Flow: outside the web's fade group, with its own fade (see laniakeaFade) */}
+    <DistanceFadeGroup fade={laniakeaFade}>
       <LaniakeaFlowModel
         isSelected={selectedCosmicBodyId === 'laniakea_supercluster'}
         onSelect={() => setSelectedCosmicBodyId('laniakea_supercluster')}
+        selectedGreatAttractor={selectedCosmicBodyId === 'great_attractor'}
+        onSelectGreatAttractor={() => setSelectedCosmicBodyId('great_attractor')}
         language={language}
         glowTexture={glowTexture}
       />
+    </DistanceFadeGroup>
+    <group ref={groupRef}>
+      {/* 3D Dark Matter & Galaxy Filaments */}
+      <FilamentaryWeb glowTexture={glowTexture} />
 
       {/* Boötes Great Void */}
       <BootesVoidStructure
@@ -727,5 +804,6 @@ export const CosmicWebScene: React.FC = () => {
         />
       )}
     </group>
+    </>
   );
 };

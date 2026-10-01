@@ -32,8 +32,61 @@ const TAP_MAX_MS = 500;
 
 // A single click flies to the object; its card appears only once the camera has arrived, after a short pause to
 // take in the view. A double click shows it at once. The fallback covers a flight that ends without arriving.
-const CARD_DELAY_AFTER_ARRIVAL_MS = 1500;
+const CARD_DELAY_AFTER_ARRIVAL_MS = 750;
 const CARD_FALLBACK_MS = 6000;
+
+// Headings, speeds and stellar encounters of the probes leaving the Solar System (NASA/JPL Voyager FAQ and Pioneer
+// mission pages). Proxima Centauri lies at Dec −62.7°, far from all of these headings.
+const PROBE_TELEMETRY: Record<
+  string,
+  { headingEn: string; headingAr: string; speed: string; targetEn: string; targetAr: string; noteEn: string; noteAr: string }
+> = {
+  voyager_1: {
+    headingEn: '35° N · Ophiuchus',
+    headingAr: '35° شمالاً · الحواء',
+    speed: '~3.5 AU/yr (~17 km/s)',
+    targetEn: 'AC+79 3888 (Gliese 445), 1.7 ly, 40,272 AD',
+    targetAr: 'AC+79 3888 (غليزا 445)، 1.7 سنة ضوئية، عام 40,272م',
+    noteEn: 'No. Its Saturn–Titan flyby sent it 35° north of the ecliptic towards Ophiuchus; Proxima Centauri lies deep in the southern sky.',
+    noteAr: 'لا. أرسله تحليقه قرب زحل وتيتان 35° شمال دائرة البروج نحو الحواء، بينما يقع بروكسيما قنطورس في أقصى سماء الجنوب.',
+  },
+  voyager_2: {
+    headingEn: '48° S · Sagittarius / Pavo',
+    headingAr: '48° جنوباً · الرامي / الطاووس',
+    speed: '~3.1 AU/yr (~15 km/s)',
+    targetEn: 'Ross 248 (Andromeda), 1.7 ly, ~40,000 yrs',
+    targetAr: 'روس 248 (المرأة المسلسلة)، 1.7 سنة ضوئية، بعد ~40,000 عام',
+    noteEn: 'No. Neptune bent its path 48° south towards Sagittarius and Pavo. Ross 248 lies in the north, but it is moving into the probe\'s path.',
+    noteAr: 'لا. حرف نبتون مسارها 48° جنوباً نحو الرامي والطاووس. يقع روس 248 في الشمال، لكنه يتحرك نحو مسار المسبار.',
+  },
+  pioneer_10: {
+    headingEn: '3° N · Taurus',
+    headingAr: '3° شمالاً · الثور',
+    speed: '~2.5 AU/yr (~12 km/s)',
+    targetEn: 'Aldebaran, in ~2 million yrs',
+    targetAr: 'الدبران، بعد ~2 مليون عام',
+    noteEn: 'No. It left almost in the plane of the planets, towards Taurus, on the opposite side of the sky from Proxima.',
+    noteAr: 'لا. غادرت قريباً من مستوى الكواكب نحو الثور، في الجهة المقابلة من السماء لبروكسيما.',
+  },
+  pioneer_11: {
+    headingEn: '14° N · Aquila',
+    headingAr: '14° شمالاً · العقاب',
+    speed: '~2.4 AU/yr (~11 km/s)',
+    targetEn: 'A star in Aquila, in ~4 million yrs',
+    targetAr: 'نجم في العقاب، بعد ~4 ملايين عام',
+    noteEn: 'No. Saturn\'s gravity sent it towards Aquila, north of the ecliptic.',
+    noteAr: 'لا. أرسلتها جاذبية زحل نحو العقاب، شمال دائرة البروج.',
+  },
+  new_horizons: {
+    headingEn: '2° N · Sagittarius',
+    headingAr: '2° شمالاً · الرامي',
+    speed: '~3 AU/yr (~14 km/s)',
+    targetEn: 'None announced; still in the Kuiper Belt',
+    targetAr: 'لم يُعلن عن لقاء؛ ما زالت في حزام كايبر',
+    noteEn: 'No. It follows Pluto\'s 2015 direction, close to the ecliptic towards Sagittarius.',
+    noteAr: 'لا. تتبع اتجاه بلوتو عام 2015، قريباً من دائرة البروج نحو الرامي.',
+  },
+};
 
 export const CelestialInspectorTooltip: React.FC = () => {
   const selectedCosmicBodyId = useQuantumStore((s) => s.selectedCosmicBodyId);
@@ -240,52 +293,38 @@ export const CelestialInspectorTooltip: React.FC = () => {
       </div>
     </div>
 
-    {/* Interstellar Probe Telemetry (for Voyagers) */}
-    {(body.id === 'voyager_1' || body.id === 'voyager_2') && (
-      <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-800/60 text-xs space-y-2">
-        <div className="flex items-center justify-between font-bold text-sky-300">
-          <span className="flex items-center gap-1.5">
-            <Compass className="w-3.5 h-3.5 text-sky-400" />
-            <span>{language === 'ar' ? 'بيانات المسار بين النجوم' : 'Interstellar Telemetry'}</span>
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 font-mono">
-            {body.id === 'voyager_1' ? '+35.2° North' : '-48.0° South'}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
-            <span className="text-slate-400 block text-[9px]">
-              {language === 'ar' ? 'السرعة الشمسية' : 'Escape Velocity'}
+    {/* Interstellar probe telemetry: heading, speed and next stellar encounter (NASA/JPL figures) */}
+    {PROBE_TELEMETRY[body.id] && (() => {
+      const t = PROBE_TELEMETRY[body.id];
+      const ar = language === 'ar';
+      return (
+        <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-800/60 text-xs space-y-2">
+          <div className="flex items-center justify-between font-bold text-sky-300">
+            <span className="flex items-center gap-1.5">
+              <Compass className="w-3.5 h-3.5 text-sky-400" />
+              <span>{ar ? 'بيانات المسار بين النجوم' : 'Interstellar Telemetry'}</span>
             </span>
-            <span className="font-semibold text-slate-200">
-              {body.id === 'voyager_1' ? '17.0 km/s (3.6 AU/yr)' : '15.3 km/s (3.2 AU/yr)'}
-            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 font-mono">{ar ? t.headingAr : t.headingEn}</span>
           </div>
-          <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
-            <span className="text-slate-400 block text-[9px]">
-              {language === 'ar' ? 'الهدف النجمي القادم' : 'Encounter Target'}
+          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+            <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+              <span className="text-slate-400 block text-[9px]">{ar ? 'سرعة الابتعاد عن الشمس' : 'Speed away from the Sun'}</span>
+              <span className="font-semibold text-slate-200">{t.speed}</span>
+            </div>
+            <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+              <span className="text-slate-400 block text-[9px]">{ar ? 'اللقاء النجمي القادم' : 'Next stellar encounter'}</span>
+              <span className="font-semibold text-sky-200">{ar ? t.targetAr : t.targetEn}</span>
+            </div>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-300 leading-relaxed">
+            <span className="text-amber-400 font-semibold block mb-0.5">
+              {ar ? '💡 هل يتجه نحو أقرب نجم (بروكسيما قنطورس)؟' : '💡 Heading to the nearest star (Proxima)?'}
             </span>
-            <span className="font-semibold text-sky-200">
-              {body.id === 'voyager_1' ? 'Gliese 445 (~40k yrs)' : 'Ross 248 / Sirius'}
-            </span>
+            <span>{ar ? t.noteAr : t.noteEn}</span>
           </div>
         </div>
-        <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-300 leading-relaxed">
-          <span className="text-amber-400 font-semibold block mb-0.5">
-            {language === 'ar' ? '💡 هل يتجه نحو أقرب نجم (بروكسيما قنطورس)؟' : '💡 Heading to the nearest star (Proxima)?'}
-          </span>
-          <span>
-            {body.id === 'voyager_1'
-              ? language === 'ar'
-                ? 'كلا، قذفته جاذبية قمر تيتان شمالاً (+35.2°) باتجاه كوكبة الزرافة، بينما يقع بروكسيما قنطورس في أقصى سماء الجنوب (-62.7°).'
-                : 'No. Titan gravity assist flung it North (+35.2°) toward Camelopardalis, whereas Proxima Centauri lies in the deep South (-62.7°).'
-              : language === 'ar'
-                ? 'كلا، قذفته جاذبية نبتون وتريتون جنوباً (-48.0°) نحو كوكبة الطاووس ليمر بمحاذاة روس 248 والشعرى اليمانية.'
-                : 'No. Neptune polar assist deflected it South (-48.0°) toward Pavo, passing Ross 248 and Sirius.'}
-          </span>
-        </div>
-      </div>
-    )}
+      );
+    })()}
 
     {/* Honesty note: this body's orbit runs slower or faster than its true ratio so it stays watchable */}
     {isMotionScaled(body.id) && (
@@ -402,6 +441,7 @@ export const CelestialInspectorTooltip: React.FC = () => {
             const videoMap: Record<string, string> = {
               sun: 'the_sun_fusion_engine',
               voyager_1: 'voyager_interstellar_mission',
+              voyager_2: 'voyager_interstellar_mission',
               betelgeuse: 'supernovae_neutron_stars',
               crab_pulsar: 'neutron_stars_pulsars',
               cygnus_x1: 'stellar_black_holes',

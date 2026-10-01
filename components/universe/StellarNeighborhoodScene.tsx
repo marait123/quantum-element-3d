@@ -25,6 +25,8 @@ const STAR_KELVIN: Record<string, number> = {
   tau_ceti: 5344, // G8.5 V
   gliese_667c: 3350, // M1.5 V
   lhs_1140: 3096, // M4.5 V
+  gliese_445: 3200, // M4 V (typical for the class)
+  ross_248: 2800, // M5–M6 V (typical for the class)
 };
 
 // Betelgeuse Red Supergiant with pulsating convective envelope
@@ -1415,6 +1417,30 @@ export const StellarNeighborhoodScene: React.FC = () => {
       {CELESTIAL_BODIES.wolf_359 && (
         <ExoplanetSystemNode
           star={CELESTIAL_BODIES.wolf_359}
+          planets={[]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Gliese 445 (AC+79 3888): the star Voyager 1 will pass closest to */}
+      {CELESTIAL_BODIES.gliese_445 && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.gliese_445}
+          planets={[]}
+          selectedId={selectedCosmicBodyId}
+          highlightedElement={highlightedCosmicElementNum}
+          onSelect={(id) => setSelectedCosmicBodyId(id)}
+          language={language}
+        />
+      )}
+
+      {/* Ross 248: the star Voyager 2 will pass closest to (it is moving into the probe's path) */}
+      {CELESTIAL_BODIES.ross_248 && (
+        <ExoplanetSystemNode
+          star={CELESTIAL_BODIES.ross_248}
           planets={[]}
           selectedId={selectedCosmicBodyId}
           highlightedElement={highlightedCosmicElementNum}

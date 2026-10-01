@@ -10,7 +10,7 @@ import { RealisticBlackHole } from '../blackhole/RealisticBlackHole';
 import { RealisticPulsar } from '../pulsar/RealisticPulsar';
 import { PooledPointLight } from '@/components/universe/rendering/LightPool';
 import { getGlowPointTexture } from '@/lib/planetTextures';
-import { softenPointSprites } from '@/components/universe/rendering/softPointSprites';
+import { softenPointSprites, starPointSprites } from '@/components/universe/rendering/softPointSprites';
 import { StarBody } from '@/components/universe/rendering/StarBody';
 import {
   SupergiantStar,
@@ -915,7 +915,7 @@ export const GiantStellarStream: React.FC<{
         </bufferGeometry>
         {/* Small round sprites: big untextured squares would fill the screen near Andromeda's centre */}
         <pointsMaterial
-          ref={softenPointSprites}
+          ref={starPointSprites}
           size={STREAM_STAR_SIZE}
           map={glowTexture}
           alphaTest={0.01}

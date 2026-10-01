@@ -7,7 +7,10 @@ import { useQuantumStore } from '@/stores/useQuantumStore';
 import { CELESTIAL_BODIES } from '@/data/universeData';
 import { getRegisteredCelestialEntries, calculateFramingCameraPosition } from '@/lib/celestialRegistry';
 import { getLightPoolStats } from '../rendering/LightPool';
-import { validateFrames } from '@/lib/frames';
+import { validateFrames, worldPositionAt } from '@/lib/frames';
+import { earthSeason, poleQuaternion } from '@/lib/ephemeris';
+import { skyDateMs, skyDaysSinceJ2000, simClock as _sky } from '@/lib/simClock';
+import { CONSTELLATIONS } from '@/data/constellationData';
 
 // Dev-only diagnostics bridge: exposes `window.__universeDebug` so Playwright scripts in scratch/
 // can measure what is mounted, what is visible, and how fast frames render.
@@ -241,6 +244,22 @@ export const UniverseDebugProbe: React.FC = () => {
     const w = window as unknown as Record<string, unknown>;
     w.__universeDebug = {
       validateFrames,
+      // Sky check for a date: Earth's pole vs the Sun (positive = northern summer), Saturn's ring opening seen from Earth
+      sky: () => {
+        const t = _sky.time;
+        const earth = worldPositionAt('earth', t, new THREE.Vector3());
+        const saturn = worldPositionAt('saturn', t, new THREE.Vector3());
+        const pole = (id: string) => new THREE.Vector3(0, 1, 0).applyQuaternion(poleQuaternion(id));
+        const toSun = earth.clone().negate().normalize();
+        const earthToSaturn = saturn.clone().sub(earth).normalize();
+        return {
+          date: new Date(skyDateMs()).toISOString(),
+          season: earthSeason(skyDaysSinceJ2000()),
+          earthPoleTowardSunDeg: +(90 - (Math.acos(pole('earth').dot(toSun)) * 180) / Math.PI).toFixed(2),
+          saturnRingOpeningDeg: +(90 - (Math.acos(Math.abs(pole('saturn').dot(earthToSaturn))) * 180) / Math.PI).toFixed(2),
+        };
+      },
+      constellations: CONSTELLATIONS,
       pick,
       positionAudit,
       snapshot,

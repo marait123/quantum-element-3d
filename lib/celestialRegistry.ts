@@ -96,6 +96,9 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   // Spacecraft & Satellites (Majestic 3/4 angle)
   voyager_1: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
   voyager_2: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
+  pioneer_10: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
+  pioneer_11: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
+  new_horizons: { elevation: 0.35, lateralAngle: Math.PI * 0.35 },
   jwst: { elevation: 0.38, lateralAngle: Math.PI * 0.25 },
   hubble: { elevation: 0.35, lateralAngle: Math.PI * 0.25 },
 
@@ -169,6 +172,8 @@ export const CELESTIAL_ANGLES: Record<string, FramingAngle> = {
   barnard_star: { elevation: 0.3, lateralAngle: 0 },
   barnard_b: { elevation: 0.32, lateralAngle: Math.PI * 0.25 },
   wolf_359: { elevation: 0.3, lateralAngle: 0 },
+  gliese_445: { elevation: 0.3, lateralAngle: 0 },
+  ross_248: { elevation: 0.3, lateralAngle: 0 },
   tau_ceti: { elevation: 0.3, lateralAngle: 0 },
   tau_ceti_e: { elevation: 0.34, lateralAngle: Math.PI * 0.25 },
   gliese_667c: { elevation: 0.32, lateralAngle: Math.PI * 0.2 },

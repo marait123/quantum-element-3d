@@ -17,6 +17,9 @@ export interface OrbitFrame {
   phaseDeg?: number;
   inclinationDeg?: number; // tilt of the orbit plane
   nodeDeg?: number; // longitude of the ascending node (direction of the tilt axis)
+  // 'equator': the orbit lies in the parent's real equatorial plane (its IAU pole, lib/ephemeris.ts) instead of
+  // inclinationDeg/nodeDeg. Regular moons orbit there (Saturn's moons in the ring plane, Uranus's tipped over…).
+  plane?: 'equator';
   retrograde?: boolean;
   // Screen period limits (seconds at ×1): very fast orbits are slowed to stay visible
   minPeriodSeconds?: number;
@@ -31,20 +34,38 @@ export interface LagrangeFrame {
   distance: number; // scene units beyond the secondary
 }
 
-// Unbound, straight-line escape along a real ecliptic heading (the Voyagers)
+// A probe's real route: launch from Earth, through its planetary flybys (where those planets really were on the
+// flyby dates), to its escape heading; then straight out along that heading (the Voyagers, Pioneers, New Horizons)
 export interface TrajectoryFrame {
   kind: 'trajectory';
   parent: 'sun';
   lonDeg: number; // ecliptic longitude of the heading
   latDeg: number; // ecliptic latitude of the heading
-  distance: number; // scene units from the Sun when the simulation starts
-  unitsPerYear: number; // outward speed in scene units per simulated year
+  distance: number; // scene units from the Sun on TRAJECTORY_REFERENCE_UTC
+  unitsPerYear: number; // outward speed in scene units per year
+  // Launch (first entry, Earth) and flybys: [body, UTC ms]
+  route: [string, number][];
 }
+
+/** The date the trajectory `distance` values refer to */
+export const TRAJECTORY_REFERENCE_UTC = Date.UTC(2026, 9, 1);
+
+/** Launch dates: spacecraft are not shown before them */
+export const LAUNCH_UTC: Record<string, number> = {
+  pioneer_10: Date.UTC(1972, 2, 3),
+  pioneer_11: Date.UTC(1973, 3, 6),
+  voyager_2: Date.UTC(1977, 7, 20),
+  voyager_1: Date.UTC(1977, 8, 5),
+  hubble: Date.UTC(1990, 3, 24),
+  new_horizons: Date.UTC(2006, 0, 19),
+  jwst: Date.UTC(2021, 11, 25),
+};
 
 export type BodyFrame = OrbitFrame | LagrangeFrame | TrajectoryFrame;
 
-// J2000 mean longitudes: E. M. Standish, "Keplerian Elements for Approximate Positions of the Major Planets"
-// (JPL, 1992/2006), degrees. Periods: sidereal, days.
+// Planets (and the Moon) are placed by real orbital elements for the sky date (lib/ephemeris.ts): true direction,
+// eccentric orbit, distance scaled to `radius`. Their periods and J2000 mean longitudes below are kept for reference
+// and for bodies without elements. Periods: sidereal, days.
 export const BODY_FRAMES: Record<string, BodyFrame> = {
   // ---- Planets around the Sun
   mercury: { kind: 'orbit', parent: 'sun', radius: 7.5, periodDays: 87.969, meanLongitudeJ2000: 252.2503, inclinationDeg: 7.0, nodeDeg: 48.33 },
@@ -65,9 +86,19 @@ export const BODY_FRAMES: Record<string, BodyFrame> = {
 
   // ---- Moons (the Moon uses its real mean longitude, so its phase in the sky is right)
   moon: { kind: 'orbit', parent: 'earth', radius: 3.2, periodDays: 27.3217, meanLongitudeJ2000: 218.3165, inclinationDeg: 5.14, nodeDeg: 125.04 },
-  phobos: { kind: 'orbit', parent: 'mars', radius: 1.8, periodDays: 0.31891, phaseDeg: 0, inclinationDeg: 1.08, minPeriodSeconds: 8 },
-  europa: { kind: 'orbit', parent: 'jupiter', radius: 5.2, periodDays: 3.5512, phaseDeg: 120, inclinationDeg: 0.47, minPeriodSeconds: 8 },
-  titan: { kind: 'orbit', parent: 'saturn', radius: 6.8, periodDays: 15.945, phaseDeg: 200, inclinationDeg: 0.35, minPeriodSeconds: 8 },
+  phobos: { kind: 'orbit', parent: 'mars', radius: 1.8, periodDays: 0.31891, phaseDeg: 0, plane: 'equator', minPeriodSeconds: 8 },
+  europa: { kind: 'orbit', parent: 'jupiter', radius: 5.2, periodDays: 3.5512, phaseDeg: 120, plane: 'equator', minPeriodSeconds: 8 },
+  // Moons orbit in their planet's equatorial plane (Saturn's rings plane, Uranus tipped over, Pluto's tilt)
+  titan: { kind: 'orbit', parent: 'saturn', radius: 6.8, periodDays: 15.945, phaseDeg: 200, plane: 'equator', minPeriodSeconds: 8 },
+  enceladus: { kind: 'orbit', parent: 'saturn', radius: 5.8, periodDays: 1.370, phaseDeg: 60, plane: 'equator', minPeriodSeconds: 8 },
+  deimos: { kind: 'orbit', parent: 'mars', radius: 2.5, periodDays: 1.263, phaseDeg: 200, plane: 'equator', minPeriodSeconds: 8 },
+  io: { kind: 'orbit', parent: 'jupiter', radius: 4.4, periodDays: 1.769, phaseDeg: 30, plane: 'equator', minPeriodSeconds: 8 },
+  ganymede: { kind: 'orbit', parent: 'jupiter', radius: 6.8, periodDays: 7.155, phaseDeg: 250, plane: 'equator', minPeriodSeconds: 8 },
+  callisto: { kind: 'orbit', parent: 'jupiter', radius: 8.8, periodDays: 16.689, phaseDeg: 80, plane: 'equator', minPeriodSeconds: 8 },
+  titania: { kind: 'orbit', parent: 'uranus', radius: 3.8, periodDays: 8.706, phaseDeg: 140, plane: 'equator', minPeriodSeconds: 8 },
+  // Triton: retrograde (a captured Kuiper-belt object)
+  triton: { kind: 'orbit', parent: 'neptune', radius: 3.2, periodDays: 5.877, phaseDeg: 100, inclinationDeg: 23, retrograde: true, minPeriodSeconds: 8 },
+  charon: { kind: 'orbit', parent: 'pluto', radius: 1.4, periodDays: 6.387, phaseDeg: 0, plane: 'equator', minPeriodSeconds: 8 },
 
   // ---- Spacecraft
   // Hubble: low Earth orbit, 95.4 min, inclined 28.5° to the equator (shown at the 8 s floor)
@@ -78,8 +109,19 @@ export const BODY_FRAMES: Record<string, BodyFrame> = {
 
   // ---- Interstellar probes: NASA headings (35° north / 48° south of the ecliptic), 3.6 and 3.3 AU/year (~170 and ~142 AU in 2026;
   // the scene compresses distance beyond the planets, ~0.69 units per AU out here)
-  voyager_1: { kind: 'trajectory', parent: 'sun', lonDeg: 255.9, latDeg: 34.9, distance: 117.6, unitsPerYear: 2.46 },
-  voyager_2: { kind: 'trajectory', parent: 'sun', lonDeg: 288.6, latDeg: -48.0, distance: 99.8, unitsPerYear: 2.28 },
+  voyager_1: { kind: 'trajectory', parent: 'sun', lonDeg: 255.9, latDeg: 34.9, distance: 117.6, unitsPerYear: 2.46,
+    route: [['earth', Date.UTC(1977, 8, 5)], ['jupiter', Date.UTC(1979, 2, 5)], ['saturn', Date.UTC(1980, 10, 12)]] },
+  voyager_2: { kind: 'trajectory', parent: 'sun', lonDeg: 288.6, latDeg: -48.0, distance: 99.8, unitsPerYear: 2.28,
+    route: [['earth', Date.UTC(1977, 7, 20)], ['jupiter', Date.UTC(1979, 6, 9)], ['saturn', Date.UTC(1981, 7, 25)], ['uranus', Date.UTC(1986, 0, 24)], ['neptune', Date.UTC(1989, 7, 25)]] },
+  // Pioneer 10 (towards Aldebaran in Taurus), Pioneer 11 (towards Aquila) and New Horizons (towards Sagittarius): headings
+  // from each probe's position on the sky; ~142, ~122 and ~66 AU in late 2026 at 2.5, 2.4 and 3.0 AU/year, mapped
+  // to scene units between Pluto's orbit and the Voyagers
+  pioneer_10: { kind: 'trajectory', parent: 'sun', lonDeg: 79.0, latDeg: 2.8, distance: 99.8, unitsPerYear: 1.75,
+    route: [['earth', Date.UTC(1972, 2, 3)], ['jupiter', Date.UTC(1973, 11, 4)]] },
+  pioneer_11: { kind: 'trajectory', parent: 'sun', lonDeg: 283.5, latDeg: 14.2, distance: 92.8, unitsPerYear: 1.64,
+    route: [['earth', Date.UTC(1973, 3, 6)], ['jupiter', Date.UTC(1974, 11, 3)], ['saturn', Date.UTC(1979, 8, 1)]] },
+  new_horizons: { kind: 'trajectory', parent: 'sun', lonDeg: 288.0, latDeg: 1.6, distance: 73.3, unitsPerYear: 2.04,
+    route: [['earth', Date.UTC(2006, 0, 19)], ['jupiter', Date.UTC(2007, 1, 28)], ['pluto', Date.UTC(2015, 6, 14)]] },
 };
 
 export const DEFAULT_MIN_PERIOD_SECONDS = 8;

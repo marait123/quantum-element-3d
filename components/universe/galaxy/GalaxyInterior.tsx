@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { CelestialBody } from '@/data/universeData';
 import { getGlowPointTexture } from '@/lib/planetTextures';
 import { InteriorStyle } from '@/lib/galaxyInteriors';
-import { softenPointSprites } from '@/components/universe/rendering/softPointSprites';
+import { starPointSprites } from '@/components/universe/rendering/softPointSprites';
 import { isLowQuality } from '@/lib/deviceQuality';
 
 /**
@@ -233,7 +233,7 @@ export const GalaxyInterior: React.FC<{ body: CelestialBody; style: InteriorStyl
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        ref={softenPointSprites}
+        ref={starPointSprites}
         size={body.size * 0.0045 * (isLowQuality() ? 1.35 : 1)}
         map={texture}
         vertexColors

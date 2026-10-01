@@ -436,8 +436,8 @@ export const CosmicDatabaseModal: React.FC = () => {
           {activeTab === 'constellations' && (
             <div className="text-slate-400 font-mono text-xs">
               {language === 'ar'
-                ? '12 كوكبة رئيسية متصلة بالنجوم الفعلية وتوزيعها ثلاثي الأبعاد في درب التبانة'
-                : '12 prominent sky constellations mapped to real 3D coordinates in the Milky Way'}
+                ? `${allConstellationsList.length} كوكبة كاملة، كل نجم في اتجاهه الحقيقي وعلى بعده الحقيقي (بيانات SIMBAD)`
+                : `${allConstellationsList.length} complete constellations, every star at its real direction and distance (SIMBAD data)`}
             </div>
           )}
         </div>

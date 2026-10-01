@@ -51,13 +51,29 @@ import { UniverseDebugProbe } from './debug/UniverseDebugProbe';
 import { LightPool } from './rendering/LightPool';
 import { LayerVisibilityProvider, isObjectRendered } from './rendering/LayerVisibility';
 import { isLowQuality } from '@/lib/deviceQuality';
-import { advanceSimClock } from '@/lib/simClock';
+import { advanceSimClock, simClock } from '@/lib/simClock';
+import { worldPositionAt } from '@/lib/frames';
+import { BODY_FRAMES } from '@/data/bodyFrames';
 
 // Unified Free-Flight Spaceship Controls with In-Place Look-Around & OrbitControls Integration
 // Module-level static scratch objects to eliminate per-frame GC allocations during navigation
 const _scratchVecA = new THREE.Vector3();
 const _scratchVecB = new THREE.Vector3();
 const _scratchVecC = new THREE.Vector3();
+const _orbitAnchor = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+
+// The Sun-orbiting body that carries a selection around the Sun (the planet itself, or a moon's planet)
+function sunOrbitAnchor(id: string): string | null {
+  for (let cur: string | undefined = id, i = 0; cur && i < 6; i++) {
+    const f: (typeof BODY_FRAMES)[string] | undefined = BODY_FRAMES[cur];
+    if (!f) return null;
+    if (f.parent === 'sun') return f.kind === 'orbit' ? cur : null;
+    cur = f.parent;
+  }
+  return null;
+}
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const _scratchEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 interface FreeFlightProps {
@@ -446,6 +462,8 @@ const UniverseCameraManager: React.FC = () => {
   const isInitialMountRef = useRef(true);
   const isTrackingRef = useRef(false);
   const lastTargetPosRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  // Followed planet's angle around the Sun last frame: the camera turns with it, so the view keeps the same side lit
+  const lastOrbitAngleRef = useRef<{ id: string; angle: number } | null>(null);
 
   // Real-time continuous zoom distance tracker and HUD synchronization + Live Orbit Following
   useFrame(() => {
@@ -461,6 +479,22 @@ const UniverseCameraManager: React.FC = () => {
         if (distToBody > framingDist * 40.0) {
           isTrackingRef.current = false;
         } else {
+          // Turn with the body's orbit around the Sun (time running fast or a date jump would otherwise leave the
+          // camera looking at the night side), then move with it
+          const anchor = sunOrbitAnchor(selectedCosmicBodyId);
+          if (anchor) {
+            worldPositionAt(anchor, simClock.time, _orbitAnchor);
+            const angle = Math.atan2(-_orbitAnchor.z, _orbitAnchor.x);
+            const last = lastOrbitAngleRef.current;
+            if (last && last.id === anchor) {
+              const dAngle = wrapAngle(angle - last.angle);
+              if (Math.abs(dAngle) > 1e-9) {
+                _scratchVecC.copy(camera.position).sub(lastTargetPosRef.current).applyAxisAngle(_yAxis, dAngle);
+                camera.position.copy(lastTargetPosRef.current).add(_scratchVecC);
+              }
+            }
+            lastOrbitAngleRef.current = { id: anchor, angle };
+          } else lastOrbitAngleRef.current = null;
           _scratchVecB.copy(_scratchVecA).sub(lastTargetPosRef.current);
           camera.position.add(_scratchVecB);
           controlsRef.current.target.copy(_scratchVecA);
@@ -549,6 +583,7 @@ const UniverseCameraManager: React.FC = () => {
       }
       lastTargetPosRef.current.copy(liveTargetPos);
       isTrackingRef.current = true;
+      lastOrbitAngleRef.current = null;
       useQuantumStore.getState().setArrivedCosmicBodyId(selectedCosmicBodyId);
       return;
     }
@@ -587,6 +622,7 @@ const UniverseCameraManager: React.FC = () => {
         }
         isTweeningRef.current = false;
         isTrackingRef.current = true;
+        lastOrbitAngleRef.current = null;
         // Only if this is still the selection (a newer selection restarts the wait)
         const st = useQuantumStore.getState();
         if (st.selectedCosmicBodyId === selectedCosmicBodyId) st.setArrivedCosmicBodyId(selectedCosmicBodyId);

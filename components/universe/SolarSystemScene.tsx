@@ -17,6 +17,7 @@ import {
 } from '@/lib/planetTextures';
 import { registerCelestialObject, unregisterCelestialObject } from '@/lib/celestialRegistry';
 import { RealisticVoyagerProbe } from './models/RealisticVoyager1';
+import { RealisticPioneerProbe, RealisticNewHorizonsProbe } from './models/RealisticOuterProbes';
 import { RealisticJWST } from './models/RealisticJWST';
 import { RealisticHubble } from './models/RealisticHubble';
 import { RealisticComet } from './smallbodies/RealisticComet';
@@ -24,12 +25,15 @@ import { RealisticAsteroid } from './smallbodies/RealisticAsteroid';
 import { MeteorShowerEffect } from './smallbodies/MeteorShowerEffect';
 import { InterstellarTrajectories } from './trajectories/InterstellarTrajectories';
 import { PooledPointLight } from '@/components/universe/rendering/LightPool';
-import { worldPositionAt, localPositionAt, orbitPointAtAngle, getBodyFrame } from '@/lib/frames';
+import { worldPositionAt, localPositionAt, orbitPointAtAngle, orbitPathPoints, getBodyFrame } from '@/lib/frames';
+import { poleQuaternion, hasRotation } from '@/lib/ephemeris';
+import { updatePlanetSpin } from './rendering/planetSpin';
+import { LaunchGate } from './rendering/LaunchGate';
 import { getRealTexture, RealTextureName } from '@/lib/realTextures';
 import { createNightLitMaterial, createAtmosphereMaterial } from '@/components/universe/rendering/celestialMaterials';
 import { StarBody } from '@/components/universe/rendering/StarBody';
 import { simClock } from '@/lib/simClock';
-import { rockGeometry } from './smallbodies/rockGeometry';
+import { rockGeometry, RockOptions } from './smallbodies/rockGeometry';
 import { scaledCount } from '@/lib/deviceQuality';
 import { EARTH_YEAR_SECONDS } from '@/lib/simClock';
 
@@ -72,6 +76,97 @@ const AtmosphereShell: React.FC<{ radius: number; color: string; strength?: numb
   );
 };
 
+// ---------------------------------------------------------------------------------------------------------------
+// Moons: clickable like planets (card, label, selection ring), placed by the frame graph on the shared clock, and
+// tidally locked (each keeps one face toward its planet, as all of these real moons do). Surfaces reuse the real
+// maps, tinted; the small irregular Martian moons use the rock generator.
+// ---------------------------------------------------------------------------------------------------------------
+const MOON_LOOKS: Record<string, { map?: RealTextureName; tint?: string; rock?: Omit<RockOptions, 'radius'>; haze?: string }> = {
+  moon: { map: 'moon', tint: '#ffffff' },
+  phobos: {
+    rock: { seed: 27, detail: 4, relief: 0.12, craters: 18, stretch: [1.25, 0.82, 1.0], color: '#6f655c', giantCrater: { dir: [1, 0.1, 0.2], size: 0.55, depth: 0.2 } },
+  },
+  deimos: { rock: { seed: 31, detail: 4, relief: 0.06, craters: 6, stretch: [1.2, 0.85, 0.95], color: '#857a6e' } },
+  io: { map: 'venus_surface', tint: '#f6de6a' }, // sulfur plains and dark volcanic spots, no impact craters
+  europa: { map: 'moon', tint: '#f1e3cf' },
+  ganymede: { map: 'moon', tint: '#bcae99' },
+  callisto: { map: 'moon', tint: '#7a6e62' },
+  enceladus: { map: 'moon', tint: '#ffffff' },
+  titan: { map: 'venus_atmosphere', tint: '#d99b45', haze: '#e9a349' }, // hidden under orange nitrogen–methane haze
+  titania: { map: 'moon', tint: '#b8ada2' },
+  triton: { map: 'mercury', tint: '#e8d3c8' },
+  charon: { map: 'moon', tint: '#a39a92' },
+};
+
+const _moonParentWorld = new THREE.Vector3();
+
+const SolarMoon: React.FC<{ id: string }> = ({ id }) => {
+  const body = CELESTIAL_BODIES[id];
+  const look = MOON_LOOKS[id] ?? { map: 'moon' as RealTextureName };
+  const isSelected = useQuantumStore((st) => st.selectedCosmicBodyId === id);
+  const language = useQuantumStore((st) => st.language);
+  const [hovered, setHovered] = useState(false);
+  const rootRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    if (rootRef.current) registerCelestialObject(id, rootRef.current);
+    return () => unregisterCelestialObject(id, rootRef.current ?? undefined);
+  }, [id]);
+
+  const rock = useMemo(() => (look.rock ? rockGeometry({ radius: body.size, ...look.rock }) : null), [look.rock, body.size]);
+  useEffect(() => () => rock?.dispose(), [rock]);
+
+  useFrame(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    localPositionAt(id, simClock.time, root.position);
+    // Tidal locking: turn the same face (the map's centre) toward the planet
+    if (root.parent) root.lookAt(root.parent.getWorldPosition(_moonParentWorld));
+  });
+
+  return (
+    <group
+      ref={rootRef}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (e.delta && e.delta > 5) return;
+        e.stopPropagation();
+        useQuantumStore.getState().setSelectedCosmicBodyId(id);
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+    >
+      {rock ? (
+        <mesh geometry={rock}>
+          <meshStandardMaterial vertexColors roughness={0.97} metalness={0} />
+        </mesh>
+      ) : (
+        // The map's centre (+x) turned to +z, which lookAt points at the planet
+        <mesh rotation={[0, -Math.PI / 2, 0]}>
+          <sphereGeometry args={[body.size, 48, 48]} />
+          <meshStandardMaterial map={getRealTexture(look.map ?? 'moon')} color={look.tint ?? '#ffffff'} roughness={0.95} metalness={0} />
+        </mesh>
+      )}
+      {look.haze && <AtmosphereShell radius={body.size * 1.12} color={look.haze} strength={1.6} />}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+          <ringGeometry args={[body.size * 1.5, body.size * 1.55, 96]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.45} />
+        </mesh>
+      )}
+      {(hovered || isSelected) && (
+        <Html position={[0, body.size * 1.8, 0]} center>
+          <div className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-400/70 shadow-xl text-[11px] font-bold text-slate-100 whitespace-nowrap pointer-events-none">
+            🌙 {language === 'ar' ? body.nameAr : body.nameEn}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
 // ==========================================
 // REALISTIC EARTH WITH ROTATING CLOUD SHIFT
 // ==========================================
@@ -101,14 +196,6 @@ const RealisticEarth: React.FC<{
     };
   }, []);
 
-  useEffect(() => {
-    if (moonGroupRef.current) {
-      registerCelestialObject('moon', moonGroupRef.current);
-    }
-    return () => {
-      unregisterCelestialObject('moon');
-    };
-  }, []);
 
   const [textures, setTextures] = useState<{
     earth?: THREE.CanvasTexture;
@@ -150,10 +237,6 @@ const RealisticEarth: React.FC<{
       }),
     []
   );
-  const moonMaterial = useMemo(
-    () => new THREE.MeshStandardMaterial({ map: getRealTexture('moon'), roughness: 0.95, metalness: 0 }),
-    []
-  );
   const _earthWorld = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, delta) => {
@@ -162,22 +245,16 @@ const RealisticEarth: React.FC<{
     if (earthGroupRef.current) worldPositionAt('earth', simClock.time, earthGroupRef.current.position);
     earthMaterial.userData.updateSun?.(state.camera);
 
-    // 2. Earth surface rotates on its 23.4° tilted axis
-    if (surfaceRef.current) {
-      surfaceRef.current.rotation.y += (body.rotationSpeed || 0.015) * delta * 60;
-    }
+    // 2. Earth turns to its real rotation angle for the date (the side under the Sun matches the time of day)
+    if (surfaceRef.current) updatePlanetSpin('earth', surfaceRef.current, delta);
 
-    // 3. Independent cloud rotation (faster atmospheric jet streams)
-    if (cloudsRef.current) {
-      cloudsRef.current.rotation.y += (body.rotationSpeed || 0.015) * 1.35 * delta * 60;
+    // 3. Clouds ride with the surface, drifting slowly over it
+    if (cloudsRef.current && surfaceRef.current) {
+      cloudsRef.current.rotation.y = surfaceRef.current.rotation.y + simClock.time * 0.01;
     }
 
     // 4. Moon orbits Earth (its real mean longitude, so the phase seen from Earth is right)
-    if (moonGroupRef.current) {
-      localPositionAt('moon', simClock.time, moonGroupRef.current.position);
-      // Tidally locked: the same face (the near side of the real map) always turns toward Earth
-      if (earthGroupRef.current) moonGroupRef.current.lookAt(earthGroupRef.current.getWorldPosition(_earthWorld));
-    }
+
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -187,7 +264,8 @@ const RealisticEarth: React.FC<{
     <group ref={earthGroupRef} position={body.position}>
       {/* Earth System Root */}
       <group
-        rotation={[0.41, 0, 0]} // 23.4° axial tilt
+        // Real 23.4° tilt toward its real direction: the north pole leans toward the Sun in June, away in December
+        quaternion={poleQuaternion('earth')}
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (e.delta && e.delta > 5) return;
           e.stopPropagation();
@@ -211,6 +289,16 @@ const RealisticEarth: React.FC<{
 
         {/* Rayleigh-blue limb, brightest on the day side */}
         <AtmosphereShell radius={body.size * 1.045} color="#5aa9ff" strength={1.35} />
+
+        {/* Spin axis (north half brighter), so the tilt behind the seasons is visible */}
+        <mesh position={[0, body.size * 1.3, 0]} raycast={() => null}>
+          <cylinderGeometry args={[body.size * 0.012, body.size * 0.012, body.size * 0.9, 6]} />
+          <meshBasicMaterial color="#7dd3fc" transparent opacity={0.85} />
+        </mesh>
+        <mesh position={[0, -body.size * 1.3, 0]} raycast={() => null}>
+          <cylinderGeometry args={[body.size * 0.012, body.size * 0.012, body.size * 0.9, 6]} />
+          <meshBasicMaterial color="#64748b" transparent opacity={0.6} />
+        </mesh>
 
         {/* Selection / Highlight Pulse Ring */}
         {(isSelected || isHighlighted) && (
@@ -237,14 +325,7 @@ const RealisticEarth: React.FC<{
       </group>
 
       {/* Moon Orbiting Earth */}
-      <group ref={moonOrbitRef}>
-        <group ref={moonGroupRef}>
-          {/* Real lunar map; the near side (map centre, +x) turned to face +z, which lookAt points at Earth */}
-          <mesh material={moonMaterial} rotation={[0, -Math.PI / 2, 0]}>
-            <sphereGeometry args={[moonBody.size, 48, 48]} />
-          </mesh>
-        </group>
-      </group>
+      <SolarMoon id="moon" />
     </group>
   );
 };
@@ -266,25 +347,6 @@ const RealisticMars: React.FC<{
   const marsMeshRef = useRef<THREE.Mesh>(null);
   const phobosOrbitRef = useRef<THREE.Group>(null);
   const phobosRef = useRef<THREE.Group>(null);
-  const phobosGeometry = useMemo(
-    () =>
-      rockGeometry({
-        radius: 0.18,
-        seed: 27,
-        detail: 4,
-        relief: 0.12,
-        craters: 18,
-        stretch: [1.25, 0.82, 1.0],
-        color: '#6f655c',
-        giantCrater: { dir: [1, 0.1, 0.2], size: 0.55, depth: 0.2 },
-      }),
-    []
-  );
-  useEffect(() => () => phobosGeometry.dispose(), [phobosGeometry]);
-  useEffect(() => {
-    if (phobosRef.current) registerCelestialObject('phobos', phobosRef.current);
-    return () => unregisterCelestialObject('phobos');
-  }, []);
 
   const [marsTexture, setMarsTexture] = useState<THREE.CanvasTexture | null>(null);
 
@@ -306,10 +368,8 @@ const RealisticMars: React.FC<{
     if (marsGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
       worldPositionAt('mars', simClock.time, marsGroupRef.current.position);
     }
-    if (marsMeshRef.current) {
-      marsMeshRef.current.rotation.y += (body.rotationSpeed || 0.014) * delta * 60;
-    }
-    if (phobosRef.current) localPositionAt('phobos', simClock.time, phobosRef.current.position);
+    if (marsMeshRef.current) updatePlanetSpin('mars', marsMeshRef.current, delta);
+
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -317,7 +377,7 @@ const RealisticMars: React.FC<{
   return (
     <group ref={marsGroupRef} position={body.position}>
       <group
-        rotation={[0.44, 0, 0]} // 25.2° axial tilt
+        quaternion={poleQuaternion('mars')} // real 25.2° tilt and pole direction (Mars has seasons too)
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (e.delta && e.delta > 5) return;
           e.stopPropagation();
@@ -360,21 +420,8 @@ const RealisticMars: React.FC<{
       </group>
 
       {/* Orbiting Moon Phobos (registered, so it can be selected and followed) */}
-      <group ref={phobosOrbitRef}>
-        <group
-          ref={phobosRef}
-          onClick={(e: ThreeEvent<MouseEvent>) => {
-            if (e.delta && e.delta > 5) return;
-            e.stopPropagation();
-            useQuantumStore.getState().setSelectedCosmicBodyId('phobos');
-          }}
-        >
-          {/* Phobos: 27 × 22 × 18 km potato, grooved, with the 9 km Stickney crater */}
-          <mesh geometry={phobosGeometry}>
-            <meshStandardMaterial vertexColors roughness={0.97} metalness={0} />
-          </mesh>
-        </group>
-      </group>
+      <SolarMoon id="phobos" />
+      <SolarMoon id="deimos" />
     </group>
   );
 };
@@ -413,23 +460,13 @@ const RealisticJupiter: React.FC<{
     };
   }, []);
 
-  useEffect(() => {
-    if (europaGroupRef.current) {
-      registerCelestialObject('europa', europaGroupRef.current);
-    }
-    return () => {
-      unregisterCelestialObject('europa');
-    };
-  }, []);
 
   useFrame((_, delta) => {
     if (jupiterGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
       worldPositionAt('jupiter', simClock.time, jupiterGroupRef.current.position);
     }
-    if (jupiterMeshRef.current) {
-      jupiterMeshRef.current.rotation.y += (body.rotationSpeed || 0.035) * delta * 60;
-    }
-    if (europaGroupRef.current) localPositionAt('europa', simClock.time, europaGroupRef.current.position);
+    if (jupiterMeshRef.current) updatePlanetSpin('jupiter', jupiterMeshRef.current, delta);
+
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -438,6 +475,7 @@ const RealisticJupiter: React.FC<{
   return (
     <group ref={jupiterGroupRef} position={body.position}>
       <group
+        quaternion={poleQuaternion('jupiter')} // real 3° tilt
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (e.delta && e.delta > 5) return;
           e.stopPropagation();
@@ -478,15 +516,10 @@ const RealisticJupiter: React.FC<{
       </group>
 
       {/* Orbiting Moon Europa */}
-      <group ref={europaOrbitRef}>
-        <group ref={europaGroupRef}>
-          <mesh>
-            <sphereGeometry args={[europaBody.size, 20, 20]} />
-            {/* Icy crust stained by reddish-brown lineae: the lunar map, tinted, gives it a cracked relief */}
-            <meshStandardMaterial map={getRealTexture('moon')} color="#f1e3cf" roughness={0.55} metalness={0} />
-          </mesh>
-        </group>
-      </group>
+      <SolarMoon id="io" />
+      <SolarMoon id="europa" />
+      <SolarMoon id="ganymede" />
+      <SolarMoon id="callisto" />
     </group>
   );
 };
@@ -525,14 +558,6 @@ const RealisticSaturn: React.FC<{
     };
   }, []);
 
-  useEffect(() => {
-    if (titanGroupRef.current) {
-      registerCelestialObject('titan', titanGroupRef.current);
-    }
-    return () => {
-      unregisterCelestialObject('titan');
-    };
-  }, []);
 
   const saturnRingGeometry = useMemo(() => radialRingGeometry(body.size * 1.24, body.size * 2.27, 160), [body.size]);
   useEffect(() => () => saturnRingGeometry.dispose(), [saturnRingGeometry]);
@@ -541,10 +566,8 @@ const RealisticSaturn: React.FC<{
     if (saturnGroupRef.current && body.orbitalRadius && body.orbitalSpeed) {
       worldPositionAt('saturn', simClock.time, saturnGroupRef.current.position);
     }
-    if (saturnMeshRef.current) {
-      saturnMeshRef.current.rotation.y += (body.rotationSpeed || 0.03) * delta * 60;
-    }
-    if (titanGroupRef.current) localPositionAt('titan', simClock.time, titanGroupRef.current.position);
+    if (saturnMeshRef.current) updatePlanetSpin('saturn', saturnMeshRef.current, delta);
+
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -553,7 +576,7 @@ const RealisticSaturn: React.FC<{
   return (
     <group ref={saturnGroupRef} position={body.position}>
       <group
-        rotation={[0.47, 0, 0.1]} // 26.7° axial tilt
+        quaternion={poleQuaternion('saturn')} // real 26.7° tilt: the rings open and close as seen from Earth
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (e.delta && e.delta > 5) return;
           e.stopPropagation();
@@ -608,16 +631,8 @@ const RealisticSaturn: React.FC<{
       </group>
 
       {/* Orbiting Moon Titan */}
-      <group ref={titanOrbitRef}>
-        <group ref={titanGroupRef}>
-          {/* Titan's thick orange nitrogen-methane haze hides its surface */}
-          <AtmosphereShell radius={titanBody.size * 1.12} color="#e9a349" strength={1.6} />
-          <mesh>
-            <sphereGeometry args={[titanBody.size, 32, 32]} />
-            <meshStandardMaterial color="#c98a3a" roughness={0.9} />
-          </mesh>
-        </group>
-      </group>
+      <SolarMoon id="enceladus" />
+      <SolarMoon id="titan" />
     </group>
   );
 };
@@ -651,12 +666,8 @@ const RealisticPluto: React.FC<{
   useFrame((_, delta) => {
     // Real 17° inclination and 248-year period come from the frame graph
     if (plutoGroupRef.current) worldPositionAt('pluto', simClock.time, plutoGroupRef.current.position);
-    if (plutoMeshRef.current) {
-      plutoMeshRef.current.rotation.y += (body.rotationSpeed || 0.008) * delta * 60;
-    }
-    if (charonOrbitRef.current) {
-      charonOrbitRef.current.rotation.y = (2 * Math.PI * simClock.time) / 8;
-    }
+    if (plutoMeshRef.current) updatePlanetSpin('pluto', plutoMeshRef.current, delta);
+
   });
 
   const displayName = language === 'ar' ? body.nameAr : body.nameEn;
@@ -664,7 +675,7 @@ const RealisticPluto: React.FC<{
   return (
     <group ref={plutoGroupRef} position={body.position}>
       <group
-        rotation={[2.08, 0, 0]} // 119.5° extreme retrograde axial tilt
+        quaternion={poleQuaternion('pluto')} // real 119.5° tilt (it rotates on its side, backwards)
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (e.delta && e.delta > 5) return;
           e.stopPropagation();
@@ -728,12 +739,7 @@ const RealisticPluto: React.FC<{
       </group>
 
       {/* Orbiting Moon Charon */}
-      <group ref={charonOrbitRef}>
-        <mesh position={[1.4, 0.15, 0]}>
-          <sphereGeometry args={[0.21, 20, 20]} />
-          <meshStandardMaterial color="#94a3b8" roughness={0.9} />
-        </mesh>
-      </group>
+      <SolarMoon id="charon" />
     </group>
   );
 };
@@ -750,7 +756,8 @@ const StandardPlanet: React.FC<{
   onPointerOver: () => void;
   onPointerOut: () => void;
   language: 'en' | 'ar';
-}> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language }) => {
+  moons?: string[];
+}> = ({ body, isSelected, isHovered, isHighlighted, onClick, onPointerOver, onPointerOut, language, moons }) => {
   const meshRef = useRef<THREE.Group>(null);
   const spinRef = useRef<THREE.Mesh>(null);
 
@@ -767,7 +774,8 @@ const StandardPlanet: React.FC<{
   useFrame((_, delta) => {
     if (!meshRef.current) return;
     // Spin the planet itself (not its label or selection ring); negative speeds are retrograde (Venus, Uranus)
-    if (body.rotationSpeed && spinRef.current) {
+    if (spinRef.current && hasRotation(body.id)) updatePlanetSpin(body.id, spinRef.current, delta);
+    else if (body.rotationSpeed && spinRef.current) {
       spinRef.current.rotation.y += body.rotationSpeed * delta * 60 * simClock.scale;
     }
     worldPositionAt(body.id, simClock.time, meshRef.current.position);
@@ -790,7 +798,12 @@ const StandardPlanet: React.FC<{
       }}
       onPointerOut={() => onPointerOut()}
     >
-      <group rotation={[((AXIAL_TILT_DEG[body.id] ?? 0) * Math.PI) / 180, 0, 0]}>
+      {/* Real pole direction (IAU) where known, otherwise the catalogue tilt */}
+      <group
+        {...(hasRotation(body.id)
+          ? { quaternion: poleQuaternion(body.id) }
+          : { rotation: [((AXIAL_TILT_DEG[body.id] ?? 0) * Math.PI) / 180, 0, 0] as [number, number, number] })}
+      >
         <mesh ref={spinRef}>
           <sphereGeometry args={[body.size, 64, 64]} />
           {PLANET_MAPS[body.id] ? (
@@ -814,6 +827,7 @@ const StandardPlanet: React.FC<{
           strength={ATMOSPHERES[body.id].strength}
         />
       )}
+      {moons?.map((m) => <SolarMoon key={m} id={m} />)}
 
       {(isSelected || isHighlighted) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -845,6 +859,8 @@ const OrbitLine: React.FC<{ radius: number; color?: string; bodyId?: string }> =
     const pts = [];
     const segments = 160;
     const frame = bodyId ? getBodyFrame(bodyId) : undefined;
+    // The real orbit (eccentric, tilted, perihelion in its true direction) from the same elements as the planet
+    if (bodyId && frame && frame.kind === 'orbit') return orbitPathPoints(bodyId, segments);
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
       // Follow the body's real, inclined orbit from the frame graph when it has one
@@ -1218,6 +1234,7 @@ export const SolarSystemScene: React.FC = () => {
       {/* Uranus & Neptune Ice Giants */}
       <StandardPlanet
         body={CELESTIAL_BODIES.uranus}
+        moons={['titania']}
         isSelected={selectedCosmicBodyId === 'uranus'}
         isHovered={hoveredBodyId === 'uranus'}
         isHighlighted={isHighlighted(CELESTIAL_BODIES.uranus)}
@@ -1228,6 +1245,7 @@ export const SolarSystemScene: React.FC = () => {
       />
       <StandardPlanet
         body={CELESTIAL_BODIES.neptune}
+        moons={['triton']}
         isSelected={selectedCosmicBodyId === 'neptune'}
         isHovered={hoveredBodyId === 'neptune'}
         isHighlighted={isHighlighted(CELESTIAL_BODIES.neptune)}
@@ -1259,37 +1277,70 @@ export const SolarSystemScene: React.FC = () => {
 
       {/* Ultra-Realistic Deep Space Probes & Satellites */}
       {CELESTIAL_BODIES.voyager_1 && (
+        <LaunchGate id="voyager_1">
         <RealisticVoyagerProbe
           body={CELESTIAL_BODIES.voyager_1}
           language={language}
           isSelected={selectedCosmicBodyId === 'voyager_1'}
           onSelect={() => setSelectedCosmicBodyId('voyager_1')}
         />
+        </LaunchGate>
       )}
 
       {CELESTIAL_BODIES.voyager_2 && (
+        <LaunchGate id="voyager_2">
         <RealisticVoyagerProbe
           body={CELESTIAL_BODIES.voyager_2}
           language={language}
           isSelected={selectedCosmicBodyId === 'voyager_2'}
           onSelect={() => setSelectedCosmicBodyId('voyager_2')}
         />
+        </LaunchGate>
       )}
 
-      <RealisticJWST
-        body={CELESTIAL_BODIES.jwst}
-        language={language}
-        isSelected={selectedCosmicBodyId === 'jwst'}
-        onSelect={() => setSelectedCosmicBodyId('jwst')}
-      />
+      {(['pioneer_10', 'pioneer_11'] as const).map(
+        (id) =>
+          CELESTIAL_BODIES[id] && (
+            <LaunchGate key={id} id={id}>
+            <RealisticPioneerProbe
+              body={CELESTIAL_BODIES[id]}
+              language={language}
+              isSelected={selectedCosmicBodyId === id}
+              onSelect={() => setSelectedCosmicBodyId(id)}
+            />
+            </LaunchGate>
+          )
+      )}
+
+      {CELESTIAL_BODIES.new_horizons && (
+        <LaunchGate id="new_horizons">
+        <RealisticNewHorizonsProbe
+          body={CELESTIAL_BODIES.new_horizons}
+          language={language}
+          isSelected={selectedCosmicBodyId === 'new_horizons'}
+          onSelect={() => setSelectedCosmicBodyId('new_horizons')}
+        />
+        </LaunchGate>
+      )}
+
+      <LaunchGate id="jwst">
+        <RealisticJWST
+          body={CELESTIAL_BODIES.jwst}
+          language={language}
+          isSelected={selectedCosmicBodyId === 'jwst'}
+          onSelect={() => setSelectedCosmicBodyId('jwst')}
+        />
+      </LaunchGate>
 
       {CELESTIAL_BODIES.hubble && (
-        <RealisticHubble
-          body={CELESTIAL_BODIES.hubble}
-          language={language}
-          isSelected={selectedCosmicBodyId === 'hubble'}
-          onSelect={() => setSelectedCosmicBodyId('hubble')}
-        />
+        <LaunchGate id="hubble">
+          <RealisticHubble
+            body={CELESTIAL_BODIES.hubble}
+            language={language}
+            isSelected={selectedCosmicBodyId === 'hubble'}
+            onSelect={() => setSelectedCosmicBodyId('hubble')}
+          />
+        </LaunchGate>
       )}
     </group>
   );

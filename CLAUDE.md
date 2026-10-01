@@ -42,6 +42,8 @@ First visit (no remembered world and no `?world=` link): `components/ui/WorldCho
 - **Linger**: other smaller scales stay visible while one of their top-level bodies is still ≥ 3 px.
 - **Selection**: the selected body's scale is always shown.
 
+The cosmic web fades out within 48,000 units of home, but Laniakea's heart, the Great Attractor (`great_attractor`, ~44,600 units out), would then be invisible right where you reach it. So Laniakea sits outside the web's fade group with its own fade (`laniakeaFade` in `CosmicWebScene`), which keeps it visible within ~20,000 units of the Great Attractor.
+
 Origin-enclosing "container" bodies (the Sun, Milky Way, Laniakea, CMB) are ignored by the proximity and linger rules. Change thresholds there, and simulate offline before touching the app. `node scratch/test_transition_pops.js` must stay at 0 pops.
 
 **Rendering rules** (`components/universe/rendering/`). Follow these when adding scene content:
@@ -71,6 +73,7 @@ Origin-enclosing "container" bodies (the Sun, Milky Way, Laniakea, CMB) are igno
   - Free-flight speed and scroll step come from `navigationScale` (`lib/scaleVisibility.ts`):
     - In the Milky Way region and intergalactic space, it is the distance from the origin, so zooming converges on the Solar System.
     - Inside another galaxy, it is the distance to the nearest compact body, so you glide between its stars instead of flying through the galaxy.
+  - Fields of individual stars or galaxies that the camera can fly *into* (galaxy interiors, bulges, the Giant Stellar Stream, Laniakea) use `starPointSprites` instead: the same minimum size, but sprites also stop growing at 6 px and get brighter instead, so nearby stars don't turn into large fuzzy discs.
   - Dense point fields use `softenPointSprites` (a ref on `<pointsMaterial>`), which enforces a minimum sprite size with conserved light so sub-pixel stars don't sparkle.
   - Components that place a group at `body.position` must pass inner renderers (`RealisticBlackHole`, `RealisticPulsar`…) a body with a local `[0,0,0]` position, otherwise the offset doubles. `window.__universeDebug.positionAudit()` lists objects drawn far from their catalogued position.
   - Companions (planets, binary partners) must orbit clear of their star's rendered radius (`star.size`, plus any glow or scale), or they end up buried inside it and unclickable. Register each body of a binary on its own group, so selecting it frames that body rather than the system centre. `window.__universeDebug.pick(x, y)` lists what a click at a screen point hits.
@@ -79,7 +82,7 @@ Origin-enclosing "container" bodies (the Sun, Milky Way, Laniakea, CMB) are igno
 **Camera requests and the registry**:
 - Other code never moves the camera directly. It sends requests through the store: `requestScaleNavigation(level)`, `requestContinuousZoom(dir, factor)`, and `setSelectedCosmicBodyId(id)`. The manager consumes these (`{…, timestamp}` objects, so repeat requests still fire).
 - Selecting a body tweens to it and then **follows** it each frame. Tracking breaks away beyond `40 × framingDistance`.
-- The object info card (`CelestialInspectorTooltip`) waits for the camera: the selection tween's `onComplete` sets `arrivedCosmicBodyId`, and the card appears 1.5 s later (6 s fallback).
+- The object info card (`CelestialInspectorTooltip`) waits for the camera: the selection tween's `onComplete` sets `arrivedCosmicBodyId`, and the card appears 0.75 s later (6 s fallback).
   - A double-click anywhere in `[data-universe-root]` calls `showCosmicCardNow()` to show it at once.
   - A pointer-down outside the card only closes it (`dismissCosmicCard`). The body stays selected and followed, and clicking it again reopens the card.
   - Re-selecting the current body is a no-op for the flight.
@@ -120,13 +123,28 @@ Origin-enclosing "container" bodies (the Sun, Milky Way, Laniakea, CMB) are igno
   - At ×1, `EARTH_YEAR_SECONDS` (180 s) is one Earth year.
   - `setSimTimeScale` pauses or speeds time; `components/universe/hud/TimeControl.tsx` is the UI and shows the simulated sky date.
   - Motion must never use `clock.getElapsedTime()`, `Date.now()` or angles accumulated per frame. Shader effects like pulses may use real time.
+- **Real sky for any date** (`lib/ephemeris.ts`):
+  - Planets come from JPL/Standish Keplerian elements (valid 1800–2050, still close outside it), placed in their true direction at `radius × r / a`, so orbits keep their real eccentricity and orientation. Orbit guides use `orbitPathPoints`.
+  - The Moon uses the main lunar terms, so its phase is right to about half a degree.
+  - Spin axes and rotation use IAU pole RA/Dec and `W = W0 + Ẇ·d`. `poleQuaternion(id)` orients each planet's tilt group: local +y is the pole, and +x is the node the prime meridian is measured from. `updatePlanetSpin` (`rendering/planetSpin.ts`) turns the surface to the true angle, so on Earth the side under the Sun matches the UTC time; it caps the visual spin when time runs fast and settles once time slows.
+  - Moons with `plane: 'equator'` orbit in their planet's real equatorial plane.
+  - `earthSeason` and `seasonEventDate` give the seasons and equinox/solstice dates. They are measured from the equinox of date, with precession. `scratch/check_ephemeris.js` checks all of this offline.
+- **Picking a date.**
+  - `TimeControl`'s date button shows the season on hover and opens a picker on click (date + UTC time, Today, this year's equinoxes and solstices).
+  - `travelToDate` glides `simClock.time` there in 0.8–2.4 s, then pauses on that date.
+  - While following a planet, the camera turns with its orbit around the Sun, so the lit side stays in view.
+  - Spacecraft render through `LaunchGate` (`LAUNCH_UTC`), and probes fly their real `route` (launch, then the flybys) before their straight escape.
+  - `scratch/test_sky_date.js` covers all of this.
 - **Frame data.** `data/bodyFrames.ts` gives each moving body a parent and a placement:
   - `orbit`: radius in scene units, real period in days, a real J2000 mean longitude (so planets start where they are today) or a phase, and inclination/node.
   - `lagrange`: JWST at Sun–Earth L2.
-  - `trajectory`: the Voyagers on their real headings.
+  - `trajectory`: the Voyagers, Pioneers 10/11 and New Horizons on their real headings (each probe's RA/Dec on the sky converted to ecliptic lon/lat; distances mapped between Pluto's orbit and the Voyagers). `InterstellarTrajectories` draws their real flyby routes and heading beacons, and the card's telemetry box reads `PROBE_TELEMETRY`.
   - Bodies without an entry are fixed at their `CELESTIAL_BODIES.position`.
 - **Frame maths.** `lib/frames.ts` provides the pure functions `worldPositionAt(id, t)`, `localPositionAt`, `orbitAngleAt`, `orbitPointAtAngle` (orbit guides), `heliocentricPositionOnDate` (historical positions, e.g. the Voyager flyby routes), `eclipticDirection`, and `validateFrames()` (parents, cycles, clearance from the parent's rendered size, periods growing outward; also exposed as `window.__universeDebug.validateFrames()`).
 - **Axes.** Scene y is ecliptic north and the ecliptic (X, Y) maps to scene (x, −z), so orbits run counter-clockwise seen from the north.
+- **Stars & Relics placement.** Positions come from `skyPosition(raDeg, decDeg, lightYears)` (`lib/skyPosition.ts`): each star's real J2000 direction in the ecliptic frame, at a distance that grows with log10(light-years). This fits Proxima (200 units) and GRO J1655−40 (~2,250) inside the scale 2 band and keeps the real distance order. Companions use `offsetFrom(...)`. Never hand-type positions for real stars.
+- **Constellations** (`data/constellationData.ts`) are generated, not hand-typed. Each star is `s(id, nameEn, nameAr, ra, dec, lightYears, mag, type, colour)`, which places it with `skyPosition`, so figures look like the real sky from the Sun. Data comes from SIMBAD (RA/Dec, parallax, V, spectral type), and stick figures from Stellarium's `modern_iau` sky culture (`modern` where that is fuller). Parallaxes under 1 mas are capped at 1 mas. Stars that are also bodies (Sirius, Betelgeuse) reuse the body id and its numbers. `define()` computes the label point and radius. `scratch/test_faq_items.js` screenshots every figure from the Sun.
+- **Moons.** `SolarMoon` (`SolarSystemScene.tsx`) is the one component for every Solar System moon. It is registered, clickable with a card and label, placed by its frame orbit in the planet's equatorial plane, and tidally locked. Looks come from `MOON_LOOKS`, which reuses real maps with a tint or the rock generator. To add a moon, create a `CELESTIAL_BODIES` entry (verified NASA image URL) and a `BODY_FRAMES` orbit, then render `<SolarMoon id>` inside its planet's group.
 - **Screen periods.** On-screen periods keep real ratios, with an 8 s floor for very fast orbits. `isMotionScaled(id)` flags them, and the info card says "motion speeded up".
 - **Renderers read positions, they don't compute them.** A group placed in world space sets `worldPositionAt(id, simClock.time, group.position)` each frame; a child inside its parent's group uses `localPositionAt`. Visibility rules (`lodPosition` in `lib/scaleVisibility.ts`) use the same frame positions.
 
